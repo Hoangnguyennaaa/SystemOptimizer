@@ -1,9 +1,9 @@
 Package: com.hoangnguyen.compactstatusbartweak
 Name: CompactStatusBar
 Depends: mobilesubstrate, preferenceloader
-Version: 1.0.2
+Version: 1.0.3
 Architecture: iphoneos-arm64
-Description: Compact 3-in-1 status bar gauge for iOS 15 (iPhone 7 Plus)
+Description: Compact 3-in-1 status bar gauge for iOS 15 with deep customization
 Maintainer: Hoangnguyen
 Author: Hoangnguyen
 Section: Tweaks

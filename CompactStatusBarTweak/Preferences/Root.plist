@@ -4,6 +4,7 @@
 <dict>
     <key>items</key>
     <array>
+        <!-- 1. Trạng thái -->
         <dict>
             <key>cell</key>
             <string>PSGroupCell</string>
@@ -25,78 +26,198 @@
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
 
+        <!-- 2. Kích thước & Độ trong suốt -->
         <dict>
             <key>cell</key>
             <string>PSGroupCell</string>
             <key>label</key>
-            <string>ẨN BIỂU TƯỢNG HỆ THỐNG GỐC</string>
+            <string>KÍCH THƯỚC &amp; ĐỘ TRONG SUỐT</string>
             <key>footerText</key>
-            <string>Ẩn các biểu tượng gốc để tránh trùng lặp với cụm 3-trong-1.</string>
+            <string>Kéo thanh trượt để điều chỉnh độ to nhỏ (0.7x - 1.5x) và độ mờ của biểu tượng.</string>
         </dict>
         <dict>
             <key>cell</key>
-            <string>PSSwitchCell</string>
+            <string>PSSliderCell</string>
             <key>default</key>
-            <false/>
-            <key>defaults</key>
-            <string>com.hoangnguyen.compactstatusbar</string>
-            <key>key</key>
-            <string>hideStockWifi</string>
-            <key>label</key>
-            <string>Ẩn biểu tượng Wi-Fi gốc</string>
-            <key>PostNotification</key>
-            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
-        </dict>
-        <dict>
-            <key>cell</key>
-            <string>PSSwitchCell</string>
-            <key>default</key>
-            <false/>
-            <key>defaults</key>
-            <string>com.hoangnguyen.compactstatusbar</string>
-            <key>key</key>
-            <string>hideStockCellular</string>
-            <key>label</key>
-            <string>Ẩn biểu tượng Sóng di động gốc</string>
-            <key>PostNotification</key>
-            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
-        </dict>
-        <dict>
-            <key>cell</key>
-            <string>PSSwitchCell</string>
-            <key>default</key>
+            <real>1.0</real>
+            <key>min</key>
+            <real>0.7</real>
+            <key>max</key>
+            <real>1.5</real>
+            <key>showValue</key>
             <true/>
             <key>defaults</key>
             <string>com.hoangnguyen.compactstatusbar</string>
             <key>key</key>
-            <string>hideStockBatteryPercent</string>
-            <key>label</key>
-            <string>Ẩn chữ số % Pin gốc</string>
+            <string>iconScale</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>1.0</real>
+            <key>min</key>
+            <real>0.2</real>
+            <key>max</key>
+            <real>1.0</real>
+            <key>showValue</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>iconOpacity</string>
             <key>PostNotification</key>
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
 
+        <!-- 3. Tọa độ căn chỉnh -->
         <dict>
             <key>cell</key>
             <string>PSGroupCell</string>
             <key>label</key>
-            <string>TÍNH NĂNG &amp; HIỆU ỨNG</string>
+            <string>CĂN CHỈNH TỌA ĐỘ VỊ TRÍ (OFFSET)</string>
             <key>footerText</key>
-            <string>• Chạm 1 lần: Hiện popup HUD tóm tắt Pin, RAM, Mạng.
-• Chạm đúp 2 lần: Hoán đổi đo % Pin và % RAM A10 Fusion.
-• Nhấn giữ: Khóa màn hình nhanh.</string>
+            <string>Dịch chuyển vị trí ngang (X) và dọc (Y) để căn khớp với thanh trạng thái của máy.</string>
         </dict>
         <dict>
             <key>cell</key>
-            <string>PSSwitchCell</string>
+            <string>PSSliderCell</string>
             <key>default</key>
+            <real>0.0</real>
+            <key>min</key>
+            <real>-50.0</real>
+            <key>max</key>
+            <real>50.0</real>
+            <key>showValue</key>
             <true/>
             <key>defaults</key>
             <string>com.hoangnguyen.compactstatusbar</string>
             <key>key</key>
-            <string>autoSpeed</string>
+            <string>offsetX</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>0.0</real>
+            <key>min</key>
+            <real>-25.0</real>
+            <key>max</key>
+            <real>25.0</real>
+            <key>showValue</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>offsetY</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+
+        <!-- 4. Chế độ hiển thị phần trăm pin -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
             <key>label</key>
-            <string>Hiện tốc độ mạng (khi &gt; 100 KB/s)</string>
+            <string>HIỂN THỊ PHẦN TRĂM PIN</string>
+            <key>footerText</key>
+            <string>Chọn kiểu hiển thị số %: Ẩn (mặc định), Hiện ở tâm thay icon Wi-Fi, hoặc Hiện số bên cạnh vòng tròn.</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSegmentCell</string>
+            <key>default</key>
+            <integer>0</integer>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>batteryPercentMode</string>
+            <key>validTitles</key>
+            <array>
+                <string>Ẩn</string>
+                <string>Ở tâm</string>
+                <string>Bên cạnh</string>
+            </array>
+            <key>validValues</key>
+            <array>
+                <integer>0</integer>
+                <integer>1</integer>
+                <integer>2</integer>
+            </array>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+
+        <!-- 5. Tốc độ mạng -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>ĐO TỐC ĐỘ MẠNG THỜI GIAN THỰC</string>
+            <key>footerText</key>
+            <string>Ngưỡng kích hoạt tự động thay icon Wi-Fi bằng số tốc độ tải (KB/s, MB/s).</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSegmentCell</string>
+            <key>default</key>
+            <integer>2</integer>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>speedThreshold</string>
+            <key>validTitles</key>
+            <array>
+                <string>Tắt</string>
+                <string>&gt; 50K</string>
+                <string>&gt; 100K</string>
+                <string>Luôn hiện</string>
+            </array>
+            <key>validValues</key>
+            <array>
+                <integer>0</integer>
+                <integer>1</integer>
+                <integer>2</integer>
+                <integer>3</integer>
+            </array>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+
+        <!-- 6. Màu sắc & Hiệu ứng -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>PHỐI MÀU SẮC &amp; HIỆU ỨNG</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSegmentCell</string>
+            <key>default</key>
+            <integer>0</integer>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>colorMode</string>
+            <key>validTitles</key>
+            <array>
+                <string>Dynamic</string>
+                <string>Đơn sắc</string>
+                <string>Neon Cyan</string>
+                <string>Neon Tím</string>
+            </array>
+            <key>validValues</key>
+            <array>
+                <integer>0</integer>
+                <integer>1</integer>
+                <integer>2</integer>
+                <integer>3</integer>
+            </array>
             <key>PostNotification</key>
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
@@ -143,6 +264,197 @@
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
 
+        <!-- 7. Ẩn biểu tượng gốc -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>ẨN BIỂU TƯỢNG HỆ THỐNG GỐC</string>
+            <key>footerText</key>
+            <string>Ẩn biểu tượng Wi-Fi, sóng di động hoặc số % pin mặc định của iOS.</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <false/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>hideStockWifi</string>
+            <key>label</key>
+            <string>Ẩn biểu tượng Wi-Fi gốc</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <false/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>hideStockCellular</string>
+            <key>label</key>
+            <string>Ẩn biểu tượng Sóng di động gốc</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>hideStockBatteryPercent</string>
+            <key>label</key>
+            <string>Ẩn chữ số % Pin gốc</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+
+        <!-- 8. Tùy biến cử chỉ -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>TÙY CHỈNH HÀNH ĐỘNG CỬ CHỈ</string>
+            <key>footerText</key>
+            <string>Chọn chức năng khi Chạm 1 lần, Chạm 2 lần, hoặc Nhấn giữ vào biểu tượng.</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSLinkListCell</string>
+            <key>default</key>
+            <integer>0</integer>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>actionSingleTap</string>
+            <key>label</key>
+            <string>Chạm 1 lần</string>
+            <key>detail</key>
+            <string>PSListItemsController</string>
+            <key>validTitles</key>
+            <array>
+                <string>Hiện Popup HUD</string>
+                <string>Khóa màn hình</string>
+                <string>Mở Control Center</string>
+                <string>Chụp ảnh màn hình</string>
+                <string>Đổi Pin / RAM</string>
+                <string>Không thao tác</string>
+            </array>
+            <key>validValues</key>
+            <array>
+                <integer>0</integer>
+                <integer>1</integer>
+                <integer>2</integer>
+                <integer>3</integer>
+                <integer>4</integer>
+                <integer>9</integer>
+            </array>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSLinkListCell</string>
+            <key>default</key>
+            <integer>4</integer>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>actionDoubleTap</string>
+            <key>label</key>
+            <string>Chạm đúp 2 lần</string>
+            <key>detail</key>
+            <string>PSListItemsController</string>
+            <key>validTitles</key>
+            <array>
+                <string>Hiện Popup HUD</string>
+                <string>Khóa màn hình</string>
+                <string>Mở Control Center</string>
+                <string>Chụp ảnh màn hình</string>
+                <string>Đổi Pin / RAM</string>
+                <string>Không thao tác</string>
+            </array>
+            <key>validValues</key>
+            <array>
+                <integer>0</integer>
+                <integer>1</integer>
+                <integer>2</integer>
+                <integer>3</integer>
+                <integer>4</integer>
+                <integer>9</integer>
+            </array>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSLinkListCell</string>
+            <key>default</key>
+            <integer>1</integer>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>actionLongPress</string>
+            <key>label</key>
+            <string>Nhấn giữ</string>
+            <key>detail</key>
+            <string>PSListItemsController</string>
+            <key>validTitles</key>
+            <array>
+                <string>Khóa màn hình</string>
+                <string>Respring nhanh</string>
+                <string>Chụp ảnh màn hình</string>
+                <string>Mở Control Center</string>
+                <string>Hiện Popup HUD</string>
+                <string>Không thao tác</string>
+            </array>
+            <key>validValues</key>
+            <array>
+                <integer>1</integer>
+                <integer>5</integer>
+                <integer>3</integer>
+                <integer>2</integer>
+                <integer>0</integer>
+                <integer>9</integer>
+            </array>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSegmentCell</string>
+            <key>default</key>
+            <integer>1</integer>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>hapticFeedback</string>
+            <key>validTitles</key>
+            <array>
+                <string>Tắt rung</string>
+                <string>Rung nhẹ</string>
+                <string>Vừa</string>
+                <string>Mạnh</string>
+            </array>
+            <key>validValues</key>
+            <array>
+                <integer>0</integer>
+                <integer>1</integer>
+                <integer>2</integer>
+                <integer>3</integer>
+            </array>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+
+        <!-- 9. Thao tác -->
         <dict>
             <key>cell</key>
             <string>PSGroupCell</string>

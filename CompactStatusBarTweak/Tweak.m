@@ -9,36 +9,6 @@
 #import <ifaddrs.h>
 #import <net/if.h>
 
-// MARK: - Global Preferences
-static BOOL p_enabled = YES;
-static BOOL p_showRAM = NO;
-static BOOL p_hideStockWifi = NO;
-static BOOL p_hideStockCellular = NO;
-static BOOL p_hideStockBatteryPercent = YES;
-static BOOL p_autoSpeed = YES;
-static BOOL p_breathingGlow = YES;
-static BOOL p_dotCount5 = NO; // NO: 4 chấm (chuẩn ảnh mẫu), YES: 5 chấm
-
-static void loadPrefs(void) {
-    NSString *prefPath = @"/var/jb/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
-    if (![[NSFileManager defaultManager] fileExistsAtPath:prefPath]) {
-        prefPath = @"/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
-    }
-    NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:prefPath];
-    if (prefs) {
-        p_enabled = prefs[@"enabled"] ? [prefs[@"enabled"] boolValue] : YES;
-        p_showRAM = prefs[@"showRAM"] ? [prefs[@"showRAM"] boolValue] : NO;
-        p_hideStockWifi = prefs[@"hideStockWifi"] ? [prefs[@"hideStockWifi"] boolValue] : NO;
-        p_hideStockCellular = prefs[@"hideStockCellular"] ? [prefs[@"hideStockCellular"] boolValue] : NO;
-        p_hideStockBatteryPercent = prefs[@"hideStockBatteryPercent"] ? [prefs[@"hideStockBatteryPercent"] boolValue] : YES;
-        p_autoSpeed = prefs[@"autoSpeed"] ? [prefs[@"autoSpeed"] boolValue] : YES;
-        p_breathingGlow = prefs[@"breathingGlow"] ? [prefs[@"breathingGlow"] boolValue] : YES;
-        p_dotCount5 = prefs[@"dotCount5"] ? [prefs[@"dotCount5"] boolValue] : NO;
-    }
-}
-
-// MARK: - Helper Functions (Network, RAM, Cellular, Wi-Fi)
-
 // MARK: - Protocols for Runtime SpringBoard Classes (No linker dependency)
 @protocol SBWiFiManagerProtocol <NSObject>
 - (NSString *)currentNetworkName;
@@ -52,6 +22,10 @@ static void loadPrefs(void) {
 
 @protocol SBLockScreenManagerProtocol <NSObject>
 - (void)lockUIFromSource:(int)source withOptions:(id)options;
+@end
+
+@protocol SBControlCenterControllerProtocol <NSObject>
+- (void)presentAnimated:(BOOL)animated;
 @end
 
 // Custom if_data layout on Darwin to avoid missing <net/if_var.h> in iOS SDK
@@ -75,6 +49,56 @@ struct if_data_compact {
     uint32_t  ifi_ibytes;
     uint32_t  ifi_obytes;
 };
+
+// MARK: - Global Preferences
+static BOOL p_enabled = YES;
+static CGFloat p_iconScale = 1.0;
+static CGFloat p_iconOpacity = 1.0;
+static CGFloat p_offsetX = 0.0;
+static CGFloat p_offsetY = 0.0;
+static int p_batteryPercentMode = 0; // 0 = Ẩn, 1 = Ở tâm, 2 = Bên cạnh
+static int p_speedThreshold = 2; // 0 = Tắt, 1 = >50K, 2 = >100K, 3 = Luôn hiện
+static int p_colorMode = 0; // 0 = Dynamic, 1 = Monochrome, 2 = Neon Cyan, 3 = Neon Purple
+static BOOL p_breathingGlow = YES;
+static BOOL p_showRAM = NO;
+static BOOL p_dotCount5 = NO;
+static BOOL p_hideStockWifi = NO;
+static BOOL p_hideStockCellular = NO;
+static BOOL p_hideStockBatteryPercent = YES;
+static int p_actionSingleTap = 0;
+static int p_actionDoubleTap = 4;
+static int p_actionLongPress = 1;
+static int p_hapticFeedback = 1;
+
+static void loadPrefs(void) {
+    NSString *prefPath = @"/var/jb/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
+    if (![[NSFileManager defaultManager] fileExistsAtPath:prefPath]) {
+        prefPath = @"/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
+    }
+    NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:prefPath];
+    if (prefs) {
+        p_enabled = prefs[@"enabled"] ? [prefs[@"enabled"] boolValue] : YES;
+        p_iconScale = prefs[@"iconScale"] ? [prefs[@"iconScale"] floatValue] : 1.0;
+        p_iconOpacity = prefs[@"iconOpacity"] ? [prefs[@"iconOpacity"] floatValue] : 1.0;
+        p_offsetX = prefs[@"offsetX"] ? [prefs[@"offsetX"] floatValue] : 0.0;
+        p_offsetY = prefs[@"offsetY"] ? [prefs[@"offsetY"] floatValue] : 0.0;
+        p_batteryPercentMode = prefs[@"batteryPercentMode"] ? [prefs[@"batteryPercentMode"] intValue] : 0;
+        p_speedThreshold = prefs[@"speedThreshold"] ? [prefs[@"speedThreshold"] intValue] : 2;
+        p_colorMode = prefs[@"colorMode"] ? [prefs[@"colorMode"] intValue] : 0;
+        p_breathingGlow = prefs[@"breathingGlow"] ? [prefs[@"breathingGlow"] boolValue] : YES;
+        p_showRAM = prefs[@"showRAM"] ? [prefs[@"showRAM"] boolValue] : NO;
+        p_dotCount5 = prefs[@"dotCount5"] ? [prefs[@"dotCount5"] boolValue] : NO;
+        p_hideStockWifi = prefs[@"hideStockWifi"] ? [prefs[@"hideStockWifi"] boolValue] : NO;
+        p_hideStockCellular = prefs[@"hideStockCellular"] ? [prefs[@"hideStockCellular"] boolValue] : NO;
+        p_hideStockBatteryPercent = prefs[@"hideStockBatteryPercent"] ? [prefs[@"hideStockBatteryPercent"] boolValue] : YES;
+        p_actionSingleTap = prefs[@"actionSingleTap"] ? [prefs[@"actionSingleTap"] intValue] : 0;
+        p_actionDoubleTap = prefs[@"actionDoubleTap"] ? [prefs[@"actionDoubleTap"] intValue] : 4;
+        p_actionLongPress = prefs[@"actionLongPress"] ? [prefs[@"actionLongPress"] intValue] : 1;
+        p_hapticFeedback = prefs[@"hapticFeedback"] ? [prefs[@"hapticFeedback"] intValue] : 1;
+    }
+}
+
+// MARK: - Helper Functions (Network, RAM, Cellular, Wi-Fi)
 
 static uint64_t getNetworkDownloadBytes(void) {
     struct ifaddrs *ifa_list = NULL;
@@ -140,6 +164,15 @@ static CGFloat getRAMUsedRatio(uint64_t *outUsedBytes, uint64_t *outTotalBytes) 
     return 0.5;
 }
 
+static void triggerHaptic(int level) {
+    if (level == 0) return;
+    UIImpactFeedbackStyle style = UIImpactFeedbackStyleLight;
+    if (level == 2) style = UIImpactFeedbackStyleMedium;
+    else if (level == 3) style = UIImpactFeedbackStyleHeavy;
+    UIImpactFeedbackGenerator *feedback = [[UIImpactFeedbackGenerator alloc] initWithStyle:style];
+    [feedback impactOccurred];
+}
+
 // MARK: - Safe Method Swizzling
 static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
     if (!cls) return;
@@ -164,6 +197,7 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 @property (nonatomic, strong) CAShapeLayer *wifiWave2Layer;
 @property (nonatomic, strong) NSMutableArray<CAShapeLayer *> *dotLayers;
 @property (nonatomic, strong) UILabel *centerLabel;
+@property (nonatomic, strong) UILabel *sidePercentLabel;
 
 @property (nonatomic, assign) BOOL showRAM;
 @property (nonatomic, assign) BOOL isBreathing;
@@ -172,7 +206,10 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 @property (nonatomic, assign) NSTimeInterval lastSampleTime;
 
 - (void)rebuildCellularDots;
+- (void)applyPreferences;
 - (void)updateStats;
+- (void)showHUD;
+- (void)toggleRAMDisplay;
 @end
 
 @implementation CompactStatusView
@@ -195,6 +232,7 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 
         [self setupLayers];
         [self setupGestures];
+        [self applyPreferences];
 
         [UIDevice currentDevice].batteryMonitoringEnabled = YES;
         self.lastDownloadBytes = getNetworkDownloadBytes();
@@ -208,6 +246,11 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
         _timer = [NSTimer scheduledTimerWithTimeInterval:1.0 target:self selector:@selector(updateStats) userInfo:nil repeats:YES];
     }
     return self;
+}
+
+- (void)applyPreferences {
+    self.transform = CGAffineTransformMakeScale(p_iconScale, p_iconScale);
+    self.alpha = p_iconOpacity;
 }
 
 - (void)setupLayers {
@@ -243,7 +286,6 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
     // 2. Wi-Fi ở tâm (Center Wi-Fi): Tâm phát sóng tại (11.0, 13.5)
     CGPoint wifiOrigin = CGPointMake(11.0, 13.5);
 
-    // Chấm gốc tâm Wi-Fi
     UIBezierPath *baseDotPath = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(11.0 - 0.9, 13.0 - 0.9, 1.8, 1.8)];
     _wifiDotLayer = [CAShapeLayer layer];
     _wifiDotLayer.fillColor = [UIColor colorWithWhite:1.0 alpha:0.95].CGColor;
@@ -253,7 +295,6 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
     CGFloat startWifi = 225.0 * M_PI / 180.0;
     CGFloat endWifi = 315.0 * M_PI / 180.0;
 
-    // Vòng sóng 1 (trong)
     UIBezierPath *w1 = [UIBezierPath bezierPathWithArcCenter:wifiOrigin radius:3.2 startAngle:startWifi endAngle:endWifi clockwise:YES];
     _wifiWave1Layer = [CAShapeLayer layer];
     _wifiWave1Layer.fillColor = [UIColor clearColor].CGColor;
@@ -263,7 +304,6 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
     _wifiWave1Layer.path = w1.CGPath;
     [self.layer addSublayer:_wifiWave1Layer];
 
-    // Vòng sóng 2 (ngoài)
     UIBezierPath *w2 = [UIBezierPath bezierPathWithArcCenter:wifiOrigin radius:5.6 startAngle:startWifi endAngle:endWifi clockwise:YES];
     _wifiWave2Layer = [CAShapeLayer layer];
     _wifiWave2Layer.fillColor = [UIColor clearColor].CGColor;
@@ -273,7 +313,7 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
     _wifiWave2Layer.path = w2.CGPath;
     [self.layer addSublayer:_wifiWave2Layer];
 
-    // 3. Nhãn hiển thị tốc độ mạng / 4G ở tâm (Center Label)
+    // 3. Nhãn hiển thị tâm (Center Label: Tốc độ mạng / 4G / % Pin tâm)
     _centerLabel = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 6.0, 22.0, 10.0)];
     _centerLabel.font = [UIFont systemFontOfSize:6.5 weight:UIFontWeightBold];
     _centerLabel.textColor = [UIColor whiteColor];
@@ -281,7 +321,15 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
     _centerLabel.hidden = YES;
     [self addSubview:_centerLabel];
 
-    // 4. Các chấm sóng di động ở đáy
+    // 4. Nhãn hiển thị số % Pin bên cạnh vòng tròn (Side Percent Label)
+    _sidePercentLabel = [[UILabel alloc] initWithFrame:CGRectMake(-30.0, 3.0, 28.0, 16.0)];
+    _sidePercentLabel.font = [UIFont systemFontOfSize:9.0 weight:UIFontWeightBold];
+    _sidePercentLabel.textColor = [UIColor whiteColor];
+    _sidePercentLabel.textAlignment = NSTextAlignmentRight;
+    _sidePercentLabel.hidden = YES;
+    [self addSubview:_sidePercentLabel];
+
+    // 5. Các chấm sóng di động ở đáy
     [self rebuildCellularDots];
 }
 
@@ -294,7 +342,6 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
     CGPoint center = CGPointMake(11.0, 11.0);
     CGFloat radius = 9.2;
     BOOL is5 = p_dotCount5;
-    // Góc quét từ trái qua phải theo đường tròn đáy
     NSArray *angles = is5 ? @[@(122.0), @(106.0), @(90.0), @(74.0), @(58.0)]
                           : @[@(122.0), @(101.0), @(79.0), @(58.0)];
     CGFloat dr = is5 ? 0.75 : 0.85;
@@ -324,22 +371,93 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
     [self addGestureRecognizer:singleTap];
 
     UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)];
-    longPress.minimumPressDuration = 0.6;
+    longPress.minimumPressDuration = 0.55;
     [self addGestureRecognizer:longPress];
 }
 
-// MARK: - Gestures
+// MARK: - Actions Dispatcher
+static void executeAction(int actionCode, CompactStatusView *view) {
+    switch (actionCode) {
+        case 0: // Hiện Popup HUD
+            [view showHUD];
+            break;
+        case 1: { // Khóa màn hình
+            Class lmClass = objc_getClass("SBLockScreenManager");
+            if (lmClass && [lmClass respondsToSelector:@selector(sharedInstance)]) {
+                id<SBLockScreenManagerProtocol> mgr = (id<SBLockScreenManagerProtocol>)[lmClass performSelector:@selector(sharedInstance)];
+                if ([mgr respondsToSelector:@selector(lockUIFromSource:withOptions:)]) {
+                    [mgr lockUIFromSource:1 withOptions:nil];
+                }
+            }
+            break;
+        }
+        case 2: { // Mở Control Center
+            Class ccClass = objc_getClass("SBControlCenterController");
+            if (ccClass && [ccClass respondsToSelector:@selector(sharedInstance)]) {
+                id<SBControlCenterControllerProtocol> cc = (id<SBControlCenterControllerProtocol>)[ccClass performSelector:@selector(sharedInstance)];
+                if ([cc respondsToSelector:@selector(presentAnimated:)]) {
+                    [cc presentAnimated:YES];
+                }
+            }
+            break;
+        }
+        case 3: { // Chụp ảnh màn hình
+            Class scClass = objc_getClass("SBScreenShotter");
+            if (scClass && [scClass respondsToSelector:@selector(sharedInstance)]) {
+                id sc = [scClass performSelector:@selector(sharedInstance)];
+                if ([sc respondsToSelector:@selector(saveScreenshot)]) {
+                    [sc performSelector:@selector(saveScreenshot)];
+                }
+            } else {
+                Class sccClass = objc_getClass("SBScreenCaptureController");
+                if (sccClass && [sccClass respondsToSelector:@selector(sharedInstance)]) {
+                    id scc = [sccClass performSelector:@selector(sharedInstance)];
+                    if ([scc respondsToSelector:@selector(takeScreenshot)]) {
+                        [scc performSelector:@selector(takeScreenshot)];
+                    }
+                }
+            }
+            break;
+        }
+        case 4: // Đổi Pin / RAM
+            [view toggleRAMDisplay];
+            break;
+        case 5: { // Respring
+            pid_t pid;
+            const char *args[] = {"killall", "-9", "SpringBoard", NULL};
+            posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char *const *)args, NULL);
+            posix_spawn(&pid, "/usr/bin/killall", NULL, NULL, (char *const *)args, NULL);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+- (void)handleSingleTap {
+    triggerHaptic(p_hapticFeedback);
+    executeAction(p_actionSingleTap, self);
+}
+
 - (void)handleDoubleTap {
-    UIImpactFeedbackGenerator *feedback = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium];
-    [feedback impactOccurred];
+    triggerHaptic(p_hapticFeedback);
+    executeAction(p_actionDoubleTap, self);
+}
+
+- (void)handleLongPress:(UILongPressGestureRecognizer *)gesture {
+    if (gesture.state == UIGestureRecognizerStateBegan) {
+        triggerHaptic(p_hapticFeedback);
+        executeAction(p_actionLongPress, self);
+    }
+}
+
+- (void)toggleRAMDisplay {
     self.showRAM = !self.showRAM;
     [self updateStats];
 }
 
-- (void)handleSingleTap {
-    UIImpactFeedbackGenerator *feedback = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
-    [feedback impactOccurred];
-
+// MARK: - HUD Popup
+- (void)showHUD {
     UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
     if (!keyWindow) return;
 
@@ -402,21 +520,6 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
     });
 }
 
-- (void)handleLongPress:(UILongPressGestureRecognizer *)gesture {
-    if (gesture.state == UIGestureRecognizerStateBegan) {
-        UIImpactFeedbackGenerator *feedback = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleHeavy];
-        [feedback impactOccurred];
-
-        Class lmClass = objc_getClass("SBLockScreenManager");
-        if (lmClass && [lmClass respondsToSelector:@selector(sharedInstance)]) {
-            id<SBLockScreenManagerProtocol> mgr = (id<SBLockScreenManagerProtocol>)[lmClass performSelector:@selector(sharedInstance)];
-            if ([mgr respondsToSelector:@selector(lockUIFromSource:withOptions:)]) {
-                [mgr lockUIFromSource:1 withOptions:nil];
-            }
-        }
-    }
-}
-
 // MARK: - Update Statistics (1-second cycle)
 - (void)updateStats {
     float rawLevel = [UIDevice currentDevice].batteryLevel;
@@ -427,27 +530,36 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 
     CGFloat ramRatio = getRAMUsedRatio(NULL, NULL);
 
-    // 1. Tiến trình & Màu sắc vòng cung ngoài
+    // 1. Tiến trình vòng cung ngoài
     CGFloat progressVal = self.showRAM ? MIN(MAX(ramRatio, 0.0), 1.0) : bat;
     _progressLayer.strokeEnd = progressVal;
 
+    // 2. Màu sắc vòng cung theo ColorMode
     UIColor *col = [UIColor colorWithWhite:1.0 alpha:0.95];
-    if (self.showRAM) {
-        if (ramRatio > 0.85) col = [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0];
-        else if (ramRatio > 0.65) col = [UIColor colorWithRed:1.0 green:0.60 blue:0.10 alpha:1.0];
-        else col = [UIColor colorWithRed:0.20 green:0.80 blue:1.0 alpha:1.0];
-    } else {
-        if (charging) {
-            col = [UIColor colorWithRed:0.20 green:0.85 blue:0.35 alpha:1.0];
-        } else if (lowPower) {
-            col = [UIColor colorWithRed:1.0 green:0.82 blue:0.0 alpha:1.0];
-        } else if (bat <= 0.20) {
-            col = [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0];
+    if (p_colorMode == 1) { // Đơn sắc thích ứng
+        col = [UIColor colorWithWhite:1.0 alpha:0.95];
+    } else if (p_colorMode == 2) { // Neon Cyan
+        col = [UIColor colorWithRed:0.0 green:0.96 blue:1.0 alpha:1.0];
+    } else if (p_colorMode == 3) { // Neon Tím
+        col = [UIColor colorWithRed:0.75 green:0.33 blue:0.93 alpha:1.0];
+    } else { // Dynamic hệ thống (0)
+        if (self.showRAM) {
+            if (ramRatio > 0.85) col = [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0];
+            else if (ramRatio > 0.65) col = [UIColor colorWithRed:1.0 green:0.60 blue:0.10 alpha:1.0];
+            else col = [UIColor colorWithRed:0.20 green:0.80 blue:1.0 alpha:1.0];
+        } else {
+            if (charging) {
+                col = [UIColor colorWithRed:0.20 green:0.85 blue:0.35 alpha:1.0];
+            } else if (lowPower) {
+                col = [UIColor colorWithRed:1.0 green:0.82 blue:0.0 alpha:1.0];
+            } else if (bat <= 0.20) {
+                col = [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0];
+            }
         }
     }
     _progressLayer.strokeColor = col.CGColor;
 
-    // 2. Hiệu ứng Breathing Glow khi đang sạc
+    // 3. Hiệu ứng Breathing Glow khi đang sạc
     if (charging && p_breathingGlow) {
         if (!self.isBreathing) {
             _progressLayer.shadowColor = col.CGColor;
@@ -471,7 +583,7 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
         }
     }
 
-    // 3. Tốc độ mạng thời gian thực (> 100 KB/s)
+    // 4. Đo lưu lượng mạng thời gian thực
     uint64_t currentBytes = getNetworkDownloadBytes();
     NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
     double speed = 0.0;
@@ -485,12 +597,28 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 
     BOOL wifiOn = isWifiActive();
 
-    if (p_autoSpeed && speed > 100000.0) {
+    // Kiểm tra ngưỡng tốc độ mạng
+    BOOL showSpeed = NO;
+    if (p_speedThreshold == 1 && speed > 51200.0) showSpeed = YES;      // > 50 KB/s
+    else if (p_speedThreshold == 2 && speed > 102400.0) showSpeed = YES; // > 100 KB/s
+    else if (p_speedThreshold == 3) showSpeed = YES;                     // Luôn hiện
+
+    // 5. Logic hiển thị ở tâm (Tâm: % Pin, Tốc độ mạng, hoặc Wi-Fi)
+    if (p_batteryPercentMode == 1) {
+        // Chế độ 1: Hiện % Pin ngay tại tâm
         _wifiDotLayer.hidden = YES;
         _wifiWave1Layer.hidden = YES;
         _wifiWave2Layer.hidden = YES;
         _centerLabel.hidden = NO;
-
+        int pct = self.showRAM ? (int)(ramRatio * 100) : (int)(bat * 100);
+        _centerLabel.text = [NSString stringWithFormat:@"%d", pct];
+        _centerLabel.textColor = col;
+    } else if (showSpeed) {
+        // Hiện tốc độ mạng ở tâm
+        _wifiDotLayer.hidden = YES;
+        _wifiWave1Layer.hidden = YES;
+        _wifiWave2Layer.hidden = YES;
+        _centerLabel.hidden = NO;
         if (speed >= 1048576.0) {
             _centerLabel.text = [NSString stringWithFormat:@"%.1fM", speed / 1048576.0];
         } else {
@@ -498,6 +626,7 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
         }
         _centerLabel.textColor = [UIColor colorWithRed:0.25 green:0.90 blue:0.40 alpha:1.0];
     } else if (wifiOn) {
+        // Hiện biểu tượng Wi-Fi chuẩn
         _centerLabel.hidden = YES;
         _wifiDotLayer.hidden = NO;
         _wifiWave1Layer.hidden = NO;
@@ -506,6 +635,7 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
         _wifiWave1Layer.opacity = 1.0;
         _wifiWave2Layer.opacity = 1.0;
     } else {
+        // Dùng 4G
         _wifiDotLayer.hidden = YES;
         _wifiWave1Layer.hidden = YES;
         _wifiWave2Layer.hidden = YES;
@@ -514,7 +644,17 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
         _centerLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.90];
     }
 
-    // 4. Các chấm sóng di động ở đáy
+    // 6. Chế độ 2: Hiện số % pin bên cạnh vòng tròn
+    if (p_batteryPercentMode == 2) {
+        _sidePercentLabel.hidden = NO;
+        int pct = self.showRAM ? (int)(ramRatio * 100) : (int)(bat * 100);
+        _sidePercentLabel.text = [NSString stringWithFormat:@"%d%%", pct];
+        _sidePercentLabel.textColor = col;
+    } else {
+        _sidePercentLabel.hidden = YES;
+    }
+
+    // 7. Các chấm sóng di động ở đáy
     int cellBars = getCellularSignalBars();
     int totalDots = (int)_dotLayers.count;
     int litCount = 0;
@@ -564,7 +704,7 @@ static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
                 custom.tag = 998811;
                 [parent addSubview:custom];
             }
-            custom.center = self.center;
+            custom.center = CGPointMake(self.center.x + p_offsetX, self.center.y + p_offsetY);
             [parent bringSubviewToFront:custom];
         }
     });
@@ -582,7 +722,7 @@ static void hooked_battery_layoutSubviews(UIView *self, SEL _cmd) {
         if (parent) {
             UIView *custom = [parent viewWithTag:998811];
             if (custom) {
-                custom.center = self.center;
+                custom.center = CGPointMake(self.center.x + p_offsetX, self.center.y + p_offsetY);
             }
         }
     }
@@ -634,6 +774,7 @@ static void handleReloadNotification(CFNotificationCenterRef center, void *obser
             CompactStatusView *custom = (CompactStatusView *)[keyWindow viewWithTag:998811];
             if (custom) {
                 [custom rebuildCellularDots];
+                [custom applyPreferences];
                 [custom updateStats];
             }
         }
