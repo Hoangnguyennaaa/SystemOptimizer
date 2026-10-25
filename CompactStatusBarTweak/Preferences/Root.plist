@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>items</key>
+    <array>
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>TRẠNG THÁI TWEAK</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>enabled</string>
+            <key>label</key>
+            <string>Bật CompactStatusBar</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>VỊ TRÍ HIỂN THỊ TRÊN STATUSBAR</string>
+            <key>footerText</key>
+            <string>Chế độ 'Đè Pin gốc' căn chỉnh khít góc trên phải của iPhone 7 Plus, che lấp hoàn toàn biểu tượng pin cũ.</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSegmentCell</string>
+            <key>default</key>
+            <integer>0</integer>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>position</string>
+            <key>validTitles</key>
+            <array>
+                <string>Đè Pin gốc</string>
+                <string>Góc trái</string>
+                <string>Chính giữa</string>
+            </array>
+            <key>validValues</key>
+            <array>
+                <integer>0</integer>
+                <integer>1</integer>
+                <integer>2</integer>
+            </array>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>TÍNH NĂNG NÂNG CAO</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>autoSpeed</string>
+            <key>label</key>
+            <string>Hiện tốc độ mạng khi > 100 KB/s</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>HƯỚNG DẪN CỬ CHỈ</string>
+            <key>footerText</key>
+            <string>• Chạm đúp 2 lần trực tiếp vào biểu tượng trên StatusBar để hoán đổi giữa đo % Pin và % RAM A10 Fusion.</string>
+        </dict>
+
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSButtonCell</string>
+            <key>label</key>
+            <string>Khởi động lại SpringBoard (Respring)</string>
+            <key>action</key>
+            <string>respring:</string>
+        </dict>
+    </array>
+    <key>title</key>
+    <string>CompactStatusBar</string>
+</dict>
+</plist>

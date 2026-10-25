@@ -5,6 +5,23 @@
 #import <ifaddrs.h>
 #import <net/if.h>
 
+static BOOL p_enabled = YES;
+static NSInteger p_position = 0; // 0: Đè pin gốc, 1: Góc trái, 2: Giữa
+static BOOL p_autoSpeed = YES;
+
+static void loadPrefs(void) {
+    NSString *prefPath = @"/var/jb/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
+    if (![[NSFileManager defaultManager] fileExistsAtPath:prefPath]) {
+        prefPath = @"/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
+    }
+    NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:prefPath];
+    if (prefs) {
+        p_enabled = prefs[@"enabled"] ? [prefs[@"enabled"] boolValue] : YES;
+        p_position = prefs[@"position"] ? [prefs[@"position"] integerValue] : 0;
+        p_autoSpeed = prefs[@"autoSpeed"] ? [prefs[@"autoSpeed"] boolValue] : YES;
+    }
+}
+
 // MARK: - View hiển thị Pin 3-trong-1 tùy biến vẽ bằng CoreGraphics
 @interface CompactStatusView : UIView
 @property (nonatomic, assign) CGFloat batteryLevel;
@@ -64,7 +81,7 @@
     UIDeviceBatteryState state = [UIDevice currentDevice].batteryState;
     self.isCharging = (state == UIDeviceBatteryStateCharging || state == UIDeviceBatteryStateFull);
 
-    // Đọc RAM trống từ Mach kernel
+    // Đọc RAM trống từ Mach kernel (A10 Fusion)
     mach_msg_type_number_t count = (mach_msg_type_number_t)(sizeof(vm_statistics64_data_t) / sizeof(integer_t));
     vm_statistics64_data_t vmstat;
     if (host_statistics64(mach_host_self(), HOST_VM_INFO64, (integer_t *)&vmstat, &count) == KERN_SUCCESS) {
@@ -150,6 +167,8 @@ static id (*orig_applyUpdate)(id, SEL, id, id) = NULL;
 static id hooked_applyUpdate(id self, SEL _cmd, id arg1, id arg2) {
     id result = orig_applyUpdate ? orig_applyUpdate(self, _cmd, arg1, arg2) : nil;
 
+    if (!p_enabled) return result;
+
     @try {
         UIView *bView = [self valueForKey:@"_batteryView"];
         if (bView) {
@@ -181,7 +200,7 @@ static id hooked_applyUpdate(id self, SEL _cmd, id arg1, id arg2) {
 
 static void (*orig_setText)(id, SEL, NSString *) = NULL;
 static void hooked_setText(id self, SEL _cmd, NSString *text) {
-    if (text && [text containsString:@"%"]) {
+    if (p_enabled && text && [text containsString:@"%"]) {
         ((UIView *)self).hidden = YES;
         ((UIView *)self).alpha = 0.0;
         return;
@@ -192,6 +211,17 @@ static void hooked_setText(id self, SEL _cmd, NSString *text) {
 }
 
 __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
+    loadPrefs();
+
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        NULL,
+        (CFNotificationCallback)loadPrefs,
+        CFSTR("com.hoangnguyen.compactstatusbar/ReloadPrefs"),
+        NULL,
+        CFNotificationSuspensionBehaviorCoalesce
+    );
+
     Class batteryItemClass = objc_getClass("_UIStatusBarBatteryItem");
     if (batteryItemClass) {
         Method m = class_getInstanceMethod(batteryItemClass, NSSelectorFromString(@"applyUpdate:toDisplayItem:"));
