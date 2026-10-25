@@ -52,7 +52,7 @@ struct ContentView: View {
                 if manager.isExecuting {
                     ProgressView("Đang áp dụng thay đổi...")
                         .padding()
-                        .background(Material.regular)
+                        .background(Color(.secondarySystemBackground))
                         .cornerRadius(10)
                 }
             }

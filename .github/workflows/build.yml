@@ -20,8 +20,9 @@ jobs:
 
       - name: Build IPA
         run: |
+          sed -i '' 's/\r$//' build.sh
           chmod +x build.sh
-          ./build.sh
+          bash build.sh
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4

@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
-set -e
+set -ex
 
-echo "[*] Step 1: Compiling RootHelper (C binary)..."
-xcrun -sdk iphoneos clang -arch arm64 -miphoneos-version-min=15.0 \
+echo "[*] Step 1: Compiling RootHelper..."
+SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+
+xcrun -sdk iphoneos clang -arch arm64 \
+    -isysroot "$SDK_PATH" \
+    -miphoneos-version-min=15.0 \
     RootHelper/main.c -o RootHelper_bin
 
-echo "[*] Step 2: Compiling SwiftUI App with swiftc (target iOS 15.0)..."
+echo "[*] Step 2: Compiling SwiftUI App with swiftc..."
 xcrun -sdk iphoneos swiftc \
     -target arm64-apple-ios15.0 \
-    -sdk $(xcrun --sdk iphoneos --show-sdk-path) \
+    -sdk "$SDK_PATH" \
     -parse-as-library \
+    -framework SwiftUI \
+    -framework UIKit \
+    -framework Foundation \
     -O \
     SystemOptimizer/App/SystemOptimizerApp.swift \
     SystemOptimizer/Models/DaemonItem.swift \
@@ -17,7 +24,7 @@ xcrun -sdk iphoneos swiftc \
     SystemOptimizer/Views/ContentView.swift \
     -o SystemOptimizer_bin
 
-echo "[*] Step 3: Creating App Bundle structure..."
+echo "[*] Step 3: Preparing App Bundle..."
 rm -rf Payload SystemOptimizer.app
 mkdir -p Payload/SystemOptimizer.app
 
@@ -28,14 +35,11 @@ cp Info.plist Payload/SystemOptimizer.app/Info.plist
 chmod 755 Payload/SystemOptimizer.app/SystemOptimizer
 chmod 755 Payload/SystemOptimizer.app/RootHelper
 
-echo "[*] Step 4: Signing binaries with ldid..."
+echo "[*] Step 4: Signing with ldid..."
 ldid -SEntitlements/app.plist Payload/SystemOptimizer.app/SystemOptimizer
 ldid -SEntitlements/roothelper.plist Payload/SystemOptimizer.app/RootHelper
 
-echo "[*] Step 5: Packaging into SystemOptimizer.ipa..."
+echo "[*] Step 5: Packaging into IPA..."
 zip -r9 SystemOptimizer.ipa Payload
 
-echo "[*] Cleaning temporary files..."
-rm -rf Payload RootHelper_bin SystemOptimizer_bin
-
-echo "[+] Thành công! File SystemOptimizer.ipa đã được tạo."
+echo "[+] Done: SystemOptimizer.ipa successfully created!"

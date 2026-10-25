@@ -157,7 +157,7 @@ final class DaemonManager: ObservableObject {
 
         let argv: [UnsafeMutablePointer<CChar>?] = ([rootHelperPath] + args).map { strdup($0) } + [nil]
 
-        let spawnResult = posix_spawn(&pid, rootHelperPath, &fileActions, nil, argv, environ)
+        let spawnResult = posix_spawn(&pid, rootHelperPath, &fileActions, nil, argv, nil)
         argv.forEach { free($0) }
         posix_spawn_file_actions_destroy(&fileActions)
         close(pipeFD[1])
