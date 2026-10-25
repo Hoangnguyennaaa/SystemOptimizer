@@ -815,6 +815,26 @@ static void executeAction(int actionCode, CompactStatusView *view) {
 
 @end
 
+// MARK: - Respring Handler
+static void doRespringFromPrefs(id self, SEL _cmd, id sender) {
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        CFSTR("com.hoangnguyen.compactstatusbar/Respring"),
+        NULL,
+        NULL,
+        YES
+    );
+
+    pid_t pid;
+    const char *sbrArgs[] = {"sbreload", NULL};
+    posix_spawn(&pid, "/var/jb/usr/bin/sbreload", NULL, NULL, (char *const *)sbrArgs, NULL);
+    posix_spawn(&pid, "/usr/bin/sbreload", NULL, NULL, (char *const *)sbrArgs, NULL);
+
+    const char *kArgs[] = {"killall", "-9", "SpringBoard", NULL};
+    posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char *const *)kArgs, NULL);
+    posix_spawn(&pid, "/usr/bin/killall", NULL, NULL, (char *const *)kArgs, NULL);
+}
+
 // MARK: - CSBPreviewCell: Interactive Canvas & Preset Picker for PreferenceLoader
 @interface CSBPreviewCell : UITableViewCell
 @property (nonatomic, strong) UISegmentedControl *modelSegment;
@@ -1301,26 +1321,7 @@ static void hooked_img_setImage(UIImageView *self, SEL _cmd, UIImage *image) {
     checkAndApplyImageVisibility(self);
 }
 
-// MARK: - Respring & Notifications
-static void doRespringFromPrefs(id self, SEL _cmd, id sender) {
-    CFNotificationCenterPostNotification(
-        CFNotificationCenterGetDarwinNotifyCenter(),
-        CFSTR("com.hoangnguyen.compactstatusbar/Respring"),
-        NULL,
-        NULL,
-        YES
-    );
-
-    pid_t pid;
-    const char *sbrArgs[] = {"sbreload", NULL};
-    posix_spawn(&pid, "/var/jb/usr/bin/sbreload", NULL, NULL, (char *const *)sbrArgs, NULL);
-    posix_spawn(&pid, "/usr/bin/sbreload", NULL, NULL, (char *const *)sbrArgs, NULL);
-
-    const char *kArgs[] = {"killall", "-9", "SpringBoard", NULL};
-    posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char *const *)kArgs, NULL);
-    posix_spawn(&pid, "/usr/bin/killall", NULL, NULL, (char *const *)kArgs, NULL);
-}
-
+// MARK: - Notifications
 static void handleRespringNotification(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
     dispatch_async(dispatch_get_main_queue(), ^{
         _exit(0);

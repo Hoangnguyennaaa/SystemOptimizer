@@ -29,7 +29,7 @@ jobs:
           sed -i '' 's/\r$//' build_deb.sh
           chmod +x build_deb.sh
           set -o pipefail
-          ./build_deb.sh 2>&1 | tee build.log || true
+          ./build_deb.sh 2>&1 | tee build.log
 
       - name: Output Log to Step Summary
         if: always()
