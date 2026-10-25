@@ -3,38 +3,79 @@ import SwiftUI
 public struct SettingsView: View {
     @ObservedObject private var manager = SystemStatusManager.shared
     @State private var dummyHUD: Bool = false
+    @State private var showRespringAlert: Bool = false
 
     public init() {}
 
     public var body: some View {
         NavigationView {
             Form {
+                // MARK: - Mục 1: Công tắc kích hoạt dịch vụ chính
+                Section(header: Text("Trạng thái dịch vụ")) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Kích hoạt CompactStatusBar")
+                                .font(.headline)
+                            Text(manager.isOverlayActive ? "Đang chạy đè lên StatusBar" : "Dịch vụ đang tắt")
+                                .font(.caption)
+                                .foregroundColor(manager.isOverlayActive ? .green : .secondary)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $manager.isOverlayActive)
+                            .labelsHidden()
+                            .onChange(of: manager.isOverlayActive) { active in
+                                if active {
+                                    StatusBarOverlayManager.shared.startOverlay()
+                                }
+                            }
+                    }
+
+                    if manager.isOverlayActive {
+                        HStack {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 8, height: 8)
+                            Text("Tiến trình ngầm (Keep-Alive): Hoạt động")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                // MARK: - Mục 2: Xem trước trực tiếp
                 Section(header: Text("Xem trước trực tiếp")) {
                     HStack {
                         Spacer()
                         VStack(spacing: 8) {
                             CombinedStatusGaugeView(isHUDPresented: $dummyHUD)
-                            Text("Chạm đúp đổi Pin/RAM | Chạm 1 lần mở HUD")
+                            Text("Chạm đúp đổi Pin/RAM | Chạm 1 lần mở HUD | Nhấn giữ khóa máy")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
                     }
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 8)
                 }
 
-                Section(header: Text("Vị trí hiển thị trên StatusBar")) {
+                // MARK: - Mục 3: Vị trí hiển thị (Có chế độ Đè che Pin gốc)
+                Section(header: Text("Chế độ hiển thị & Vị trí")) {
                     Picker("Vị trí", selection: $manager.position) {
                         ForEach(StatusPosition.allCases) { pos in
                             Text(pos.rawValue).tag(pos)
                         }
                     }
-                    .pickerStyle(.segmented)
                     .onChange(of: manager.position) { _ in
                         manager.saveSettings()
                     }
+
+                    if manager.position == .coverStock {
+                        Text("💡 Chế độ 'Đè che Pin gốc': Widget được căn chỉnh tọa độ chính xác để nền đen che kín hoàn toàn biểu tượng pin mặc định của iOS 15 trên iPhone 7 Plus.")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
                 }
 
+                // MARK: - Mục 4: Kích thước & Độ trong suốt
                 Section(header: Text("Kích thước & Độ trong suốt")) {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
@@ -61,27 +102,35 @@ public struct SettingsView: View {
                     }
                 }
 
+                // MARK: - Mục 5: Tính năng bổ trợ
                 Section(header: Text("Tính năng nâng cao")) {
-                    Toggle("Tự động hiện tốc độ tải khi > 100 KB/s", isOn: $manager.autoSpeedSwitch)
+                    Toggle("Tự động hiện tốc độ mạng khi > 100 KB/s", isOn: $manager.autoSpeedSwitch)
                         .onChange(of: manager.autoSpeedSwitch) { _ in manager.saveSettings() }
 
-                    Toggle("Hiệu ứng phát sáng thở khi cắm sạc (Breathing Glow)", isOn: $manager.enableBreathingGlow)
+                    Toggle("Hiệu ứng phát sáng thở khi cắm sạc", isOn: $manager.enableBreathingGlow)
                         .onChange(of: manager.enableBreathingGlow) { _ in manager.saveSettings() }
                 }
 
-                Section(header: Text("Cử chỉ tương tác trên Widget")) {
-                    Text("• Chạm 1 lần: Mở bảng tóm tắt phần cứng (HUD).")
-                    Text("• Chạm 2 lần: Hoán đổi vòng ngoài giữa đo Pin % và RAM %.")
-                    Text("• Nhấn giữ: Khóa máy ngay lập tức.")
-                }
+                // MARK: - Mục 6: Thao tác hệ thống
+                Section(header: Text("Thao tác hệ thống")) {
+                    Button {
+                        showRespringAlert = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.clockwise.circle.fill")
+                                .foregroundColor(.blue)
+                            Text("Khởi động lại SpringBoard (Respring)")
+                                .foregroundColor(.primary)
+                        }
+                    }
 
-                Section {
                     Button(role: .destructive) {
-                        manager.position = .topRight
+                        manager.position = .coverStock
                         manager.scale = 1.0
-                        manager.opacity = 0.95
+                        manager.opacity = 1.0
                         manager.autoSpeedSwitch = true
                         manager.enableBreathingGlow = true
+                        manager.isOverlayActive = true
                         manager.saveSettings()
                     } label: {
                         HStack {
@@ -93,6 +142,14 @@ public struct SettingsView: View {
                 }
             }
             .navigationTitle("CompactStatusBar")
+            .alert("Khởi động lại SpringBoard", isPresented: $showRespringAlert) {
+                Button("Hủy", role: .cancel) {}
+                Button("Xác nhận Respring", role: .destructive) {
+                    manager.respring()
+                }
+            } message: {
+                Text("Làm mới giao diện SpringBoard để áp dụng các thay đổi hệ thống.")
+            }
         }
     }
 }

@@ -7,23 +7,22 @@ final class CompactOverlayPassThroughWindow: UIWindow {
             return nil
         }
 
-        // 1. Nếu đang mở màn hình Cài đặt đầy đủ, nhận toàn bộ cảm ứng
+        // 1. Nếu mở màn hình Cài đặt đầy đủ, nhận toàn bộ cảm ứng
         if self.rootViewController?.presentedViewController != nil {
             return hitView
         }
 
-        // 2. Nếu chạm trúng các thành phần con tương tác (Gauge hoặc Popup HUD)
-        // chứ không phải là view nền trong suốt
+        // 2. Chỉ bắt chạm nếu chạm trúng Widget hoặc Popup HUD
         if hitView !== self && hitView !== self.rootViewController?.view {
             return hitView
         }
 
-        // 3. Toàn bộ vùng trống khác trả về nil để chạm xuyên thấu xuống hệ thống
+        // 3. Toàn bộ vùng trống trả về nil để chạm xuyên thấu xuống app bên dưới & SpringBoard
         return nil
     }
 }
 
-// View chứa Overlay Widget và Popup HUD trên StatusBar
+// View quản lý hiển thị trên toàn màn hình
 struct OverlayRootView: View {
     @ObservedObject private var manager = SystemStatusManager.shared
     @State private var isHUDPresented: Bool = false
@@ -31,17 +30,18 @@ struct OverlayRootView: View {
 
     var body: some View {
         ZStack(alignment: alignmentForPosition(manager.position)) {
-            // Widget Gauge Icon
-            VStack(spacing: 8) {
-                CombinedStatusGaugeView(isHUDPresented: $isHUDPresented)
-                    .padding(.top, 2)
-                    .padding(.horizontal, horizontalPaddingForPosition(manager.position))
+            if manager.isOverlayActive {
+                VStack(spacing: 6) {
+                    CombinedStatusGaugeView(isHUDPresented: $isHUDPresented)
+                        .padding(.top, topPaddingForPosition(manager.position))
+                        .padding(.horizontal, horizontalPaddingForPosition(manager.position))
 
-                if isHUDPresented {
-                    StatusHUDPopupView(isPresented: $isHUDPresented) {
-                        isSettingsSheetPresented = true
+                    if isHUDPresented {
+                        StatusHUDPopupView(isPresented: $isHUDPresented) {
+                            isSettingsSheetPresented = true
+                        }
+                        .transition(.scale(scale: 0.85).combined(with: .opacity))
                     }
-                    .transition(.scale(scale: 0.85).combined(with: .opacity))
                 }
             }
         }
@@ -53,7 +53,7 @@ struct OverlayRootView: View {
 
     private func alignmentForPosition(_ pos: StatusPosition) -> Alignment {
         switch pos {
-        case .topRight: return .topTrailing
+        case .coverStock, .topRight: return .topTrailing
         case .topLeft: return .topLeading
         case .center: return .top
         }
@@ -61,9 +61,17 @@ struct OverlayRootView: View {
 
     private func horizontalPaddingForPosition(_ pos: StatusPosition) -> CGFloat {
         switch pos {
+        case .coverStock: return 4.0      // Đè khít chính xác lên vị trí icon Pin gốc của iPhone 7 Plus
         case .topRight: return 12.0
         case .topLeft: return 12.0
         case .center: return 0.0
+        }
+    }
+
+    private func topPaddingForPosition(_ pos: StatusPosition) -> CGFloat {
+        switch pos {
+        case .coverStock: return 0.0      // Sát mép trên để che hoàn toàn icon pin gốc
+        default: return 2.0
         }
     }
 }
@@ -77,7 +85,10 @@ public final class StatusBarOverlayManager: ObservableObject {
     private init() {}
 
     public func startOverlay() {
-        guard overlayWindow == nil else { return }
+        guard overlayWindow == nil else {
+            overlayWindow?.isHidden = !SystemStatusManager.shared.isOverlayActive
+            return
+        }
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -85,11 +96,11 @@ public final class StatusBarOverlayManager: ObservableObject {
             let screenBounds = UIScreen.main.bounds
             let window = CompactOverlayPassThroughWindow(frame: screenBounds)
 
-            // Mức ưu tiên cao hơn StatusBar chuẩn + 200
+            // Mức ưu tiên cực cao đè lên StatusBar của hệ thống
             window.windowLevel = UIWindow.Level(rawValue: 1000200.0)
             window.backgroundColor = .clear
             window.isOpaque = false
-            window.isHidden = false
+            window.isHidden = !SystemStatusManager.shared.isOverlayActive
 
             let rootView = OverlayRootView()
             let hostingController = UIHostingController(rootView: rootView)
