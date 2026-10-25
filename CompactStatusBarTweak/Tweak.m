@@ -71,6 +71,8 @@ static BOOL p_verticalDockEnabled = NO;
 static int p_dockPosition = 1; // 0 = Bottom (Default), 1 = Vertical Right, 2 = Vertical Left
 static BOOL p_adjustIconGridMargin = YES;
 static CGFloat p_dockOffsetY = 0.0;
+static CGFloat p_dockIconSize = 54.0;
+static CGFloat p_dockMarginX = 10.0;
 
 // Stock Status Bar Item Hiding
 static BOOL p_hideStockBattery = YES;
@@ -117,6 +119,8 @@ static void loadPrefs(void) {
         p_dockPosition = prefs[@"dockPosition"] ? [prefs[@"dockPosition"] intValue] : 1;
         p_adjustIconGridMargin = prefs[@"adjustIconGridMargin"] ? [prefs[@"adjustIconGridMargin"] boolValue] : YES;
         p_dockOffsetY = prefs[@"dockOffsetY"] ? [prefs[@"dockOffsetY"] floatValue] : 0.0;
+        p_dockIconSize = prefs[@"dockIconSize"] ? [prefs[@"dockIconSize"] floatValue] : 54.0;
+        p_dockMarginX = prefs[@"dockMarginX"] ? [prefs[@"dockMarginX"] floatValue] : 10.0;
 
         p_hideStockBattery = prefs[@"hideStockBattery"] ? [prefs[@"hideStockBattery"] boolValue] : YES;
         p_hideStockBatteryPercent = prefs[@"hideStockBatteryPercent"] ? [prefs[@"hideStockBatteryPercent"] boolValue] : YES;
@@ -1185,6 +1189,359 @@ static void handlePreviewReloadNotification(CFNotificationCenterRef center, void
 
 @end
 
+// MARK: - CSBDockPreviewCell: Interactive Miniature Phone Simulator for Vertical Dock
+@interface CSBDockPreviewCell : UITableViewCell
+@property (nonatomic, strong) UIView *mockPhoneView;
+@property (nonatomic, strong) UIView *miniNotch;
+@property (nonatomic, strong) UIView *miniDock;
+@property (nonatomic, strong) NSMutableArray<UIView *> *miniDockDots;
+@property (nonatomic, strong) NSMutableArray<UIView *> *miniGridDots;
+@property (nonatomic, strong) UILabel *titleLabel;
+@property (nonatomic, strong) UILabel *dockCoordLabel;
+@property (nonatomic, strong) UIButton *btnCenter;
+@property (nonatomic, strong) UIButton *btnUp;
+@property (nonatomic, strong) UIButton *btnDown;
+@property (nonatomic, strong) UIButton *btnSwitchSide;
+@property (nonatomic, strong) UILabel *hintLabel;
+@property (nonatomic, strong) id specifier;
+- (void)setupUI;
+- (void)syncFromPrefs;
+@end
+
+static void handleDockPreviewReloadNotification(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    CSBDockPreviewCell *cell = (__bridge CSBDockPreviewCell *)observer;
+    if (cell && [cell isKindOfClass:[CSBDockPreviewCell class]]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [cell syncFromPrefs];
+        });
+    }
+}
+
+@implementation CSBDockPreviewCell
+
+- (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier specifier:(id)specifier {
+    self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
+    if (self) {
+        _specifier = specifier;
+        [self setupUI];
+    }
+    return self;
+}
+
+- (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier {
+    self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
+    if (self) {
+        [self setupUI];
+    }
+    return self;
+}
+
+- (instancetype)initWithSpecifier:(id)specifier {
+    self = [super initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil];
+    if (self) {
+        _specifier = specifier;
+        [self setupUI];
+    }
+    return self;
+}
+
+- (UITableView *)findParentTableView {
+    UIView *v = self.superview;
+    while (v && ![v isKindOfClass:[UITableView class]]) {
+        v = v.superview;
+    }
+    return (UITableView *)v;
+}
+
+- (UIButton *)makeMiniButtonWithTitle:(NSString *)title tag:(NSInteger)tag {
+    UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
+    [btn setTitle:title forState:UIControlStateNormal];
+    btn.titleLabel.font = [UIFont systemFontOfSize:10.5 weight:UIFontWeightMedium];
+    [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    btn.backgroundColor = [UIColor colorWithWhite:0.20 alpha:1.0];
+    btn.layer.cornerRadius = 6.0;
+    btn.layer.masksToBounds = YES;
+    btn.tag = tag;
+    [btn addTarget:self action:@selector(dockPresetTapped:) forControlEvents:UIControlEventTouchUpInside];
+    return btn;
+}
+
+- (void)setupUI {
+    self.backgroundColor = [UIColor clearColor];
+    self.selectionStyle = UITableViewCellSelectionStyleNone;
+
+    loadPrefs();
+
+    // 1. Miniature Phone Screen
+    _mockPhoneView = [[UIView alloc] initWithFrame:CGRectZero];
+    _mockPhoneView.backgroundColor = [UIColor colorWithRed:0.08 green:0.09 blue:0.11 alpha:1.0];
+    _mockPhoneView.layer.cornerRadius = 20.0;
+    _mockPhoneView.layer.borderWidth = 1.4;
+    _mockPhoneView.layer.borderColor = [UIColor colorWithWhite:0.32 alpha:1.0].CGColor;
+    _mockPhoneView.clipsToBounds = YES;
+    _mockPhoneView.userInteractionEnabled = YES;
+    [self.contentView addSubview:_mockPhoneView];
+
+    // Notch
+    _miniNotch = [[UIView alloc] initWithFrame:CGRectZero];
+    _miniNotch.backgroundColor = [UIColor blackColor];
+    _miniNotch.layer.cornerRadius = 3.5;
+    [_mockPhoneView addSubview:_miniNotch];
+
+    // Dummy Home Screen Grid Dots (3 rows x 4 columns)
+    _miniGridDots = [NSMutableArray array];
+    for (int r = 0; r < 4; r++) {
+        for (int c = 0; c < 4; c++) {
+            UIView *dot = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 12, 12)];
+            dot.backgroundColor = [UIColor colorWithWhite:0.35 alpha:0.4];
+            dot.layer.cornerRadius = 3.0;
+            [_mockPhoneView addSubview:dot];
+            [_miniGridDots addObject:dot];
+        }
+    }
+
+    // Miniature Vertical Dock
+    _miniDock = [[UIView alloc] initWithFrame:CGRectZero];
+    _miniDock.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.25];
+    _miniDock.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.65].CGColor;
+    _miniDock.layer.borderWidth = 1.0;
+    _miniDock.clipsToBounds = YES;
+    _miniDock.userInteractionEnabled = YES;
+    [_mockPhoneView addSubview:_miniDock];
+
+    // Miniature Dock App Icons (4 colorful dots)
+    _miniDockDots = [NSMutableArray array];
+    NSArray<UIColor *> *colors = @[
+        [UIColor colorWithRed:0.20 green:0.78 blue:0.35 alpha:1.0], // Phone green
+        [UIColor colorWithRed:0.00 green:0.48 blue:1.00 alpha:1.0], // Safari blue
+        [UIColor colorWithRed:0.19 green:0.82 blue:0.35 alpha:1.0], // Messages green
+        [UIColor colorWithRed:1.00 green:0.18 blue:0.33 alpha:1.0]  // Music pink
+    ];
+    for (int i = 0; i < 4; i++) {
+        UIView *d = [[UIView alloc] initWithFrame:CGRectZero];
+        d.backgroundColor = colors[i % colors.count];
+        d.layer.cornerRadius = 3.0;
+        [_miniDock addSubview:d];
+        [_miniDockDots addObject:d];
+    }
+
+    // Pan Gesture on mock phone to drag the dock
+    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleDockPan:)];
+    [_mockPhoneView addGestureRecognizer:pan];
+
+    // 2. Right Side Controls
+    _titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    _titleLabel.text = @"📱 MÔ PHỎNG DOCK";
+    _titleLabel.font = [UIFont systemFontOfSize:12.5 weight:UIFontWeightBold];
+    _titleLabel.textColor = [UIColor whiteColor];
+    [self.contentView addSubview:_titleLabel];
+
+    _dockCoordLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    _dockCoordLabel.font = [UIFont systemFontOfSize:10.5 weight:UIFontWeightMedium];
+    _dockCoordLabel.textColor = [UIColor colorWithRed:0.20 green:0.85 blue:0.50 alpha:1.0];
+    _dockCoordLabel.numberOfLines = 3;
+    [self.contentView addSubview:_dockCoordLabel];
+
+    _btnCenter = [self makeMiniButtonWithTitle:@"🎯 Căn giữa (Y=0)" tag:201];
+    _btnUp = [self makeMiniButtonWithTitle:@"⬆️ Nhích lên (-50)" tag:202];
+    _btnDown = [self makeMiniButtonWithTitle:@"⬇️ Nhích xuống (+50)" tag:203];
+    _btnSwitchSide = [self makeMiniButtonWithTitle:@"↔️ Đổi bên (Trái/Phải)" tag:204];
+
+    [self.contentView addSubview:_btnCenter];
+    [self.contentView addSubview:_btnUp];
+    [self.contentView addSubview:_btnDown];
+    [self.contentView addSubview:_btnSwitchSide];
+
+    _hintLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    _hintLabel.text = @"👆 Chạm & kéo Dock trong hình để căn vị trí";
+    _hintLabel.font = [UIFont systemFontOfSize:9.5 weight:UIFontWeightRegular];
+    _hintLabel.textColor = [UIColor colorWithWhite:0.65 alpha:1.0];
+    _hintLabel.numberOfLines = 2;
+    [self.contentView addSubview:_hintLabel];
+
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge const void *)(self),
+        (CFNotificationCallback)handleDockPreviewReloadNotification,
+        CFSTR("com.hoangnguyen.compactstatusbar/ReloadPrefs"),
+        NULL,
+        CFNotificationSuspensionBehaviorCoalesce
+    );
+}
+
+- (void)handleDockPan:(UIPanGestureRecognizer *)pan {
+    UITableView *tv = [self findParentTableView];
+    if (pan.state == UIGestureRecognizerStateBegan) {
+        if (tv) tv.scrollEnabled = NO;
+    } else if (pan.state == UIGestureRecognizerStateEnded || pan.state == UIGestureRecognizerStateCancelled) {
+        if (tv) tv.scrollEnabled = YES;
+    }
+
+    CGFloat phoneH = _mockPhoneView.bounds.size.height;
+    if (phoneH <= 0) phoneH = 224.0;
+    CGFloat scale = phoneH / 844.0;
+    CGPoint loc = [pan locationInView:_mockPhoneView];
+
+    CGFloat miniCenterY = loc.y;
+    CGFloat miniCenterDiff = miniCenterY - (phoneH / 2.0);
+    CGFloat realOffsetY = miniCenterDiff / scale;
+    if (realOffsetY < -200.0) realOffsetY = -200.0;
+    if (realOffsetY > 200.0) realOffsetY = 200.0;
+
+    p_dockOffsetY = realOffsetY;
+    [self setNeedsLayout];
+    [self layoutIfNeeded];
+
+    if (pan.state == UIGestureRecognizerStateEnded || pan.state == UIGestureRecognizerStateCancelled) {
+        savePreferenceNumber(@"dockOffsetY", @(realOffsetY));
+        triggerHaptic(1);
+    }
+}
+
+- (void)dockPresetTapped:(UIButton *)btn {
+    if (btn.tag == 201) {
+        p_dockOffsetY = 0.0;
+    } else if (btn.tag == 202) {
+        p_dockOffsetY -= 50.0;
+        if (p_dockOffsetY < -200.0) p_dockOffsetY = -200.0;
+    } else if (btn.tag == 203) {
+        p_dockOffsetY += 50.0;
+        if (p_dockOffsetY > 200.0) p_dockOffsetY = 200.0;
+    } else if (btn.tag == 204) {
+        p_dockPosition = (p_dockPosition == 1) ? 2 : 1;
+        savePreferenceNumber(@"dockPosition", @(p_dockPosition));
+    }
+    savePreferenceNumber(@"dockOffsetY", @(p_dockOffsetY));
+    triggerHaptic(1);
+    [UIView animateWithDuration:0.2 animations:^{
+        [self setNeedsLayout];
+        [self layoutIfNeeded];
+    }];
+}
+
+- (void)syncFromPrefs {
+    loadPrefs();
+    [self setNeedsLayout];
+    [self layoutIfNeeded];
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGFloat w = self.contentView.bounds.size.width;
+    if (w <= 0) w = 360.0;
+
+    CGFloat phoneW = 140.0;
+    CGFloat phoneH = 224.0;
+    _mockPhoneView.frame = CGRectMake(16, 13, phoneW, phoneH);
+    _miniNotch.frame = CGRectMake((phoneW - 36) / 2.0, 5, 36, 7);
+
+    // Layout dummy grid dots:
+    CGFloat gridStartX = (p_dockPosition == 2) ? 38.0 : 8.0;
+    CGFloat gridSpacingX = (phoneW - 46.0 - 8.0) / 3.0;
+    CGFloat gridStartY = 24.0;
+    CGFloat gridSpacingY = 22.0;
+
+    for (int i = 0; i < (int)_miniGridDots.count; i++) {
+        int r = i / 4;
+        int c = i % 4;
+        UIView *dot = _miniGridDots[i];
+        dot.frame = CGRectMake(gridStartX + (c * gridSpacingX), gridStartY + (r * gridSpacingY), 12, 12);
+    }
+
+    // Layout mini dock capsule:
+    CGFloat scale = phoneH / 844.0;
+    CGFloat realIconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 54.0;
+    CGFloat miniDockW = (realIconSize + 20.0) * scale;
+    if (miniDockW < 18.0) miniDockW = 18.0;
+    CGFloat miniDockH = 286.0 * scale; // ~76pt
+    CGFloat miniMarginX = (p_dockPosition == 2) ? 6.0 : (phoneW - miniDockW - 6.0);
+    CGFloat miniDockY = ((phoneH - miniDockH) / 2.0) + (p_dockOffsetY * scale);
+    if (miniDockY < 16.0) miniDockY = 16.0;
+    if (miniDockY + miniDockH > phoneH - 12.0) miniDockY = phoneH - miniDockH - 12.0;
+
+    _miniDock.frame = CGRectMake(miniMarginX, miniDockY, miniDockW, miniDockH);
+    _miniDock.layer.cornerRadius = miniDockW / 2.0;
+
+    // Layout mini dock dots inside:
+    CGFloat dotSize = miniDockW - 6.0;
+    CGFloat dotPadY = 5.0;
+    CGFloat availH = miniDockH - (dotPadY * 2.0);
+    CGFloat dotSpacing = (_miniDockDots.count > 1) ? ((availH - (_miniDockDots.count * dotSize)) / (_miniDockDots.count - 1)) : 4.0;
+    for (int i = 0; i < (int)_miniDockDots.count; i++) {
+        UIView *d = _miniDockDots[i];
+        d.frame = CGRectMake(3.0, dotPadY + i * (dotSize + dotSpacing), dotSize, dotSize);
+        d.layer.cornerRadius = dotSize / 2.0;
+    }
+
+    // Right Controls
+    CGFloat rightX = 168.0;
+    CGFloat rightW = w - rightX - 16.0;
+    _titleLabel.frame = CGRectMake(rightX, 13, rightW, 18);
+
+    NSString *posStr = (p_dockPosition == 2) ? @"Bên Trái" : (p_dockPosition == 1 ? @"Bên Phải" : @"Dưới Gốc");
+    _dockCoordLabel.text = [NSString stringWithFormat:@"📍 Y: %+.0f pt\n📐 Icon: %.0f pt\n📲 Vị trí: %@", p_dockOffsetY, realIconSize, posStr];
+    _dockCoordLabel.frame = CGRectMake(rightX, 33, rightW, 46);
+
+    CGFloat btnH = 26.0;
+    CGFloat sp = 5.0;
+    _btnCenter.frame = CGRectMake(rightX, 84, rightW, btnH);
+    _btnUp.frame = CGRectMake(rightX, 84 + (btnH + sp), rightW, btnH);
+    _btnDown.frame = CGRectMake(rightX, 84 + (btnH + sp) * 2, rightW, btnH);
+    _btnSwitchSide.frame = CGRectMake(rightX, 84 + (btnH + sp) * 3, rightW, btnH);
+
+    _hintLabel.frame = CGRectMake(rightX, 84 + (btnH + sp) * 4 + 2, rightW, 26);
+}
+
+- (void)refreshCellContentsWithSpecifier:(id)specifier {
+    _specifier = specifier;
+    [self syncFromPrefs];
+}
+
+- (BOOL)canReload {
+    return YES;
+}
+
+- (id)value {
+    return nil;
+}
+
+- (void)setValue:(id)value {
+}
+
+- (id)target {
+    return self;
+}
+
+- (id)cellTarget {
+    return self;
+}
+
+- (id)cellAction {
+    return nil;
+}
+
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
+    NSMethodSignature *sig = [super methodSignatureForSelector:aSelector];
+    if (!sig) {
+        sig = [NSMethodSignature signatureWithObjCTypes:"v@:"];
+    }
+    return sig;
+}
+
+- (void)forwardInvocation:(NSInvocation *)anInvocation {
+}
+
+- (void)dealloc {
+    CFNotificationCenterRemoveObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge const void *)(self),
+        CFSTR("com.hoangnguyen.compactstatusbar/ReloadPrefs"),
+        NULL
+    );
+}
+
+@end
+
 // MARK: - Stock Status Bar Item Hiding Helpers
 static inline BOOL shouldHideStatusBarImageView(UIImageView *self) {
     if (!p_enabled) return NO;
@@ -1390,13 +1747,34 @@ static void getIconViewsRecursively(UIView *view, NSMutableArray<UIView *> *resu
 }
 
 static void (*orig_dock_setFrame)(UIView *, SEL, CGRect) = NULL;
+static inline void getDockGeometry(NSUInteger iconCount, CGFloat *outW, CGFloat *outH, CGFloat *outIconSize, CGFloat *outSpacing, CGFloat *outPadY) {
+    CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 54.0;
+    CGFloat padY = 16.0;
+    CGFloat spacing = 14.0;
+    CGFloat dockW = iconSize + 20.0;
+    NSUInteger count = (iconCount > 0) ? iconCount : 4;
+    CGFloat dockH = (padY * 2.0) + (count * iconSize) + ((count - 1) * spacing);
+    CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
+    if (dockH > screenH - 120.0) {
+        dockH = screenH - 120.0;
+        spacing = (dockH - (padY * 2.0) - (count * iconSize)) / (count > 1 ? (count - 1) : 1);
+        if (spacing < 4.0) spacing = 4.0;
+    }
+    if (outW) *outW = dockW;
+    if (outH) *outH = dockH;
+    if (outIconSize) *outIconSize = iconSize;
+    if (outSpacing) *outSpacing = spacing;
+    if (outPadY) *outPadY = padY;
+}
+
 static void hooked_dock_setFrame(UIView *self, SEL _cmd, CGRect frame) {
     if (p_enabled && p_verticalDockEnabled) {
         CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
         CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
-        CGFloat dockW = 74.0;
-        CGFloat dockH = 286.0;
-        CGFloat dockX = (p_dockPosition == 2) ? 10.0 : (screenW - dockW - 10.0);
+        CGFloat dockW, dockH;
+        getDockGeometry(4, &dockW, &dockH, NULL, NULL, NULL);
+        CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
+        CGFloat dockX = (p_dockPosition == 2) ? marginX : (screenW - dockW - marginX);
         CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
         frame = CGRectMake(dockX, dockY, dockW, dockH);
     }
@@ -1413,9 +1791,14 @@ static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
     CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
     CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
 
-    CGFloat dockW = 74.0;
-    CGFloat dockH = 286.0;
-    CGFloat dockX = (p_dockPosition == 2) ? 10.0 : (screenW - dockW - 10.0);
+    NSMutableArray<UIView *> *icons = [NSMutableArray array];
+    getIconViewsRecursively(self, icons);
+
+    CGFloat dockW, dockH, iconSize, spacing, padY;
+    getDockGeometry(icons.count, &dockW, &dockH, &iconSize, &spacing, &padY);
+
+    CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
+    CGFloat dockX = (p_dockPosition == 2) ? marginX : (screenW - dockW - marginX);
     CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
 
     self.frame = CGRectMake(dockX, dockY, dockW, dockH);
@@ -1426,7 +1809,6 @@ static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
         UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial];
         glass = [[UIVisualEffectView alloc] initWithEffect:blur];
         glass.tag = 998844;
-        glass.layer.cornerRadius = 32.0;
         glass.layer.masksToBounds = YES;
         glass.clipsToBounds = YES;
         glass.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
@@ -1434,6 +1816,7 @@ static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
         [self insertSubview:glass atIndex:0];
     }
     glass.frame = self.bounds;
+    glass.layer.cornerRadius = dockW / 2.0;
 
     for (UIView *sub in self.subviews) {
         if (sub != glass) {
@@ -1447,9 +1830,6 @@ static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
         }
     }
 
-    NSMutableArray<UIView *> *icons = [NSMutableArray array];
-    getIconViewsRecursively(self, icons);
-
     if (icons.count > 0) {
         [icons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
             CGFloat ax = a.superview ? [a.superview convertPoint:a.frame.origin toView:self].x : a.frame.origin.x;
@@ -1458,13 +1838,6 @@ static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
             else if (ax > bx) return NSOrderedDescending;
             return NSOrderedSame;
         }];
-
-        CGFloat iconSize = 54.0;
-        CGFloat padY = 16.0;
-        CGFloat availableH = dockH - (2.0 * padY);
-        CGFloat totalIconH = icons.count * iconSize;
-        CGFloat spacing = (icons.count > 1) ? ((availableH - totalIconH) / (icons.count - 1)) : 14.0;
-        if (spacing < 6.0) spacing = 6.0;
 
         for (NSUInteger i = 0; i < icons.count; i++) {
             UIView *icon = icons[i];
@@ -1501,7 +1874,10 @@ static void hooked_iconlist_layoutSubviews(UIView *self, SEL _cmd) {
     if ([NSStringFromClass([self class]) containsString:@"Dock"]) return;
 
     CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
-    CGFloat dockReserve = 86.0;
+    CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 54.0;
+    CGFloat dockW = iconSize + 20.0;
+    CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
+    CGFloat dockReserve = dockW + marginX + 6.0;
     CGFloat factor = (screenW - dockReserve - 10.0) / screenW;
     if (factor > 0.95 || factor < 0.6) factor = 0.76;
 
