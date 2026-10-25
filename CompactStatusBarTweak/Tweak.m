@@ -53,19 +53,34 @@ struct if_data_compact {
 
 // MARK: - Global Preferences
 static BOOL p_enabled = YES;
+static BOOL p_dragModeEnabled = NO;
 static CGFloat p_iconScale = 1.0;
 static CGFloat p_iconOpacity = 1.0;
 static CGFloat p_offsetX = 0.0;
 static CGFloat p_offsetY = 0.0;
+static int p_deviceModel = 0; // 0 = Auto, 1 = Island, 2 = Notch, 3 = Classic
 static int p_batteryPercentMode = 0; // 0 = Ẩn, 1 = Ở tâm, 2 = Bên cạnh
 static int p_speedThreshold = 2; // 0 = Tắt, 1 = >50K, 2 = >100K, 3 = Luôn hiện
 static int p_colorMode = 0; // 0 = Dynamic, 1 = Monochrome, 2 = Neon Cyan, 3 = Neon Purple
 static BOOL p_breathingGlow = YES;
 static BOOL p_showRAM = NO;
 static BOOL p_dotCount5 = NO;
+
+// Stock Status Bar Item Hiding
+static BOOL p_hideStockBattery = YES;
+static BOOL p_hideStockBatteryPercent = YES;
 static BOOL p_hideStockWifi = NO;
 static BOOL p_hideStockCellular = NO;
-static BOOL p_hideStockBatteryPercent = YES;
+static BOOL p_hideStockCarrier = NO;
+static BOOL p_hideStockTime = NO;
+static BOOL p_hideStockLocation = NO;
+static BOOL p_hideStockVPN = NO;
+static BOOL p_hideStockFocus = NO;
+static BOOL p_hideStockAlarm = NO;
+static BOOL p_hideStockBluetooth = NO;
+static BOOL p_hideStockAirplane = NO;
+
+// Gestures
 static int p_actionSingleTap = 0;
 static int p_actionDoubleTap = 4;
 static int p_actionLongPress = 1;
@@ -79,24 +94,61 @@ static void loadPrefs(void) {
     NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:prefPath];
     if (prefs) {
         p_enabled = prefs[@"enabled"] ? [prefs[@"enabled"] boolValue] : YES;
+        p_dragModeEnabled = prefs[@"dragModeEnabled"] ? [prefs[@"dragModeEnabled"] boolValue] : NO;
         p_iconScale = prefs[@"iconScale"] ? [prefs[@"iconScale"] floatValue] : 1.0;
         p_iconOpacity = prefs[@"iconOpacity"] ? [prefs[@"iconOpacity"] floatValue] : 1.0;
         p_offsetX = prefs[@"offsetX"] ? [prefs[@"offsetX"] floatValue] : 0.0;
         p_offsetY = prefs[@"offsetY"] ? [prefs[@"offsetY"] floatValue] : 0.0;
+        p_deviceModel = prefs[@"deviceModel"] ? [prefs[@"deviceModel"] intValue] : 0;
         p_batteryPercentMode = prefs[@"batteryPercentMode"] ? [prefs[@"batteryPercentMode"] intValue] : 0;
         p_speedThreshold = prefs[@"speedThreshold"] ? [prefs[@"speedThreshold"] intValue] : 2;
         p_colorMode = prefs[@"colorMode"] ? [prefs[@"colorMode"] intValue] : 0;
         p_breathingGlow = prefs[@"breathingGlow"] ? [prefs[@"breathingGlow"] boolValue] : YES;
         p_showRAM = prefs[@"showRAM"] ? [prefs[@"showRAM"] boolValue] : NO;
         p_dotCount5 = prefs[@"dotCount5"] ? [prefs[@"dotCount5"] boolValue] : NO;
+
+        p_hideStockBattery = prefs[@"hideStockBattery"] ? [prefs[@"hideStockBattery"] boolValue] : YES;
+        p_hideStockBatteryPercent = prefs[@"hideStockBatteryPercent"] ? [prefs[@"hideStockBatteryPercent"] boolValue] : YES;
         p_hideStockWifi = prefs[@"hideStockWifi"] ? [prefs[@"hideStockWifi"] boolValue] : NO;
         p_hideStockCellular = prefs[@"hideStockCellular"] ? [prefs[@"hideStockCellular"] boolValue] : NO;
-        p_hideStockBatteryPercent = prefs[@"hideStockBatteryPercent"] ? [prefs[@"hideStockBatteryPercent"] boolValue] : YES;
+        p_hideStockCarrier = prefs[@"hideStockCarrier"] ? [prefs[@"hideStockCarrier"] boolValue] : NO;
+        p_hideStockTime = prefs[@"hideStockTime"] ? [prefs[@"hideStockTime"] boolValue] : NO;
+        p_hideStockLocation = prefs[@"hideStockLocation"] ? [prefs[@"hideStockLocation"] boolValue] : NO;
+        p_hideStockVPN = prefs[@"hideStockVPN"] ? [prefs[@"hideStockVPN"] boolValue] : NO;
+        p_hideStockFocus = prefs[@"hideStockFocus"] ? [prefs[@"hideStockFocus"] boolValue] : NO;
+        p_hideStockAlarm = prefs[@"hideStockAlarm"] ? [prefs[@"hideStockAlarm"] boolValue] : NO;
+        p_hideStockBluetooth = prefs[@"hideStockBluetooth"] ? [prefs[@"hideStockBluetooth"] boolValue] : NO;
+        p_hideStockAirplane = prefs[@"hideStockAirplane"] ? [prefs[@"hideStockAirplane"] boolValue] : NO;
+
         p_actionSingleTap = prefs[@"actionSingleTap"] ? [prefs[@"actionSingleTap"] intValue] : 0;
         p_actionDoubleTap = prefs[@"actionDoubleTap"] ? [prefs[@"actionDoubleTap"] intValue] : 4;
         p_actionLongPress = prefs[@"actionLongPress"] ? [prefs[@"actionLongPress"] intValue] : 1;
         p_hapticFeedback = prefs[@"hapticFeedback"] ? [prefs[@"hapticFeedback"] intValue] : 1;
     }
+}
+
+static void savePreferenceNumber(NSString *key, NSNumber *val) {
+    NSString *prefPath = @"/var/jb/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
+    if (![[NSFileManager defaultManager] fileExistsAtPath:@"/var/jb/var/mobile/Library/Preferences"]) {
+        prefPath = @"/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
+    }
+    NSMutableDictionary *dict = [NSMutableDictionary dictionaryWithContentsOfFile:prefPath];
+    if (!dict) dict = [NSMutableDictionary dictionary];
+    dict[key] = val;
+    [dict writeToFile:prefPath atomically:YES];
+
+    NSString *fallback = @"/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
+    if (![prefPath isEqualToString:fallback]) {
+        [dict writeToFile:fallback atomically:YES];
+    }
+
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        CFSTR("com.hoangnguyen.compactstatusbar/ReloadPrefs"),
+        NULL,
+        NULL,
+        YES
+    );
 }
 
 // MARK: - Helper Functions (Network, RAM, Cellular, Wi-Fi)
@@ -206,11 +258,16 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 @property (nonatomic, assign) uint64_t lastDownloadBytes;
 @property (nonatomic, assign) NSTimeInterval lastSampleTime;
 
+@property (nonatomic, assign) CGPoint anchorCenter;
+@property (nonatomic, strong) UIPanGestureRecognizer *dragPanGesture;
+
 - (void)rebuildCellularDots;
 - (void)applyPreferences;
 - (void)updateStats;
 - (void)showHUD;
 - (void)toggleRAMDisplay;
+- (void)handleDragPan:(UIPanGestureRecognizer *)pan;
+- (void)updateDragHUDWithX:(CGFloat)x y:(CGFloat)y finished:(BOOL)finished;
 @end
 
 @implementation CompactStatusView
@@ -252,6 +309,78 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 - (void)applyPreferences {
     self.transform = CGAffineTransformMakeScale(p_iconScale, p_iconScale);
     self.alpha = p_iconOpacity;
+    if (p_dragModeEnabled) {
+        self.layer.borderColor = [UIColor colorWithRed:0.2 green:0.9 blue:0.4 alpha:1.0].CGColor;
+        self.layer.borderWidth = 1.5;
+        self.layer.cornerRadius = 6.0;
+        if (!self.dragPanGesture) {
+            self.dragPanGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleDragPan:)];
+            [self addGestureRecognizer:self.dragPanGesture];
+        }
+        self.dragPanGesture.enabled = YES;
+    } else {
+        self.layer.borderWidth = 0.0;
+        if (self.dragPanGesture) {
+            self.dragPanGesture.enabled = NO;
+        }
+    }
+}
+
+- (void)handleDragPan:(UIPanGestureRecognizer *)pan {
+    UIView *superview = self.superview;
+    if (!superview) return;
+
+    CGPoint translation = [pan translationInView:superview];
+    self.center = CGPointMake(self.center.x + translation.x, self.center.y + translation.y);
+    [pan setTranslation:CGPointZero inView:superview];
+
+    CGFloat curX = self.center.x - self.anchorCenter.x;
+    CGFloat curY = self.center.y - self.anchorCenter.y;
+    p_offsetX = curX;
+    p_offsetY = curY;
+
+    [self updateDragHUDWithX:curX y:curY finished:(pan.state == UIGestureRecognizerStateEnded || pan.state == UIGestureRecognizerStateCancelled)];
+
+    if (pan.state == UIGestureRecognizerStateEnded || pan.state == UIGestureRecognizerStateCancelled) {
+        savePreferenceNumber(@"offsetX", @(curX));
+        savePreferenceNumber(@"offsetY", @(curY));
+        triggerHaptic(2);
+    }
+}
+
+- (void)updateDragHUDWithX:(CGFloat)x y:(CGFloat)y finished:(BOOL)finished {
+    UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+    if (!keyWindow) return;
+
+    UILabel *hud = (UILabel *)[keyWindow viewWithTag:998833];
+    if (!hud) {
+        hud = [[UILabel alloc] initWithFrame:CGRectMake((keyWindow.bounds.size.width - 220) / 2.0, 52.0, 220.0, 32.0)];
+        hud.tag = 998833;
+        hud.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.9];
+        hud.textColor = [UIColor colorWithRed:0.2 green:0.9 blue:0.5 alpha:1.0];
+        hud.font = [UIFont systemFontOfSize:11.5 weight:UIFontWeightBold];
+        hud.textAlignment = NSTextAlignmentCenter;
+        hud.layer.cornerRadius = 16.0;
+        hud.layer.masksToBounds = YES;
+        hud.layer.borderColor = [UIColor colorWithWhite:0.35 alpha:1.0].CGColor;
+        hud.layer.borderWidth = 1.0;
+        [keyWindow addSubview:hud];
+    }
+    [keyWindow bringSubviewToFront:hud];
+
+    if (!finished) {
+        hud.text = [NSString stringWithFormat:@"📍 X: %+.0f  |  Y: %+.0f", x, y];
+        hud.alpha = 1.0;
+    } else {
+        hud.text = [NSString stringWithFormat:@"✅ Đã lưu (X: %+.0f, Y: %+.0f)", x, y];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [UIView animateWithDuration:0.3 animations:^{
+                hud.alpha = 0.0;
+            } completion:^(BOOL done) {
+                [hud removeFromSuperview];
+            }];
+        });
+    }
 }
 
 - (void)setupLayers {
@@ -435,16 +564,19 @@ static void executeAction(int actionCode, CompactStatusView *view) {
 }
 
 - (void)handleSingleTap {
+    if (p_dragModeEnabled) return;
     triggerHaptic(p_hapticFeedback);
     executeAction(p_actionSingleTap, self);
 }
 
 - (void)handleDoubleTap {
+    if (p_dragModeEnabled) return;
     triggerHaptic(p_hapticFeedback);
     executeAction(p_actionDoubleTap, self);
 }
 
 - (void)handleLongPress:(UILongPressGestureRecognizer *)gesture {
+    if (p_dragModeEnabled) return;
     if (gesture.state == UIGestureRecognizerStateBegan) {
         triggerHaptic(p_hapticFeedback);
         executeAction(p_actionLongPress, self);
@@ -683,6 +815,362 @@ static void executeAction(int actionCode, CompactStatusView *view) {
 
 @end
 
+// MARK: - CSBPreviewCell: Interactive Canvas & Preset Picker for PreferenceLoader
+@interface CSBPreviewCell : UITableViewCell
+@property (nonatomic, strong) UISegmentedControl *modelSegment;
+@property (nonatomic, strong) UIView *bezelView;
+@property (nonatomic, strong) UIView *islandNotchView;
+@property (nonatomic, strong) UIView *speakerHole;
+@property (nonatomic, strong) UILabel *clockLabel;
+@property (nonatomic, strong) UIView *stockAnchorView;
+@property (nonatomic, strong) CompactStatusView *gaugePreview;
+@property (nonatomic, strong) UILabel *coordLabel;
+@property (nonatomic, strong) UIButton *btn1;
+@property (nonatomic, strong) UIButton *btn2;
+@property (nonatomic, strong) UIButton *btn3;
+@property (nonatomic, strong) UIButton *btn4;
+@property (nonatomic, strong) UIButton *btnRespring;
+@property (nonatomic, strong) id specifier;
+- (void)setupUI;
+- (void)updateModelDisplay;
+- (void)syncFromPrefs;
+@end
+
+static void handlePreviewReloadNotification(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    CSBPreviewCell *cell = (__bridge CSBPreviewCell *)observer;
+    if (cell && [cell isKindOfClass:[CSBPreviewCell class]]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [cell syncFromPrefs];
+        });
+    }
+}
+
+@implementation CSBPreviewCell
+
+- (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier specifier:(id)specifier {
+    self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
+    if (self) {
+        _specifier = specifier;
+        [self setupUI];
+    }
+    return self;
+}
+
+- (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier {
+    self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
+    if (self) {
+        [self setupUI];
+    }
+    return self;
+}
+
+- (instancetype)initWithSpecifier:(id)specifier {
+    self = [super initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil];
+    if (self) {
+        _specifier = specifier;
+        [self setupUI];
+    }
+    return self;
+}
+
+- (UITableView *)findParentTableView {
+    UIView *v = self.superview;
+    while (v && ![v isKindOfClass:[UITableView class]]) {
+        v = v.superview;
+    }
+    return (UITableView *)v;
+}
+
+- (void)setupUI {
+    self.backgroundColor = [UIColor clearColor];
+    self.selectionStyle = UITableViewCellSelectionStyleNone;
+
+    loadPrefs();
+
+    // 1. Model Segmented Control
+    NSArray *items = @[@"🏝️ Dynamic Island", @"📱 Tai thỏ", @"🔲 Cổ điển"];
+    _modelSegment = [[UISegmentedControl alloc] initWithItems:items];
+    int selIdx = (p_deviceModel >= 1 && p_deviceModel <= 3) ? (p_deviceModel - 1) : 0;
+    _modelSegment.selectedSegmentIndex = selIdx;
+    [_modelSegment addTarget:self action:@selector(modelChanged:) forControlEvents:UIControlEventValueChanged];
+    [self.contentView addSubview:_modelSegment];
+
+    // 2. Bezel Mockup
+    _bezelView = [[UIView alloc] initWithFrame:CGRectZero];
+    _bezelView.backgroundColor = [UIColor colorWithRed:0.07 green:0.08 blue:0.10 alpha:1.0];
+    _bezelView.layer.cornerRadius = 18.0;
+    _bezelView.layer.borderWidth = 1.2;
+    _bezelView.layer.borderColor = [UIColor colorWithWhite:0.28 alpha:1.0].CGColor;
+    _bezelView.clipsToBounds = YES;
+    _bezelView.userInteractionEnabled = YES;
+    [self.contentView addSubview:_bezelView];
+
+    // Clock
+    _clockLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 12, 45, 18)];
+    _clockLabel.text = @"9:41";
+    _clockLabel.font = [UIFont systemFontOfSize:12.5 weight:UIFontWeightBold];
+    _clockLabel.textColor = [UIColor whiteColor];
+    [_bezelView addSubview:_clockLabel];
+
+    // Notch / Island view
+    _islandNotchView = [[UIView alloc] initWithFrame:CGRectZero];
+    _islandNotchView.backgroundColor = [UIColor blackColor];
+    _speakerHole = [[UIView alloc] initWithFrame:CGRectZero];
+    _speakerHole.backgroundColor = [UIColor colorWithWhite:0.25 alpha:1.0];
+    [_islandNotchView addSubview:_speakerHole];
+    [_bezelView addSubview:_islandNotchView];
+
+    // Stock Battery Anchor (0, 0 watermark)
+    _stockAnchorView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 24, 24)];
+    _stockAnchorView.layer.borderColor = [UIColor colorWithWhite:0.35 alpha:0.7].CGColor;
+    _stockAnchorView.layer.borderWidth = 1.0;
+    _stockAnchorView.layer.cornerRadius = 4.0;
+    _stockAnchorView.userInteractionEnabled = NO;
+    [_bezelView addSubview:_stockAnchorView];
+
+    // Interactive Gauge Preview
+    _gaugePreview = [[CompactStatusView alloc] initWithFrame:CGRectMake(0, 0, 22, 22)];
+    _gaugePreview.userInteractionEnabled = YES;
+    [_bezelView addSubview:_gaugePreview];
+
+    // Pan gesture on bezel
+    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleCanvasPan:)];
+    [_bezelView addGestureRecognizer:pan];
+
+    // Coordinates Label
+    _coordLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    _coordLabel.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightMedium];
+    _coordLabel.textColor = [UIColor colorWithRed:0.20 green:0.85 blue:0.50 alpha:1.0];
+    _coordLabel.textAlignment = NSTextAlignmentCenter;
+    _coordLabel.text = [NSString stringWithFormat:@"📍 Toạ độ: X: %+.0f | Y: %+.0f (Kéo để chỉnh)", p_offsetX, p_offsetY];
+    [_bezelView addSubview:_coordLabel];
+
+    // 3. Preset Buttons
+    _btn1 = [self makeButtonWithTitle:@"🎯 Gốc phải" tag:101];
+    _btn2 = [self makeButtonWithTitle:@"📍 Cạnh Đảo" tag:102];
+    _btn3 = [self makeButtonWithTitle:@"◀️ Góc trái" tag:103];
+    _btn4 = [self makeButtonWithTitle:@"⏬ Hạ thấp" tag:104];
+    [self.contentView addSubview:_btn1];
+    [self.contentView addSubview:_btn2];
+    [self.contentView addSubview:_btn3];
+    [self.contentView addSubview:_btn4];
+
+    // 4. Respring Button
+    _btnRespring = [UIButton buttonWithType:UIButtonTypeSystem];
+    [_btnRespring setTitle:@"⚡ Khởi động lại SpringBoard (Respring)" forState:UIControlStateNormal];
+    _btnRespring.titleLabel.font = [UIFont systemFontOfSize:13.0 weight:UIFontWeightBold];
+    [_btnRespring setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    _btnRespring.backgroundColor = [UIColor colorWithRed:0.12 green:0.42 blue:0.88 alpha:1.0];
+    _btnRespring.layer.cornerRadius = 9.0;
+    _btnRespring.layer.masksToBounds = YES;
+    [_btnRespring addTarget:self action:@selector(respringTapped:) forControlEvents:UIControlEventTouchUpInside];
+    [self.contentView addSubview:_btnRespring];
+
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge const void *)(self),
+        (CFNotificationCallback)handlePreviewReloadNotification,
+        CFSTR("com.hoangnguyen.compactstatusbar/ReloadPrefs"),
+        NULL,
+        CFNotificationSuspensionBehaviorCoalesce
+    );
+}
+
+- (UIButton *)makeButtonWithTitle:(NSString *)title tag:(NSInteger)tag {
+    UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
+    [btn setTitle:title forState:UIControlStateNormal];
+    btn.titleLabel.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightMedium];
+    [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    btn.backgroundColor = [UIColor colorWithWhite:0.20 alpha:1.0];
+    btn.layer.cornerRadius = 7.0;
+    btn.layer.masksToBounds = YES;
+    btn.tag = tag;
+    [btn addTarget:self action:@selector(presetTapped:) forControlEvents:UIControlEventTouchUpInside];
+    return btn;
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGFloat w = self.contentView.bounds.size.width;
+    if (w <= 0) w = 360.0;
+
+    _modelSegment.frame = CGRectMake(16, 6, w - 32, 28);
+    _bezelView.frame = CGRectMake(16, 40, w - 32, 88);
+
+    CGFloat bW = _bezelView.bounds.size.width;
+    _stockAnchorView.frame = CGRectMake(bW - 40, 10, 24, 24);
+    _gaugePreview.center = CGPointMake(_stockAnchorView.center.x + p_offsetX, _stockAnchorView.center.y + p_offsetY);
+    _coordLabel.frame = CGRectMake(10, 66, bW - 20, 16);
+
+    [self updateModelDisplay];
+
+    CGFloat sp = 5.0;
+    CGFloat totalW = w - 32;
+    CGFloat btnW = (totalW - (sp * 3.0)) / 4.0;
+    _btn1.frame = CGRectMake(16, 134, btnW, 28);
+    _btn2.frame = CGRectMake(16 + (btnW + sp), 134, btnW, 28);
+    _btn3.frame = CGRectMake(16 + (btnW + sp) * 2, 134, btnW, 28);
+    _btn4.frame = CGRectMake(16 + (btnW + sp) * 3, 134, btnW, 28);
+
+    _btnRespring.frame = CGRectMake(16, 168, w - 32, 34);
+}
+
+- (void)updateModelDisplay {
+    CGFloat bW = _bezelView.bounds.size.width;
+    NSInteger seg = _modelSegment.selectedSegmentIndex;
+    if (seg == 0) { // Dynamic Island
+        _islandNotchView.hidden = NO;
+        _islandNotchView.frame = CGRectMake((bW - 84) / 2.0, 10, 84, 20);
+        _islandNotchView.layer.cornerRadius = 10;
+        _speakerHole.hidden = NO;
+        _speakerHole.frame = CGRectMake(64, 5, 10, 10);
+        _speakerHole.layer.cornerRadius = 5;
+    } else if (seg == 1) { // Notch
+        _islandNotchView.hidden = NO;
+        _islandNotchView.frame = CGRectMake((bW - 120) / 2.0, 0, 120, 22);
+        _islandNotchView.layer.cornerRadius = 7;
+        _speakerHole.hidden = NO;
+        _speakerHole.frame = CGRectMake((120 - 34) / 2.0, 4, 34, 4);
+        _speakerHole.layer.cornerRadius = 2;
+    } else { // Classic
+        _islandNotchView.hidden = YES;
+    }
+}
+
+- (void)modelChanged:(UISegmentedControl *)seg {
+    p_deviceModel = (int)seg.selectedSegmentIndex + 1;
+    savePreferenceNumber(@"deviceModel", @(p_deviceModel));
+    [self updateModelDisplay];
+    triggerHaptic(1);
+}
+
+- (void)handleCanvasPan:(UIPanGestureRecognizer *)pan {
+    UITableView *tv = [self findParentTableView];
+    if (pan.state == UIGestureRecognizerStateBegan) {
+        if (tv) tv.scrollEnabled = NO;
+    } else if (pan.state == UIGestureRecognizerStateEnded || pan.state == UIGestureRecognizerStateCancelled) {
+        if (tv) tv.scrollEnabled = YES;
+    }
+
+    CGPoint loc = [pan locationInView:_bezelView];
+    CGFloat newX = MAX(16, MIN(_bezelView.bounds.size.width - 16, loc.x));
+    CGFloat newY = MAX(12, MIN(_bezelView.bounds.size.height - 12, loc.y));
+
+    _gaugePreview.center = CGPointMake(newX, newY);
+
+    CGFloat curX = _gaugePreview.center.x - _stockAnchorView.center.x;
+    CGFloat curY = _gaugePreview.center.y - _stockAnchorView.center.y;
+
+    _coordLabel.text = [NSString stringWithFormat:@"📍 Toạ độ: X: %+.0f | Y: %+.0f (Kéo để chỉnh)", curX, curY];
+
+    if (pan.state == UIGestureRecognizerStateEnded || pan.state == UIGestureRecognizerStateCancelled) {
+        p_offsetX = curX;
+        p_offsetY = curY;
+        savePreferenceNumber(@"offsetX", @(curX));
+        savePreferenceNumber(@"offsetY", @(curY));
+        triggerHaptic(1);
+    }
+}
+
+- (void)presetTapped:(UIButton *)btn {
+    CGFloat newX = 0, newY = 0;
+    if (btn.tag == 101) { newX = 0; newY = 0; }
+    else if (btn.tag == 102) { newX = -55; newY = 0; }
+    else if (btn.tag == 103) { newX = -240; newY = 0; }
+    else if (btn.tag == 104) { newX = 0; newY = 16; }
+
+    [UIView animateWithDuration:0.25 animations:^{
+        self.gaugePreview.center = CGPointMake(self.stockAnchorView.center.x + newX, self.stockAnchorView.center.y + newY);
+    }];
+    _coordLabel.text = [NSString stringWithFormat:@"📍 Toạ độ: X: %+.0f | Y: %+.0f (Kéo để chỉnh)", newX, newY];
+
+    p_offsetX = newX;
+    p_offsetY = newY;
+    savePreferenceNumber(@"offsetX", @(newX));
+    savePreferenceNumber(@"offsetY", @(newY));
+    triggerHaptic(2);
+}
+
+- (void)respringTapped:(UIButton *)btn {
+    triggerHaptic(2);
+    doRespringFromPrefs(self, @selector(respring:), nil);
+}
+
+- (void)syncFromPrefs {
+    loadPrefs();
+    _gaugePreview.center = CGPointMake(_stockAnchorView.center.x + p_offsetX, _stockAnchorView.center.y + p_offsetY);
+    _coordLabel.text = [NSString stringWithFormat:@"📍 Toạ độ: X: %+.0f | Y: %+.0f (Kéo để chỉnh)", p_offsetX, p_offsetY];
+    [_gaugePreview applyPreferences];
+    [_gaugePreview updateStats];
+}
+
+- (void)dealloc {
+    CFNotificationCenterRemoveObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge const void *)(self),
+        CFSTR("com.hoangnguyen.compactstatusbar/ReloadPrefs"),
+        NULL
+    );
+}
+
+@end
+
+// MARK: - Stock Status Bar Item Hiding Helpers
+static inline BOOL shouldHideStatusBarImageView(UIImageView *self) {
+    if (!p_enabled) return NO;
+
+    NSString *desc = [self description];
+    NSString *parentDesc = self.superview ? [self.superview description] : @"";
+    NSString *imgDesc = self.image ? [self.image description] : @"";
+    NSString *allInfo = [NSString stringWithFormat:@"%@ %@ %@", desc, parentDesc, imgDesc].lowercaseString;
+
+    if (p_hideStockLocation && ([allInfo containsString:@"location"] || [allInfo containsString:@"compass"])) return YES;
+    if (p_hideStockVPN && [allInfo containsString:@"vpn"]) return YES;
+    if (p_hideStockFocus && ([allInfo containsString:@"moon"] || [allInfo containsString:@"focus"] || [allInfo containsString:@"quietmode"] || [allInfo containsString:@"dnd"])) return YES;
+    if (p_hideStockAlarm && [allInfo containsString:@"alarm"]) return YES;
+    if (p_hideStockBluetooth && ([allInfo containsString:@"bluetooth"] || [allInfo containsString:@"headphone"] || [allInfo containsString:@"airpod"])) return YES;
+    if (p_hideStockAirplane && [allInfo containsString:@"airplane"]) return YES;
+    if (p_hideStockWifi && ([allInfo containsString:@"wifi"] || [allInfo containsString:@"airport"])) return YES;
+    if (p_hideStockCellular && ([allInfo containsString:@"cellular"] || [allInfo containsString:@"signal"])) return YES;
+    return NO;
+}
+
+static inline void checkAndApplyImageVisibility(UIImageView *self) {
+    if (!p_enabled) return;
+    if (shouldHideStatusBarImageView(self)) {
+        self.hidden = YES;
+        self.alpha = 0.0;
+    }
+}
+
+static inline BOOL shouldHideStatusBarStringView(UIView *self, NSString *text) {
+    if (!p_enabled || !text || text.length == 0) return NO;
+
+    if (p_hideStockBatteryPercent && [text containsString:@"%"]) {
+        return YES;
+    }
+    if (p_hideStockTime && [text containsString:@":"]) {
+        return YES;
+    }
+    if (p_hideStockCarrier) {
+        if (![text containsString:@"%"] && ![text containsString:@":"]) {
+            NSString *trimmed = [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            static NSSet *netTypes = nil;
+            static dispatch_once_t onceToken;
+            dispatch_once(&onceToken, ^{
+                netTypes = [NSSet setWithObjects:@"LTE", @"4G", @"5G", @"3G", @"E", @"GPRS", @"1X", @"SOS", @"5G+", @"5G UW", @"5G UC", nil];
+            });
+            if (![netTypes containsObject:trimmed.uppercaseString]) {
+                NSString *allInfo = [NSString stringWithFormat:@"%@ %@", [self description], self.superview ? [self.superview description] : @""].lowercaseString;
+                if ([allInfo containsString:@"service"] || [allInfo containsString:@"carrier"] || [allInfo containsString:@"cellular"] || [allInfo containsString:@"telephony"] || trimmed.length > 2) {
+                    return YES;
+                }
+            }
+        }
+    }
+    return NO;
+}
+
 // MARK: - Hooks for SpringBoard Status Bar Items
 
 static void (*orig_battery_didMoveToWindow)(UIView *, SEL) = NULL;
@@ -692,8 +1180,10 @@ static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
     }
     if (!self.window || !p_enabled) return;
 
-    self.hidden = YES;
-    self.alpha = 0.0;
+    if (p_hideStockBattery) {
+        self.hidden = YES;
+        self.alpha = 0.0;
+    }
 
     dispatch_async(dispatch_get_main_queue(), ^{
         UIView *parent = self.superview;
@@ -704,8 +1194,10 @@ static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
                 custom.tag = 998811;
                 [parent addSubview:custom];
             }
+            custom.anchorCenter = self.center;
             custom.center = CGPointMake(self.center.x + p_offsetX, self.center.y + p_offsetY);
             [parent bringSubviewToFront:custom];
+            [custom applyPreferences];
         }
     });
 }
@@ -716,13 +1208,18 @@ static void hooked_battery_layoutSubviews(UIView *self, SEL _cmd) {
         orig_battery_layoutSubviews(self, _cmd);
     }
     if (p_enabled) {
-        self.hidden = YES;
-        self.alpha = 0.0;
+        if (p_hideStockBattery) {
+            self.hidden = YES;
+            self.alpha = 0.0;
+        }
         UIView *parent = self.superview;
         if (parent) {
-            UIView *custom = [parent viewWithTag:998811];
+            CompactStatusView *custom = (CompactStatusView *)[parent viewWithTag:998811];
             if (custom) {
-                custom.center = CGPointMake(self.center.x + p_offsetX, self.center.y + p_offsetY);
+                custom.anchorCenter = self.center;
+                if (!p_dragModeEnabled) {
+                    custom.center = CGPointMake(self.center.x + p_offsetX, self.center.y + p_offsetY);
+                }
             }
         }
     }
@@ -731,6 +1228,15 @@ static void hooked_battery_layoutSubviews(UIView *self, SEL _cmd) {
 static void (*orig_wifi_didMoveToWindow)(UIView *, SEL) = NULL;
 static void hooked_wifi_didMoveToWindow(UIView *self, SEL _cmd) {
     if (orig_wifi_didMoveToWindow) orig_wifi_didMoveToWindow(self, _cmd);
+    if (p_enabled && p_hideStockWifi) {
+        self.hidden = YES;
+        self.alpha = 0.0;
+    }
+}
+
+static void (*orig_wifi_layoutSubviews)(UIView *, SEL) = NULL;
+static void hooked_wifi_layoutSubviews(UIView *self, SEL _cmd) {
+    if (orig_wifi_layoutSubviews) orig_wifi_layoutSubviews(self, _cmd);
     if (p_enabled && p_hideStockWifi) {
         self.hidden = YES;
         self.alpha = 0.0;
@@ -746,9 +1252,18 @@ static void hooked_cell_didMoveToWindow(UIView *self, SEL _cmd) {
     }
 }
 
+static void (*orig_cell_layoutSubviews)(UIView *, SEL) = NULL;
+static void hooked_cell_layoutSubviews(UIView *self, SEL _cmd) {
+    if (orig_cell_layoutSubviews) orig_cell_layoutSubviews(self, _cmd);
+    if (p_enabled && p_hideStockCellular) {
+        self.hidden = YES;
+        self.alpha = 0.0;
+    }
+}
+
 static void (*orig_setText)(id, SEL, NSString *) = NULL;
 static void hooked_setText(id self, SEL _cmd, NSString *text) {
-    if (p_enabled && p_hideStockBatteryPercent && text && [text containsString:@"%"]) {
+    if (shouldHideStatusBarStringView((UIView *)self, text)) {
         ((UIView *)self).hidden = YES;
         ((UIView *)self).alpha = 0.0;
         return;
@@ -756,6 +1271,34 @@ static void hooked_setText(id self, SEL _cmd, NSString *text) {
     if (orig_setText) {
         orig_setText(self, _cmd, text);
     }
+}
+
+static void (*orig_string_layoutSubviews)(UIView *, SEL) = NULL;
+static void hooked_string_layoutSubviews(UIView *self, SEL _cmd) {
+    if (orig_string_layoutSubviews) orig_string_layoutSubviews(self, _cmd);
+    NSString *text = [self respondsToSelector:@selector(text)] ? [self performSelector:@selector(text)] : nil;
+    if (shouldHideStatusBarStringView(self, text)) {
+        self.hidden = YES;
+        self.alpha = 0.0;
+    }
+}
+
+static void (*orig_img_didMoveToWindow)(UIView *, SEL) = NULL;
+static void hooked_img_didMoveToWindow(UIView *self, SEL _cmd) {
+    if (orig_img_didMoveToWindow) orig_img_didMoveToWindow(self, _cmd);
+    checkAndApplyImageVisibility((UIImageView *)self);
+}
+
+static void (*orig_img_layoutSubviews)(UIView *, SEL) = NULL;
+static void hooked_img_layoutSubviews(UIView *self, SEL _cmd) {
+    if (orig_img_layoutSubviews) orig_img_layoutSubviews(self, _cmd);
+    checkAndApplyImageVisibility((UIImageView *)self);
+}
+
+static void (*orig_img_setImage)(id, SEL, UIImage *) = NULL;
+static void hooked_img_setImage(UIImageView *self, SEL _cmd, UIImage *image) {
+    if (orig_img_setImage) orig_img_setImage(self, _cmd, image);
+    checkAndApplyImageVisibility(self);
 }
 
 // MARK: - Respring & Notifications
@@ -853,25 +1396,38 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
     Class wifiClass = objc_getClass("_UIStatusBarWifiSignalView");
     if (wifiClass) {
         SafeSwizzle(wifiClass, @selector(didMoveToWindow), (IMP)hooked_wifi_didMoveToWindow, (IMP *)&orig_wifi_didMoveToWindow);
+        SafeSwizzle(wifiClass, @selector(layoutSubviews), (IMP)hooked_wifi_layoutSubviews, (IMP *)&orig_wifi_layoutSubviews);
     }
     Class legacyWifiClass = objc_getClass("UIStatusBarDataNetworkItemView");
     if (legacyWifiClass) {
         SafeSwizzle(legacyWifiClass, @selector(didMoveToWindow), (IMP)hooked_wifi_didMoveToWindow, (IMP *)&orig_wifi_didMoveToWindow);
+        SafeSwizzle(legacyWifiClass, @selector(layoutSubviews), (IMP)hooked_wifi_layoutSubviews, (IMP *)&orig_wifi_layoutSubviews);
     }
 
     // 3. Hook Stock Cellular View
     Class cellClass = objc_getClass("_UIStatusBarCellularSignalView");
     if (cellClass) {
         SafeSwizzle(cellClass, @selector(didMoveToWindow), (IMP)hooked_cell_didMoveToWindow, (IMP *)&orig_cell_didMoveToWindow);
+        SafeSwizzle(cellClass, @selector(layoutSubviews), (IMP)hooked_cell_layoutSubviews, (IMP *)&orig_cell_layoutSubviews);
     }
     Class legacyCellClass = objc_getClass("UIStatusBarSignalStrengthItemView");
     if (legacyCellClass) {
         SafeSwizzle(legacyCellClass, @selector(didMoveToWindow), (IMP)hooked_cell_didMoveToWindow, (IMP *)&orig_cell_didMoveToWindow);
+        SafeSwizzle(legacyCellClass, @selector(layoutSubviews), (IMP)hooked_cell_layoutSubviews, (IMP *)&orig_cell_layoutSubviews);
     }
 
-    // 4. Hook String View (% text)
+    // 4. Hook String View (% text, Time/Clock, Carrier)
     Class stringViewClass = objc_getClass("_UIStatusBarStringView");
     if (stringViewClass) {
         SafeSwizzle(stringViewClass, @selector(setText:), (IMP)hooked_setText, (IMP *)&orig_setText);
+        SafeSwizzle(stringViewClass, @selector(layoutSubviews), (IMP)hooked_string_layoutSubviews, (IMP *)&orig_string_layoutSubviews);
+    }
+
+    // 5. Hook Image View (Indicators: Location, VPN, Focus/DND, Alarm, Bluetooth, Airplane)
+    Class imgViewClass = objc_getClass("_UIStatusBarImageView");
+    if (imgViewClass) {
+        SafeSwizzle(imgViewClass, @selector(didMoveToWindow), (IMP)hooked_img_didMoveToWindow, (IMP *)&orig_img_didMoveToWindow);
+        SafeSwizzle(imgViewClass, @selector(layoutSubviews), (IMP)hooked_img_layoutSubviews, (IMP *)&orig_img_layoutSubviews);
+        SafeSwizzle(imgViewClass, @selector(setImage:), (IMP)hooked_img_setImage, (IMP *)&orig_img_setImage);
     }
 }
