@@ -1,9 +1,9 @@
 Package: com.hoangnguyen.compactstatusbartweak
-Name: CompactStatusBar Tweak
-Depends: mobilesubstrate
-Version: 1.0.0
+Name: CompactStatusBar
+Depends: mobilesubstrate, preferenceloader
+Version: 1.0.1
 Architecture: iphoneos-arm64
-Description: An pin goc cua iOS 15 de hien thi CompactStatusBar tren iPhone 7 Plus
+Description: Compact 3-in-1 status bar gauge for iOS 15
 Maintainer: Hoangnguyen
 Author: Hoangnguyen
 Section: Tweaks

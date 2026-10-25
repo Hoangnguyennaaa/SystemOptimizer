@@ -39,7 +39,7 @@ mkdir -p pkg_root/var/jb/Library/PreferenceLoader/Preferences
 mkdir -p pkg_root/var/jb/Library/PreferenceBundles/CompactStatusBarPrefs.bundle
 mkdir -p pkg_root/DEBIAN
 
-# Tweak
+# Tweak dylib + plist filter
 cp CompactStatusBar.dylib pkg_root/var/jb/usr/lib/TweakInject/
 cp CompactStatusBarTweak.plist pkg_root/var/jb/usr/lib/TweakInject/CompactStatusBar.plist
 
@@ -54,45 +54,13 @@ cp Preferences/Root.plist pkg_root/var/jb/Library/PreferenceBundles/CompactStatu
 # Debian control
 cp control pkg_root/DEBIAN/control
 
-echo "[*] Step 5: Packaging into .deb..."
-python3 - << 'EOF'
-import tarfile, os, io
+# Set exact Unix permissions required by dpkg
+chmod -R 0755 pkg_root
+chmod 0644 pkg_root/DEBIAN/control
 
-def make_deb():
-    deb_binary = b"2.0\n"
-    
-    ctrl_buf = io.BytesIO()
-    with tarfile.open(fileobj=ctrl_buf, mode="w:gz") as tar:
-        tar.add("pkg_root/DEBIAN/control", arcname="./control")
-    ctrl_bytes = ctrl_buf.getvalue()
-    
-    data_buf = io.BytesIO()
-    with tarfile.open(fileobj=data_buf, mode="w:gz") as tar:
-        for root, dirs, files in os.walk("pkg_root/var"):
-            for f in files:
-                p = os.path.join(root, f)
-                rel = os.path.relpath(p, "pkg_root")
-                tar.add(p, arcname="./" + rel.replace("\\", "/"))
-    data_bytes = data_buf.getvalue()
-
-    with open("CompactStatusBar_rootless.deb", "wb") as deb:
-        deb.write(b"!<arch>\n")
-        
-        def write_member(name, content):
-            header = f"{name:<16}{'0':<12}{'0':<6}{'0':<6}{'100644':<8}{len(content):<10}`\n".encode("ascii")
-            deb.write(header)
-            deb.write(content)
-            if len(content) % 2 == 1:
-                deb.write(b"\n")
-                
-        write_member("debian-binary", deb_binary)
-        write_member("control.tar.gz", ctrl_bytes)
-        write_member("data.tar.gz", data_bytes)
-    print("Created CompactStatusBar_rootless.deb successfully!")
-
-make_deb()
-EOF
+echo "[*] Step 5: Packaging with official dpkg-deb tool..."
+dpkg-deb -Zgzip --root-owner-group -b pkg_root CompactStatusBar_rootless.deb
 
 cp CompactStatusBar_rootless.deb ../CompactStatusBar_rootless.deb
 rm -rf pkg_root CompactStatusBar.dylib CompactStatusBarPrefs
-echo "[+] Done: CompactStatusBar_rootless.deb created!"
+echo "[+] Hoàn tất! File CompactStatusBar_rootless.deb chuẩn Debian đã được tạo."
