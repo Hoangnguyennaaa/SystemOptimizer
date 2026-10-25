@@ -78,7 +78,14 @@ static BOOL p_showSSID = YES;
 static BOOL p_showThermalState = YES;
 static BOOL p_showRAMText = NO;
 static int p_speedThreshold = 2; // 0 = Tắt, 1 = >50K, 2 = >100K, 3 = Luôn hiện
-static int p_colorMode = 0; // 0 = Dynamic, 1 = Monochrome, 2 = Neon Cyan, 3 = Neon Purple
+static int p_colorMode = 0; // 0 = Dynamic, 1 = Monochrome, 2 = Neon Cyan, 3 = Neon Purple, 4 = Pink, 5 = Lime, 6 = Orange, 7 = Gold, 8 = Ruby, 9 = Custom
+static CGFloat p_customGaugeR = 0.0;
+static CGFloat p_customGaugeG = 0.95;
+static CGFloat p_customGaugeB = 1.0;
+static CGFloat p_customAccentR = 0.25;
+static CGFloat p_customAccentG = 0.95;
+static CGFloat p_customAccentB = 0.55;
+static CGFloat p_customBorderAlpha = 0.20;
 static BOOL p_breathingGlow = YES;
 static BOOL p_showRAM = NO;
 static BOOL p_dotCount5 = NO;
@@ -207,6 +214,41 @@ static void loadPrefs(void) {
     idx = CFPreferencesGetAppIntegerValue(CFSTR("speedThreshold"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
     if (keyExists) p_speedThreshold = (int)idx;
     else if (prefs && prefs[@"speedThreshold"]) p_speedThreshold = [prefs[@"speedThreshold"] intValue];
+
+    ref = CFPreferencesCopyAppValue(CFSTR("customGaugeR"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_customGaugeR = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"customGaugeR"]) p_customGaugeR = [prefs[@"customGaugeR"] floatValue];
+    else p_customGaugeR = 0.0;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("customGaugeG"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_customGaugeG = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"customGaugeG"]) p_customGaugeG = [prefs[@"customGaugeG"] floatValue];
+    else p_customGaugeG = 0.95;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("customGaugeB"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_customGaugeB = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"customGaugeB"]) p_customGaugeB = [prefs[@"customGaugeB"] floatValue];
+    else p_customGaugeB = 1.0;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("customAccentR"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_customAccentR = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"customAccentR"]) p_customAccentR = [prefs[@"customAccentR"] floatValue];
+    else p_customAccentR = 0.25;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("customAccentG"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_customAccentG = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"customAccentG"]) p_customAccentG = [prefs[@"customAccentG"] floatValue];
+    else p_customAccentG = 0.95;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("customAccentB"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_customAccentB = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"customAccentB"]) p_customAccentB = [prefs[@"customAccentB"] floatValue];
+    else p_customAccentB = 0.55;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("customBorderAlpha"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_customBorderAlpha = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"customBorderAlpha"]) p_customBorderAlpha = [prefs[@"customBorderAlpha"] floatValue];
+    else p_customBorderAlpha = 0.20;
 
     idx = CFPreferencesGetAppIntegerValue(CFSTR("colorMode"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
     if (keyExists) p_colorMode = (int)idx;
@@ -776,7 +818,10 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
 
     _networkSpeedLabel = [[UILabel alloc] init];
     _networkSpeedLabel.font = [UIFont systemFontOfSize:7.5 weight:UIFontWeightBold];
-    _networkSpeedLabel.textColor = [UIColor colorWithRed:0.25 green:0.95 blue:0.55 alpha:1.0];
+    UIColor *accentCol = (p_colorMode == 9) ?
+        [UIColor colorWithRed:p_customAccentR green:p_customAccentG blue:p_customAccentB alpha:1.0] :
+        [UIColor colorWithRed:0.25 green:0.95 blue:0.55 alpha:1.0];
+    _networkSpeedLabel.textColor = accentCol;
     _networkSpeedLabel.textAlignment = NSTextAlignmentCenter;
     [_extraInfoContainer addSubview:_networkSpeedLabel];
 
@@ -1135,13 +1180,25 @@ static void executeAction(int actionCode, CompactStatusView *view) {
 
     // 2. Màu sắc vòng cung
     UIColor *col = [UIColor colorWithWhite:1.0 alpha:0.95];
-    if (p_colorMode == 1) { // Đơn sắc
+    if (p_colorMode == 1) { // Đơn sắc trắng
         col = [UIColor colorWithWhite:1.0 alpha:0.95];
     } else if (p_colorMode == 2) { // Neon Cyan
         col = [UIColor colorWithRed:0.0 green:0.96 blue:1.0 alpha:1.0];
     } else if (p_colorMode == 3) { // Neon Tím
         col = [UIColor colorWithRed:0.75 green:0.33 blue:0.93 alpha:1.0];
-    } else { // Dynamic
+    } else if (p_colorMode == 4) { // Neon Hồng
+        col = [UIColor colorWithRed:1.0 green:0.08 blue:0.58 alpha:1.0];
+    } else if (p_colorMode == 5) { // Neon Xanh Lá
+        col = [UIColor colorWithRed:0.22 green:1.0 blue:0.08 alpha:1.0];
+    } else if (p_colorMode == 6) { // Neon Cam
+        col = [UIColor colorWithRed:1.0 green:0.42 blue:0.21 alpha:1.0];
+    } else if (p_colorMode == 7) { // Vàng Gold
+        col = [UIColor colorWithRed:1.0 green:0.84 blue:0.0 alpha:1.0];
+    } else if (p_colorMode == 8) { // Đỏ Ruby
+        col = [UIColor colorWithRed:1.0 green:0.20 blue:0.40 alpha:1.0];
+    } else if (p_colorMode == 9) { // 🎨 Tự chọn màu tùy thích (Custom RGB)
+        col = [UIColor colorWithRed:p_customGaugeR green:p_customGaugeG blue:p_customGaugeB alpha:1.0];
+    } else { // Dynamic (0)
         if (self.showRAM) {
             if (ramRatio > 0.85) col = [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0];
             else if (ramRatio > 0.65) col = [UIColor colorWithRed:1.0 green:0.60 blue:0.10 alpha:1.0];
@@ -1343,7 +1400,10 @@ static void executeAction(int actionCode, CompactStatusView *view) {
             _blurEffectView.hidden = NO;
             _pillContainerView.layer.cornerRadius = 11.0;
             _pillContainerView.layer.borderWidth = 0.5;
-            _pillContainerView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.20].CGColor;
+            UIColor *bCol = (p_colorMode == 9) ?
+                [UIColor colorWithRed:p_customGaugeR green:p_customGaugeG blue:p_customGaugeB alpha:p_customBorderAlpha] :
+                [UIColor colorWithWhite:1.0 alpha:0.20];
+            _pillContainerView.layer.borderColor = bCol.CGColor;
             _pillContainerView.backgroundColor = [UIColor colorWithWhite:0.08 alpha:0.38];
         } else { // Minimalist Phẳng
             _blurEffectView.hidden = YES;
@@ -1368,6 +1428,65 @@ static void executeAction(int actionCode, CompactStatusView *view) {
 }
 
 @end
+
+// MARK: - Native iOS Color Picker Support
+@interface CSBColorPickerDelegate : NSObject <UIColorPickerViewControllerDelegate>
+@property (nonatomic, assign) int kind; // 0 = Gauge, 1 = Accent
+@property (nonatomic, weak) UIViewController *parent;
+- (instancetype)initWithKind:(int)kind parentController:(UIViewController *)parent;
+@end
+
+@implementation CSBColorPickerDelegate
+- (instancetype)initWithKind:(int)kind parentController:(UIViewController *)parent {
+    if (self = [super init]) {
+        _kind = kind;
+        _parent = parent;
+    }
+    return self;
+}
+
+- (void)colorPickerViewControllerDidSelectColor:(UIColorPickerViewController *)viewController {
+    UIColor *c = viewController.selectedColor;
+    CGFloat r = 0, g = 0, b = 0, a = 0;
+    [c getRed:&r green:&g blue:&b alpha:&a];
+    if (_kind == 0) {
+        savePreferenceNumber(@"colorMode", @(9)); // Switch to custom mode
+        savePreferenceNumber(@"customGaugeR", @(r));
+        savePreferenceNumber(@"customGaugeG", @(g));
+        savePreferenceNumber(@"customGaugeB", @(b));
+    } else {
+        savePreferenceNumber(@"customAccentR", @(r));
+        savePreferenceNumber(@"customAccentG", @(g));
+        savePreferenceNumber(@"customAccentB", @(b));
+    }
+}
+@end
+
+static void openGaugeColorPicker(id self, SEL _cmd, id sender) {
+    if (@available(iOS 14.0, *)) {
+        UIColorPickerViewController *picker = [[UIColorPickerViewController alloc] init];
+        picker.title = @"Chọn Màu Vòng Đo";
+        picker.supportsAlpha = NO;
+        picker.selectedColor = [UIColor colorWithRed:p_customGaugeR green:p_customGaugeG blue:p_customGaugeB alpha:1.0];
+        CSBColorPickerDelegate *del = [[CSBColorPickerDelegate alloc] initWithKind:0 parentController:self];
+        picker.delegate = del;
+        objc_setAssociatedObject(picker, "csb_del", del, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [(UIViewController *)self presentViewController:picker animated:YES completion:nil];
+    }
+}
+
+static void openAccentColorPicker(id self, SEL _cmd, id sender) {
+    if (@available(iOS 14.0, *)) {
+        UIColorPickerViewController *picker = [[UIColorPickerViewController alloc] init];
+        picker.title = @"Chọn Màu Tốc Độ / Điểm Nhấn";
+        picker.supportsAlpha = NO;
+        picker.selectedColor = [UIColor colorWithRed:p_customAccentR green:p_customAccentG blue:p_customAccentB alpha:1.0];
+        CSBColorPickerDelegate *del = [[CSBColorPickerDelegate alloc] initWithKind:1 parentController:self];
+        picker.delegate = del;
+        objc_setAssociatedObject(picker, "csb_del", del, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [(UIViewController *)self presentViewController:picker animated:YES completion:nil];
+    }
+}
 
 // MARK: - Respring Handler
 static void doRespringFromPrefs(id self, SEL _cmd, id sender) {
@@ -2058,7 +2177,11 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
     if (psListClass) {
         class_replaceMethod(psListClass, sel_registerName("respring"), (IMP)doRespringFromPrefs, "v@:");
         class_replaceMethod(psListClass, sel_registerName("respring:"), (IMP)doRespringFromPrefs, "v@:@");
+        class_replaceMethod(psListClass, sel_registerName("openGaugeColorPicker:"), (IMP)openGaugeColorPicker, "v@:@");
+        class_replaceMethod(psListClass, sel_registerName("openAccentColorPicker:"), (IMP)openAccentColorPicker, "v@:@");
     }
+    class_replaceMethod([UIViewController class], sel_registerName("openGaugeColorPicker:"), (IMP)openGaugeColorPicker, "v@:@");
+    class_replaceMethod([UIViewController class], sel_registerName("openAccentColorPicker:"), (IMP)openAccentColorPicker, "v@:@");
     class_replaceMethod([UIViewController class], sel_registerName("respring"), (IMP)doRespringFromPrefs, "v@:");
     class_replaceMethod([UIViewController class], sel_registerName("respring:"), (IMP)doRespringFromPrefs, "v@:@");
     class_replaceMethod([NSObject class], sel_registerName("respring"), (IMP)doRespringFromPrefs, "v@:");

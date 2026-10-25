@@ -519,7 +519,7 @@
 		</dict>
 		<dict>
 			<key>cell</key>
-			<string>PSSegmentCell</string>
+			<string>PSLinkListCell</string>
 			<key>default</key>
 			<integer>0</integer>
 			<key>defaults</key>
@@ -528,10 +528,16 @@
 			<string>colorMode</string>
 			<key>validTitles</key>
 			<array>
-				<string>Tự động</string>
-				<string>Đơn sắc</string>
-				<string>Neon Cyan</string>
-				<string>Neon Tím</string>
+				<string>Hệ thống (Dynamic đổi theo sạc/pin)</string>
+				<string>Đơn sắc Trắng thích ứng</string>
+				<string>Neon Cyan (Xanh ngọc Cyberpunk)</string>
+				<string>Neon Tím (Electric Violet)</string>
+				<string>Neon Hồng (Hot Pink)</string>
+				<string>Neon Xanh Lá (Lime Green)</string>
+				<string>Neon Cam (Sunset Orange)</string>
+				<string>Vàng Gold Hoàng Gia</string>
+				<string>Đỏ Ruby Sang Trọng</string>
+				<string>🎨 Tự chọn màu tùy thích (Custom Picker)</string>
 			</array>
 			<key>validValues</key>
 			<array>
@@ -539,7 +545,165 @@
 				<integer>1</integer>
 				<integer>2</integer>
 				<integer>3</integer>
+				<integer>4</integer>
+				<integer>5</integer>
+				<integer>6</integer>
+				<integer>7</integer>
+				<integer>8</integer>
+				<integer>9</integer>
 			</array>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+			<key>detail</key>
+			<string>PSListItemsController</string>
+			<key>label</key>
+			<string>Chế độ màu &amp; Bảng màu</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>BỘ CHỌN MÀU APPLE NATIVE (IOS 14+)</string>
+			<key>footerText</key>
+			<string>Chạm nút để mở bảng pha màu Apple chính hãng: Bánh xe màu, bảng phổ quang, ống hút màu hoặc nhập trực tiếp mã HEX (#RRGGBB).</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSButtonCell</string>
+			<key>label</key>
+			<string>🎨 Mở bảng chọn màu: Vòng đo Pin/RAM</string>
+			<key>action</key>
+			<string>openGaugeColorPicker:</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSButtonCell</string>
+			<key>label</key>
+			<string>🎨 Mở bảng chọn màu: Tốc độ mạng &amp; Điểm nhấn</string>
+			<key>action</key>
+			<string>openAccentColorPicker:</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>THANH TRƯỢT MÀU VÒNG ĐO (RGB 0.0 - 1.0)</string>
+			<key>footerText</key>
+			<string>Tinh chỉnh tỉ lệ Đỏ (R), Lục (G), Lam (B) cho vòng đo tiến trình khi dùng chế độ Tự chọn màu.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>0.0</real>
+			<key>min</key>
+			<real>0.0</real>
+			<key>max</key>
+			<real>1.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>customGaugeR</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>0.95</real>
+			<key>min</key>
+			<real>0.0</real>
+			<key>max</key>
+			<real>1.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>customGaugeG</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>1.0</real>
+			<key>min</key>
+			<real>0.0</real>
+			<key>max</key>
+			<real>1.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>customGaugeB</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>THANH TRƯỢT MÀU ĐIỂM NHẤN (TỐC ĐỘ MẠNG)</string>
+			<key>footerText</key>
+			<string>Tinh chỉnh màu sắc cho nhãn hiển thị tốc độ mạng tải xuống/tải lên.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>0.25</real>
+			<key>min</key>
+			<real>0.0</real>
+			<key>max</key>
+			<real>1.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>customAccentR</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>0.95</real>
+			<key>min</key>
+			<real>0.0</real>
+			<key>max</key>
+			<real>1.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>customAccentG</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>0.55</real>
+			<key>min</key>
+			<real>0.0</real>
+			<key>max</key>
+			<real>1.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>customAccentB</string>
 			<key>PostNotification</key>
 			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
 		</dict>
