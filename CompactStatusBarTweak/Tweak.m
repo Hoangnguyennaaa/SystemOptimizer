@@ -2088,25 +2088,36 @@ static inline BOOL isAppLibraryOrSearchOrFolder(id target) {
         id loc = ((id (*)(id, SEL))objc_msgSend)(target, @selector(iconLocation));
         if ([loc isKindOfClass:[NSString class]]) {
             NSString *locStr = (NSString *)loc;
-            if ([locStr isEqualToString:@"SBIconLocationAppLibrary"] ||
+            if ([locStr isEqualToString:@"SBIconLocationRoot"] ||
+                [locStr isEqualToString:@"SBIconLocationHomeScreen"]) {
+                return NO; // Definitely root home screen!
+            }
+            if ([locStr containsString:@"AppLibrary"] ||
                 [locStr containsString:@"Library"] ||
-                [locStr containsString:@"Folder"] ||
                 [locStr containsString:@"Today"] ||
                 [locStr containsString:@"Search"]) {
+                return YES;
+            }
+            if ([locStr containsString:@"Folder"] && ![locStr containsString:@"Root"]) {
                 return YES;
             }
         }
     }
 
     NSString *cls = NSStringFromClass([target class]);
+    if ([cls isEqualToString:@"SBRootIconListView"] ||
+        [cls isEqualToString:@"SBRootFolderView"] ||
+        [cls isEqualToString:@"SBRootFolderController"]) {
+        return NO;
+    }
+
     if ([cls containsString:@"Library"] ||
         [cls containsString:@"Search"] ||
-        [cls containsString:@"Folder"] ||
-        [cls containsString:@"Today"] ||
-        [cls containsString:@"Widget"] ||
-        [cls containsString:@"Platter"] ||
-        [cls containsString:@"Pod"] ||
-        [cls containsString:@"Floaty"]) {
+        [cls containsString:@"FloatyFolder"] ||
+        [cls containsString:@"SBFolderIconListView"] ||
+        [cls containsString:@"SBToday"] ||
+        [cls containsString:@"WGWidget"] ||
+        [cls containsString:@"Pod"]) {
         return YES;
     }
 
@@ -2116,13 +2127,15 @@ static inline BOOL isAppLibraryOrSearchOrFolder(id target) {
             NSString *pCls = NSStringFromClass([p class]);
             if ([pCls containsString:@"Library"] ||
                 [pCls containsString:@"Search"] ||
-                [pCls containsString:@"Folder"] ||
-                [pCls containsString:@"Today"] ||
-                [pCls containsString:@"Widget"] ||
-                [pCls containsString:@"Platter"] ||
-                [pCls containsString:@"Pod"] ||
-                [pCls containsString:@"Floaty"]) {
+                [pCls containsString:@"FloatyFolder"] ||
+                [pCls containsString:@"SBFolderIconListView"] ||
+                [pCls containsString:@"SBToday"] ||
+                [pCls containsString:@"WGWidget"] ||
+                [pCls containsString:@"Pod"]) {
                 return YES;
+            }
+            if ([pCls isEqualToString:@"SBRootFolderView"] || [pCls isEqualToString:@"SBRootIconListView"]) {
+                return NO;
             }
             p = p.superview;
         }
@@ -2134,7 +2147,7 @@ static inline BOOL isAppLibraryOrSearchOrFolder(id target) {
 static inline BOOL isRootHomeScreenLocation(NSString *location) {
     if (!location || ![location isKindOfClass:[NSString class]]) return NO;
     if ([location containsString:@"AppLibrary"]) return NO;
-    if ([location containsString:@"Folder"]) return NO;
+    if ([location containsString:@"Folder"] && ![location containsString:@"Root"]) return NO;
     if ([location containsString:@"Today"]) return NO;
     if ([location containsString:@"Dock"]) return NO;
     if ([location containsString:@"Search"]) return NO;
@@ -2166,6 +2179,7 @@ static inline BOOL isRootHomeScreenIconListView(UIView *view) {
 
     NSString *cls = NSStringFromClass([view class]);
     if ([cls isEqualToString:@"SBRootIconListView"]) return YES;
+    if ([cls containsString:@"Library"] || [cls containsString:@"FolderIcon"] || [cls containsString:@"Floaty"]) return NO;
 
     UIView *p = view.superview;
     BOOL insideRootFolder = NO;
@@ -2173,11 +2187,10 @@ static inline BOOL isRootHomeScreenIconListView(UIView *view) {
         NSString *pCls = NSStringFromClass([p class]);
         if ([pCls containsString:@"Library"] ||
             [pCls containsString:@"Search"] ||
-            [pCls containsString:@"FolderIcon"] ||
             [pCls containsString:@"FloatyFolder"] ||
-            [pCls containsString:@"Today"] ||
-            [pCls containsString:@"Widget"] ||
-            [pCls containsString:@"Platter"] ||
+            [pCls containsString:@"SBFolderIconListView"] ||
+            [pCls containsString:@"SBToday"] ||
+            [pCls containsString:@"WGWidget"] ||
             [pCls containsString:@"Dock"] ||
             [pCls containsString:@"Switcher"]) {
             return NO;
@@ -2210,11 +2223,29 @@ static void getIconViewsRecursively(UIView *view, NSMutableArray<UIView *> *resu
 
 // MARK: - App Switcher Observation Flag
 static BOOL g_isSwitcherActive = NO;
+static inline BOOL isSwitcherCurrentlyActive(void) {
+    if (g_isSwitcherActive) return YES;
+    Class mainSwitcherClass = objc_getClass("SBMainSwitcherViewController");
+    if (mainSwitcherClass && [mainSwitcherClass respondsToSelector:@selector(sharedInstance)]) {
+        id smvc = ((id (*)(id, SEL))objc_msgSend)(mainSwitcherClass, @selector(sharedInstance));
+        if (smvc) {
+            if ([smvc respondsToSelector:@selector(isMainSwitcherVisible)] &&
+                ((BOOL (*)(id, SEL))objc_msgSend)(smvc, @selector(isMainSwitcherVisible))) {
+                return YES;
+            }
+            if ([smvc respondsToSelector:@selector(isVisible)] &&
+                ((BOOL (*)(id, SEL))objc_msgSend)(smvc, @selector(isVisible))) {
+                return YES;
+            }
+        }
+    }
+    return NO;
+}
 
 static void applyVerticalDockLayout(UIView *self) {
     if (!p_enabled) return;
 
-    if (g_isSwitcherActive) {
+    if (isSwitcherCurrentlyActive()) {
         self.hidden = YES;
         self.alpha = 0.0;
         return;
@@ -2265,11 +2296,6 @@ static void applyVerticalDockLayout(UIView *self) {
     CGFloat dockX = (p_dockMode == 1) ? 6.0 : (screenW - 64.0);
     CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
 
-    CGRect targetFrame = CGRectMake(dockX, dockY, dockW, dockH);
-    if (self.superview) {
-        targetFrame = [self.superview convertRect:CGRectMake(dockX, dockY, dockW, dockH) fromView:nil];
-    }
-
     self.hidden = NO;
     self.alpha = 1.0;
     self.userInteractionEnabled = YES;
@@ -2279,14 +2305,19 @@ static void applyVerticalDockLayout(UIView *self) {
     UIView *p = self.superview;
     while (p && ![p isKindOfClass:[UIWindow class]]) {
         p.clipsToBounds = NO;
+        if ([p isKindOfClass:objc_getClass("SBFloatingDockContainerView")] ||
+            [NSStringFromClass([p class]) containsString:@"Container"] ||
+            [NSStringFromClass([p class]) containsString:@"Platter"]) {
+            p.frame = [UIScreen mainScreen].bounds;
+        }
         p = p.superview;
     }
 
-    if (fabs(self.frame.origin.x - targetFrame.origin.x) > 1.0 ||
-        fabs(self.frame.origin.y - targetFrame.origin.y) > 1.0 ||
-        fabs(self.frame.size.width - targetFrame.size.width) > 1.0 ||
-        fabs(self.frame.size.height - targetFrame.size.height) > 1.0) {
-        self.frame = targetFrame;
+    if (fabs(self.frame.origin.x - dockX) > 1.0 ||
+        fabs(self.frame.origin.y - dockY) > 1.0 ||
+        fabs(self.frame.size.width - dockW) > 1.0 ||
+        fabs(self.frame.size.height - dockH) > 1.0) {
+        self.frame = CGRectMake(dockX, dockY, dockW, dockH);
     }
 
     UIVisualEffectView *glass = (UIVisualEffectView *)[self viewWithTag:998844];
@@ -2386,7 +2417,7 @@ static void hooked_dock_setFrame(UIView *self, SEL _cmd, CGRect frame) {
             frame = CGRectZero;
             self.hidden = YES;
             self.alpha = 0.0;
-        } else if (g_isSwitcherActive) {
+        } else if (isSwitcherCurrentlyActive()) {
             self.hidden = YES;
             self.alpha = 0.0;
         } else if (p_dockMode == 0 || p_dockMode == 1) {
@@ -2396,11 +2427,7 @@ static void hooked_dock_setFrame(UIView *self, SEL _cmd, CGRect frame) {
             CGFloat dockH = 270.0;
             CGFloat dockX = (p_dockMode == 1) ? 6.0 : (screenW - 64.0);
             CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
-            CGRect targetFrame = CGRectMake(dockX, dockY, dockW, dockH);
-            if (self.superview) {
-                targetFrame = [self.superview convertRect:targetFrame fromView:nil];
-            }
-            frame = targetFrame;
+            frame = CGRectMake(dockX, dockY, dockW, dockH);
             self.hidden = NO;
             self.alpha = 1.0;
         }
@@ -2431,7 +2458,7 @@ static void hooked_floatingdock_setFrame(UIView *self, SEL _cmd, CGRect frame) {
             frame = CGRectZero;
             self.hidden = YES;
             self.alpha = 0.0;
-        } else if (g_isSwitcherActive) {
+        } else if (isSwitcherCurrentlyActive()) {
             self.hidden = YES;
             self.alpha = 0.0;
         } else if (p_dockMode == 0 || p_dockMode == 1) {
@@ -2441,11 +2468,7 @@ static void hooked_floatingdock_setFrame(UIView *self, SEL _cmd, CGRect frame) {
             CGFloat dockH = 270.0;
             CGFloat dockX = (p_dockMode == 1) ? 6.0 : (screenW - 64.0);
             CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
-            CGRect targetFrame = CGRectMake(dockX, dockY, dockW, dockH);
-            if (self.superview) {
-                targetFrame = [self.superview convertRect:targetFrame fromView:nil];
-            }
-            frame = targetFrame;
+            frame = CGRectMake(dockX, dockY, dockW, dockH);
             self.hidden = NO;
             self.alpha = 1.0;
         }
@@ -2499,18 +2522,6 @@ static void hooked_fluidswitcher_viewDidDisappear(UIViewController *self, SEL _c
     }
 }
 
-static void (*orig_fluidswitcher_viewDidLayoutSubviews)(UIViewController *, SEL) = NULL;
-static void hooked_fluidswitcher_viewDidLayoutSubviews(UIViewController *self, SEL _cmd) {
-    if (orig_fluidswitcher_viewDidLayoutSubviews) orig_fluidswitcher_viewDidLayoutSubviews(self, _cmd);
-    if (self.view.window != nil) {
-        g_isSwitcherActive = YES;
-        if (g_activeDockView) {
-            g_activeDockView.hidden = YES;
-            g_activeDockView.alpha = 0.0;
-        }
-    }
-}
-
 static void (*orig_mainswitcher_viewWillAppear)(UIViewController *, SEL, BOOL) = NULL;
 static void hooked_mainswitcher_viewWillAppear(UIViewController *self, SEL _cmd, BOOL animated) {
     if (orig_mainswitcher_viewWillAppear) orig_mainswitcher_viewWillAppear(self, _cmd, animated);
@@ -2555,10 +2566,14 @@ static NSUInteger hooked_config_numberOfPortraitColumns(id self, SEL _cmd) {
     if (!p_enabled || p_gridMode == 0) return orig;
 
     id isRoot = objc_getAssociatedObject(self, "isRootConfig");
-    if (![isRoot boolValue]) {
-        return orig;
+    if ([isRoot boolValue]) return 3;
+
+    NSUInteger rows = orig_config_numberOfPortraitRows ? orig_config_numberOfPortraitRows(self, sel_registerName("numberOfPortraitRows")) : 6;
+    // Stock home screen: 4 columns x 6 rows (including pages with widgets). App Library pods are 2x2, Folders 3x3, Dock 1 row.
+    if (orig == 4 && rows >= 5) {
+        return 3;
     }
-    return 3;
+    return orig;
 }
 
 static NSUInteger hooked_config_numberOfPortraitRows(id self, SEL _cmd) {
@@ -2566,10 +2581,13 @@ static NSUInteger hooked_config_numberOfPortraitRows(id self, SEL _cmd) {
     if (!p_enabled || p_gridMode == 0) return orig;
 
     id isRoot = objc_getAssociatedObject(self, "isRootConfig");
-    if (![isRoot boolValue]) {
-        return orig;
+    if ([isRoot boolValue]) return 7;
+
+    NSUInteger cols = orig_config_numberOfPortraitColumns ? orig_config_numberOfPortraitColumns(self, sel_registerName("numberOfPortraitColumns")) : 4;
+    if (orig == 6 && (cols == 4 || cols == 3)) {
+        return 7;
     }
-    return 7;
+    return orig;
 }
 
 static UIEdgeInsets hooked_config_portraitLayoutInsets(id self, SEL _cmd) {
@@ -2577,9 +2595,15 @@ static UIEdgeInsets hooked_config_portraitLayoutInsets(id self, SEL _cmd) {
     if (!p_enabled) return orig;
 
     id isRoot = objc_getAssociatedObject(self, "isRootConfig");
-    if (![isRoot boolValue]) {
-        return orig;
+    BOOL isHome = [isRoot boolValue];
+    if (!isHome) {
+        NSUInteger rows = orig_config_numberOfPortraitRows ? orig_config_numberOfPortraitRows(self, sel_registerName("numberOfPortraitRows")) : 6;
+        NSUInteger cols = orig_config_numberOfPortraitColumns ? orig_config_numberOfPortraitColumns(self, sel_registerName("numberOfPortraitColumns")) : 4;
+        if ((cols == 3 || cols == 4) && rows >= 5) {
+            isHome = YES;
+        }
     }
+    if (!isHome) return orig;
 
     UIEdgeInsets insets = orig;
     if (p_dockMode == 0) { // Vertical Right
@@ -2601,7 +2625,7 @@ static UIEdgeInsets hooked_config_portraitLayoutInsets(id self, SEL _cmd) {
     return insets;
 }
 
-// MARK: - SBIconListView Hooks (Frame, Bounds, Insets, Columns, Rows, Subviews)
+// MARK: - SBIconListView Hooks (Insets, Columns, Rows, Subviews)
 static NSUInteger (*orig_iconlist_columns)(id, SEL) = NULL;
 static NSUInteger hooked_iconlist_columns(id self, SEL _cmd) {
     NSUInteger orig = orig_iconlist_columns ? orig_iconlist_columns(self, _cmd) : 4;
@@ -2680,42 +2704,6 @@ static UIEdgeInsets hooked_iconlist_layoutInsetsForOrientation(id self, SEL _cmd
     if (insets.top < 38.0) insets.top = 38.0;
 
     return insets;
-}
-
-static void (*orig_iconlist_setFrame)(UIView *, SEL, CGRect) = NULL;
-static void hooked_iconlist_setFrame(UIView *self, SEL _cmd, CGRect frame) {
-    if (p_enabled && isRootHomeScreenIconListView(self)) {
-        if (p_dockMode == 0 || p_dockMode == 1) {
-            CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
-            CGFloat reserve = 68.0;
-            CGFloat availW = screenW - reserve;
-
-            if (p_dockMode == 0) { // Right Dock
-                frame = CGRectMake(frame.origin.x, frame.origin.y, availW, frame.size.height);
-            } else if (p_dockMode == 1) { // Left Dock
-                CGFloat pageBaseX = round(frame.origin.x / (screenW > 0 ? screenW : 1.0)) * screenW;
-                frame = CGRectMake(pageBaseX + reserve, frame.origin.y, availW, frame.size.height);
-            }
-        }
-    }
-    if (orig_iconlist_setFrame) {
-        orig_iconlist_setFrame(self, _cmd, frame);
-    }
-}
-
-static void (*orig_iconlist_setBounds)(UIView *, SEL, CGRect) = NULL;
-static void hooked_iconlist_setBounds(UIView *self, SEL _cmd, CGRect bounds) {
-    if (p_enabled && isRootHomeScreenIconListView(self)) {
-        if (p_dockMode == 0 || p_dockMode == 1) {
-            CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
-            CGFloat reserve = 68.0;
-            CGFloat availW = screenW - reserve;
-            bounds = CGRectMake(bounds.origin.x, bounds.origin.y, availW, bounds.size.height);
-        }
-    }
-    if (orig_iconlist_setBounds) {
-        orig_iconlist_setBounds(self, _cmd, bounds);
-    }
 }
 
 // MARK: - SBIconListModel Hooks (Grid Size & Max Capacity for 3x7 + Widgets)
@@ -3006,7 +2994,6 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
     if (fluidSwitcherClass) {
         SafeSwizzle(fluidSwitcherClass, @selector(viewWillAppear:), (IMP)hooked_fluidswitcher_viewWillAppear, (IMP *)&orig_fluidswitcher_viewWillAppear);
         SafeSwizzle(fluidSwitcherClass, @selector(viewDidDisappear:), (IMP)hooked_fluidswitcher_viewDidDisappear, (IMP *)&orig_fluidswitcher_viewDidDisappear);
-        SafeSwizzle(fluidSwitcherClass, @selector(viewDidLayoutSubviews), (IMP)hooked_fluidswitcher_viewDidLayoutSubviews, (IMP *)&orig_fluidswitcher_viewDidLayoutSubviews);
     }
     Class mainSwitcherClass = objc_getClass("SBMainSwitcherViewController");
     if (mainSwitcherClass) {
@@ -3032,11 +3019,9 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         SafeSwizzle(configClass, sel_registerName("portraitLayoutInsets"), (IMP)(void *)hooked_config_portraitLayoutInsets, (IMP *)(void *)&orig_config_portraitLayoutInsets);
     }
 
-    // 13. Hook SBIconListView (Frame, Bounds, Layout, Column/Row Counts & Insets)
+    // 13. Hook SBIconListView (Layout, Column/Row Counts & Insets)
     Class iconListClass = objc_getClass("SBIconListView");
     if (iconListClass) {
-        SafeSwizzle(iconListClass, @selector(setFrame:), (IMP)(void *)hooked_iconlist_setFrame, (IMP *)(void *)&orig_iconlist_setFrame);
-        SafeSwizzle(iconListClass, @selector(setBounds:), (IMP)(void *)hooked_iconlist_setBounds, (IMP *)(void *)&orig_iconlist_setBounds);
         SafeSwizzle(iconListClass, @selector(layoutSubviews), (IMP)(void *)hooked_iconlist_layoutSubviews, (IMP *)(void *)&orig_iconlist_layoutSubviews);
         SafeSwizzle(iconListClass, sel_registerName("iconColumnsForCurrentOrientation"), (IMP)(void *)hooked_iconlist_columns, (IMP *)(void *)&orig_iconlist_columns);
         SafeSwizzle(iconListClass, sel_registerName("iconRowsForCurrentOrientation"), (IMP)(void *)hooked_iconlist_rows, (IMP *)(void *)&orig_iconlist_rows);
@@ -3054,3 +3039,4 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         SafeSwizzle(listModelClass, sel_registerName("maxNumberOfIcons"), (IMP)(void *)hooked_listmodel_maxNumberOfIcons, (IMP *)(void *)&orig_listmodel_maxNumberOfIcons);
     }
 }
+
