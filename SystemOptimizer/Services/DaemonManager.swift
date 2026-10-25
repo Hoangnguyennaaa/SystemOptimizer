@@ -15,6 +15,10 @@ final class DaemonManager: ObservableObject {
         refreshAllStatuses()
     }
 
+    func daemons(for level: RiskLevel) -> [DaemonItem] {
+        daemons.filter { $0.riskLevel == level }
+    }
+
     func loadDaemonList() {
         self.daemons = [
             // Nhóm 1: Rất an toàn
@@ -152,7 +156,7 @@ final class DaemonManager: ObservableObject {
 
         var fileActions: posix_spawn_file_actions_t?
         posix_spawn_file_actions_init(&fileActions)
-        posix_spawn_file_actions_adddup2(&fileActions, pipeFD[1], STDOUT_FILENO)
+        posix_spawn_file_actions_adddup2(&fileActions, pipeFD[1], 1)
         posix_spawn_file_actions_addclose(&fileActions, pipeFD[0])
 
         let argv: [UnsafeMutablePointer<CChar>?] = ([rootHelperPath] + args).map { strdup($0) } + [nil]
@@ -177,7 +181,8 @@ final class DaemonManager: ObservableObject {
         let out = readBytes > 0 ? (String(bytes: UnsafeBufferPointer(start: buffer, count: readBytes), encoding: .utf8) ?? "") : ""
         buffer.deallocate()
 
-        return (WEXITSTATUS(status), out.trimmingCharacters(in: .whitespacesAndNewlines))
+        let exitCode = (status >> 8) & 0xff
+        return (exitCode, out.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     func refreshAllStatuses() {

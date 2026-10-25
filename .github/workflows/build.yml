@@ -24,10 +24,19 @@ jobs:
           brew install ldid
 
       - name: Build IPA
+        id: build_step
         run: |
           sed -i '' 's/\r$//' build.sh
           chmod +x build.sh
-          bash -x build.sh
+          bash -x build.sh 2>&1 | tee build.log
+
+      - name: Publish Summary Log
+        if: always()
+        run: |
+          echo "### Build Log" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -n 100 build.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4

@@ -18,10 +18,9 @@ struct ContentView: View {
                 }
 
                 ForEach(RiskLevel.allCases) { level in
-                    let items = manager.daemons.filter { $0.riskLevel == level }
-                    if !items.isEmpty {
+                    if !manager.daemons(for: level).isEmpty {
                         Section(header: sectionHeader(for: level)) {
-                            ForEach(items) { item in
+                            ForEach(manager.daemons(for: level)) { item in
                                 daemonRow(for: item)
                             }
                         }
