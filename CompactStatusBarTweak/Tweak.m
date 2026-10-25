@@ -356,12 +356,17 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
     Method m = class_getInstanceMethod(cls, origSel);
     if (!m) return;
 
+    IMP currentImp = method_getImplementation(m);
+    if (currentImp == newImp) {
+        return; // Already swizzled, avoid infinite recursion
+    }
+
     BOOL added = class_addMethod(cls, origSel, newImp, method_getTypeEncoding(m));
     if (added) {
-        if (origImp) *origImp = method_getImplementation(m);
+        if (origImp) *origImp = currentImp;
     } else {
-        if (origImp) *origImp = method_getImplementation(m);
-        method_setImplementation(m, newImp);
+        IMP prevImp = method_setImplementation(m, newImp);
+        if (origImp) *origImp = prevImp;
     }
 }
 
@@ -1734,38 +1739,6 @@ static inline BOOL shouldHideStatusBarStringView(UIView *self, NSString *text) {
 
 // MARK: - Hooks for SpringBoard Status Bar Items
 
-static UIView *(*orig_statusbar_hitTest)(UIView *, SEL, CGPoint, UIEvent *) = NULL;
-static UIView *hooked_statusbar_hitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
-    if (g_activeStatusView && p_enabled && !g_activeStatusView.hidden && g_activeStatusView.alpha > 0.01) {
-        if (g_activeStatusView.window == self.window || [g_activeStatusView isDescendantOfView:self]) {
-            CGPoint pInCustom = [self convertPoint:point toView:g_activeStatusView];
-            if ([g_activeStatusView pointInside:pInCustom withEvent:event]) {
-                return g_activeStatusView;
-            }
-        }
-    }
-    if (orig_statusbar_hitTest) {
-        return orig_statusbar_hitTest(self, _cmd, point, event);
-    }
-    return nil;
-}
-
-static UIView *(*orig_sbwin_hitTest)(UIWindow *, SEL, CGPoint, UIEvent *) = NULL;
-static UIView *hooked_sbwin_hitTest(UIWindow *self, SEL _cmd, CGPoint point, UIEvent *event) {
-    if (g_activeStatusView && p_enabled && !g_activeStatusView.hidden && g_activeStatusView.alpha > 0.01) {
-        if (g_activeStatusView.window == self) {
-            CGPoint pInCustom = [self convertPoint:point toView:g_activeStatusView];
-            if ([g_activeStatusView pointInside:pInCustom withEvent:event]) {
-                return g_activeStatusView;
-            }
-        }
-    }
-    if (orig_sbwin_hitTest) {
-        return orig_sbwin_hitTest(self, _cmd, point, event);
-    }
-    return nil;
-}
-
 static void (*orig_battery_didMoveToWindow)(UIView *, SEL) = NULL;
 static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
     if (orig_battery_didMoveToWindow) {
@@ -1781,19 +1754,42 @@ static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
     dispatch_async(dispatch_get_main_queue(), ^{
         UIView *parent = self.superview;
         if (parent) {
-            CompactStatusView *custom = (CompactStatusView *)[parent viewWithTag:998811];
+            UIView *container = parent;
+            UIView *v = parent;
+            while (v && ![v isKindOfClass:[UIWindow class]]) {
+                NSString *cn = NSStringFromClass([v class]);
+                if ([cn isEqualToString:@"_UIStatusBar"] || [cn isEqualToString:@"UIStatusBar"]) {
+                    container = v;
+                    break;
+                }
+                v = v.superview;
+            }
+
+            CompactStatusView *custom = (CompactStatusView *)[container viewWithTag:998811];
+            if (!custom) {
+                custom = (CompactStatusView *)[parent viewWithTag:998811];
+            }
             if (!custom) {
                 custom = [[CompactStatusView alloc] initWithFrame:CGRectMake(0, 0, 22.0, 22.0)];
                 custom.tag = 998811;
-                [parent addSubview:custom];
+                [container addSubview:custom];
+            } else if (custom.superview != container) {
+                [custom removeFromSuperview];
+                [container addSubview:custom];
             }
+
             g_activeStatusView = custom;
-            custom.anchorCenter = self.center;
-            custom.center = CGPointMake(self.center.x + p_offsetX, self.center.y + p_offsetY);
-            [parent bringSubviewToFront:custom];
+            CGPoint centerInContainer = [self.superview convertPoint:self.center toView:container];
+            custom.anchorCenter = centerInContainer;
+            if (!p_dragModeEnabled) {
+                custom.center = CGPointMake(centerInContainer.x + p_offsetX, centerInContainer.y + p_offsetY);
+            }
+            [container bringSubviewToFront:custom];
             [custom applyPreferences];
 
-            UIView *p = parent;
+            container.userInteractionEnabled = YES;
+            container.clipsToBounds = NO;
+            UIView *p = container.superview;
             while (p) {
                 p.userInteractionEnabled = YES;
                 p.clipsToBounds = NO;
@@ -1816,17 +1812,28 @@ static void hooked_battery_layoutSubviews(UIView *self, SEL _cmd) {
         }
         UIView *parent = self.superview;
         if (parent) {
-            CompactStatusView *custom = (CompactStatusView *)[parent viewWithTag:998811];
-            if (!custom) {
-                custom = [[CompactStatusView alloc] initWithFrame:CGRectMake(0, 0, 22.0, 22.0)];
-                custom.tag = 998811;
-                [parent addSubview:custom];
-                [custom applyPreferences];
+            UIView *container = parent;
+            UIView *v = parent;
+            while (v && ![v isKindOfClass:[UIWindow class]]) {
+                NSString *cn = NSStringFromClass([v class]);
+                if ([cn isEqualToString:@"_UIStatusBar"] || [cn isEqualToString:@"UIStatusBar"]) {
+                    container = v;
+                    break;
+                }
+                v = v.superview;
             }
-            g_activeStatusView = custom;
-            custom.anchorCenter = self.center;
-            if (!p_dragModeEnabled) {
-                custom.center = CGPointMake(self.center.x + p_offsetX, self.center.y + p_offsetY);
+
+            CompactStatusView *custom = (CompactStatusView *)[container viewWithTag:998811];
+            if (!custom) {
+                custom = (CompactStatusView *)[parent viewWithTag:998811];
+            }
+            if (custom) {
+                g_activeStatusView = custom;
+                CGPoint centerInContainer = [self.superview convertPoint:self.center toView:container];
+                custom.anchorCenter = centerInContainer;
+                if (!p_dragModeEnabled) {
+                    custom.center = CGPointMake(centerInContainer.x + p_offsetX, centerInContainer.y + p_offsetY);
+                }
             }
         }
     }
@@ -1963,39 +1970,14 @@ static void hooked_dock_setFrame(UIView *self, SEL _cmd, CGRect frame) {
     }
 }
 
-static void (*orig_dock_setCenter)(UIView *, SEL, CGPoint) = NULL;
-static void hooked_dock_setCenter(UIView *self, SEL _cmd, CGPoint center) {
-    if (p_enabled && p_verticalDockEnabled) {
-        CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
-        CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
-        CGFloat dockW, dockH;
-        getDockGeometry(4, &dockW, &dockH, NULL, NULL, NULL);
-        CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
-        CGFloat dockX = (p_dockPosition == 2) ? marginX : (screenW - dockW - marginX);
-        CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
-        center = CGPointMake(dockX + dockW / 2.0, dockY + dockH / 2.0);
-    }
-    if (orig_dock_setCenter) {
-        orig_dock_setCenter(self, _cmd, center);
-    }
-}
-
-static void (*orig_dock_setBounds)(UIView *, SEL, CGRect) = NULL;
-static void hooked_dock_setBounds(UIView *self, SEL _cmd, CGRect bounds) {
-    if (p_enabled && p_verticalDockEnabled) {
-        CGFloat dockW, dockH;
-        getDockGeometry(4, &dockW, &dockH, NULL, NULL, NULL);
-        bounds = CGRectMake(0, 0, dockW, dockH);
-    }
-    if (orig_dock_setBounds) {
-        orig_dock_setBounds(self, _cmd, bounds);
-    }
-}
-
+static BOOL g_inDockLayout = NO;
 static void (*orig_dock_layoutSubviews)(UIView *, SEL) = NULL;
 static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
     if (orig_dock_layoutSubviews) orig_dock_layoutSubviews(self, _cmd);
     g_activeDockView = self;
+
+    if (g_inDockLayout) return;
+    g_inDockLayout = YES;
 
     if (!p_enabled || !p_verticalDockEnabled) {
         UIView *glass = [self viewWithTag:998844];
@@ -2007,23 +1989,19 @@ static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
                 sub.alpha = 1.0;
             }
         }
+        g_inDockLayout = NO;
         return;
     }
 
-    CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
-    CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
+    CGFloat dockW = self.bounds.size.width;
+    CGFloat dockH = self.bounds.size.height;
+    if (dockW > dockH) {
+        CGFloat dw, dh;
+        getDockGeometry(4, &dw, &dh, NULL, NULL, NULL);
+        dockW = dw;
+        dockH = dh;
+    }
 
-    NSMutableArray<UIView *> *icons = [NSMutableArray array];
-    getIconViewsRecursively(self, icons);
-
-    CGFloat dockW, dockH, iconSize, spacing, padY;
-    getDockGeometry(icons.count, &dockW, &dockH, &iconSize, &spacing, &padY);
-
-    CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
-    CGFloat dockX = (p_dockPosition == 2) ? marginX : (screenW - dockW - marginX);
-    CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
-
-    self.frame = CGRectMake(dockX, dockY, dockW, dockH);
     self.layer.zPosition = 999.0;
     self.clipsToBounds = NO;
     if (self.superview) self.superview.clipsToBounds = NO;
@@ -2040,7 +2018,7 @@ static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
         [self insertSubview:glass atIndex:0];
     }
     glass.hidden = NO;
-    glass.frame = self.bounds;
+    glass.frame = CGRectMake(0, 0, dockW, dockH);
     glass.layer.cornerRadius = dockW / 2.0;
 
     for (UIView *sub in self.subviews) {
@@ -2049,47 +2027,20 @@ static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
             if ([sName containsString:@"Background"] || [sName containsString:@"Material"]) {
                 sub.hidden = YES;
                 sub.alpha = 0.0;
-            } else if ([sName containsString:@"ListView"]) {
-                sub.frame = self.bounds;
             }
         }
     }
 
-    if (icons.count > 0) {
-        [icons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
-            CGFloat ax = a.superview ? [a.superview convertPoint:a.frame.origin toView:self].x : a.frame.origin.x;
-            CGFloat bx = b.superview ? [b.superview convertPoint:b.frame.origin toView:self].x : b.frame.origin.x;
-            if (ax < bx) return NSOrderedAscending;
-            else if (ax > bx) return NSOrderedDescending;
-            return NSOrderedSame;
-        }];
-
-        for (NSUInteger i = 0; i < icons.count; i++) {
-            UIView *icon = icons[i];
-            CGFloat targetX = (dockW - iconSize) / 2.0;
-            CGFloat targetY = padY + i * (iconSize + spacing);
-
-            if (icon.superview && icon.superview != self) {
-                CGPoint pInSuper = [self convertPoint:CGPointMake(targetX, targetY) toView:icon.superview];
-                icon.frame = CGRectMake(pInSuper.x, pInSuper.y, iconSize, iconSize);
-            } else {
-                icon.frame = CGRectMake(targetX, targetY, iconSize, iconSize);
-            }
-
-            for (UIView *lbl in icon.subviews) {
-                if ([lbl isKindOfClass:[UILabel class]] || [NSStringFromClass([lbl class]) containsString:@"Label"]) {
-                    lbl.hidden = YES;
-                    lbl.alpha = 0.0;
-                }
-            }
-        }
-    }
+    g_inDockLayout = NO;
 }
 
+static BOOL g_inIconListLayout = NO;
 static void (*orig_iconlist_layoutSubviews)(UIView *, SEL) = NULL;
 static void hooked_iconlist_layoutSubviews(UIView *self, SEL _cmd) {
     if (orig_iconlist_layoutSubviews) orig_iconlist_layoutSubviews(self, _cmd);
     if (!p_enabled || !p_verticalDockEnabled) return;
+    if (g_inIconListLayout) return;
+    g_inIconListLayout = YES;
 
     BOOL isDockList = NO;
     if ([NSStringFromClass([self class]) containsString:@"Dock"]) {
@@ -2113,7 +2064,7 @@ static void hooked_iconlist_layoutSubviews(UIView *self, SEL _cmd) {
             getDockGeometry(dockIcons.count, &dockW, &dockH, &iconSize, &spacing, &padY);
 
             [dockIcons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
-                if (a.frame.origin.y != b.frame.origin.y && fabs(a.frame.origin.y - b.frame.origin.y) > 5.0) {
+                if (fabs(a.frame.origin.y - b.frame.origin.y) > 5.0) {
                     return (a.frame.origin.y < b.frame.origin.y) ? NSOrderedAscending : NSOrderedDescending;
                 }
                 return (a.frame.origin.x < b.frame.origin.x) ? NSOrderedAscending : (a.frame.origin.x > b.frame.origin.x ? NSOrderedDescending : NSOrderedSame);
@@ -2133,42 +2084,44 @@ static void hooked_iconlist_layoutSubviews(UIView *self, SEL _cmd) {
                 }
             }
         }
+        g_inIconListLayout = NO;
         return;
     }
 
-    if (!p_adjustIconGridMargin) return;
+    if (p_adjustIconGridMargin) {
+        CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
+        CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 54.0;
+        CGFloat dockW = iconSize + 20.0;
+        CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
+        CGFloat dockReserve = dockW + marginX + 6.0;
+        CGFloat factor = (screenW - dockReserve - 10.0) / screenW;
+        if (factor > 0.95 || factor < 0.6) factor = 0.76;
 
-    CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
-    CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 54.0;
-    CGFloat dockW = iconSize + 20.0;
-    CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
-    CGFloat dockReserve = dockW + marginX + 6.0;
-    CGFloat factor = (screenW - dockReserve - 10.0) / screenW;
-    if (factor > 0.95 || factor < 0.6) factor = 0.76;
+        for (UIView *subview in self.subviews) {
+            NSString *cls = NSStringFromClass([subview class]);
+            if ([cls containsString:@"Background"] || [cls containsString:@"Scroll"]) continue;
 
-    for (UIView *subview in self.subviews) {
-        NSString *cls = NSStringFromClass([subview class]);
-        if ([cls containsString:@"Background"] || [cls containsString:@"Scroll"]) continue;
+            CGRect f = subview.frame;
+            if (f.size.width <= 0 || f.size.height <= 0) continue;
 
-        CGRect f = subview.frame;
-        if (f.size.width <= 0 || f.size.height <= 0) continue;
+            CGFloat newX = f.origin.x;
+            CGFloat newW = f.size.width;
 
-        CGFloat newX = f.origin.x;
-        CGFloat newW = f.size.width;
-
-        if (p_dockPosition == 1) { // Right Dock
-            newX = 8.0 + (f.origin.x * factor);
-            if (newW > (screenW - dockReserve - 16.0)) {
-                newW = screenW - dockReserve - 16.0;
+            if (p_dockPosition == 1) { // Right Dock
+                newX = 8.0 + (f.origin.x * factor);
+                if (newW > (screenW - dockReserve - 16.0)) {
+                    newW = screenW - dockReserve - 16.0;
+                }
+            } else if (p_dockPosition == 2) { // Left Dock
+                newX = dockReserve + 6.0 + (f.origin.x * factor);
+                if (newW > (screenW - dockReserve - 16.0)) {
+                    newW = screenW - dockReserve - 16.0;
+                }
             }
-        } else if (p_dockPosition == 2) { // Left Dock
-            newX = dockReserve + 6.0 + (f.origin.x * factor);
-            if (newW > (screenW - dockReserve - 16.0)) {
-                newW = screenW - dockReserve - 16.0;
-            }
+            subview.frame = CGRectMake(newX, f.origin.y, newW, f.size.height);
         }
-        subview.frame = CGRectMake(newX, f.origin.y, newW, f.size.height);
     }
+    g_inIconListLayout = NO;
 }
 
 // MARK: - Notifications
@@ -2238,33 +2191,11 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         CFNotificationSuspensionBehaviorCoalesce
     );
 
-    // 0. Hook Status Bar Window & Status Bar for Touch Forwarding (Drag & Drop / Taps)
-    Class sbWinClass = objc_getClass("UIStatusBarWindow");
-    if (sbWinClass) {
-        SafeSwizzle(sbWinClass, @selector(hitTest:withEvent:), (IMP)hooked_sbwin_hitTest, (IMP *)&orig_sbwin_hitTest);
-    }
-
-    Class modernSBClass = objc_getClass("_UIStatusBar");
-    if (modernSBClass) {
-        SafeSwizzle(modernSBClass, @selector(hitTest:withEvent:), (IMP)hooked_statusbar_hitTest, (IMP *)&orig_statusbar_hitTest);
-    }
-
-    Class baseSBClass = objc_getClass("UIStatusBar_Base");
-    if (baseSBClass) {
-        SafeSwizzle(baseSBClass, @selector(hitTest:withEvent:), (IMP)hooked_statusbar_hitTest, (IMP *)&orig_statusbar_hitTest);
-    }
-
     // 1. Hook Battery View
     Class bClass = objc_getClass("_UIBatteryView");
     if (bClass) {
         SafeSwizzle(bClass, @selector(didMoveToWindow), (IMP)hooked_battery_didMoveToWindow, (IMP *)&orig_battery_didMoveToWindow);
         SafeSwizzle(bClass, @selector(layoutSubviews), (IMP)hooked_battery_layoutSubviews, (IMP *)&orig_battery_layoutSubviews);
-    }
-
-    Class legacyBClass = objc_getClass("UIStatusBarBatteryItemView");
-    if (legacyBClass) {
-        SafeSwizzle(legacyBClass, @selector(didMoveToWindow), (IMP)hooked_battery_didMoveToWindow, (IMP *)&orig_battery_didMoveToWindow);
-        SafeSwizzle(legacyBClass, @selector(layoutSubviews), (IMP)hooked_battery_layoutSubviews, (IMP *)&orig_battery_layoutSubviews);
     }
 
     // 2. Hook Stock Wi-Fi View
@@ -2273,22 +2204,12 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         SafeSwizzle(wifiClass, @selector(didMoveToWindow), (IMP)hooked_wifi_didMoveToWindow, (IMP *)&orig_wifi_didMoveToWindow);
         SafeSwizzle(wifiClass, @selector(layoutSubviews), (IMP)hooked_wifi_layoutSubviews, (IMP *)&orig_wifi_layoutSubviews);
     }
-    Class legacyWifiClass = objc_getClass("UIStatusBarDataNetworkItemView");
-    if (legacyWifiClass) {
-        SafeSwizzle(legacyWifiClass, @selector(didMoveToWindow), (IMP)hooked_wifi_didMoveToWindow, (IMP *)&orig_wifi_didMoveToWindow);
-        SafeSwizzle(legacyWifiClass, @selector(layoutSubviews), (IMP)hooked_wifi_layoutSubviews, (IMP *)&orig_wifi_layoutSubviews);
-    }
 
     // 3. Hook Stock Cellular View
     Class cellClass = objc_getClass("_UIStatusBarCellularSignalView");
     if (cellClass) {
         SafeSwizzle(cellClass, @selector(didMoveToWindow), (IMP)hooked_cell_didMoveToWindow, (IMP *)&orig_cell_didMoveToWindow);
         SafeSwizzle(cellClass, @selector(layoutSubviews), (IMP)hooked_cell_layoutSubviews, (IMP *)&orig_cell_layoutSubviews);
-    }
-    Class legacyCellClass = objc_getClass("UIStatusBarSignalStrengthItemView");
-    if (legacyCellClass) {
-        SafeSwizzle(legacyCellClass, @selector(didMoveToWindow), (IMP)hooked_cell_didMoveToWindow, (IMP *)&orig_cell_didMoveToWindow);
-        SafeSwizzle(legacyCellClass, @selector(layoutSubviews), (IMP)hooked_cell_layoutSubviews, (IMP *)&orig_cell_layoutSubviews);
     }
 
     // 4. Hook String View (% text, Time/Clock, Carrier)
@@ -2306,30 +2227,16 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         SafeSwizzle(imgViewClass, @selector(setImage:), (IMP)hooked_img_setImage, (IMP *)&orig_img_setImage);
     }
 
-    // 6. Hook Dock & Home Screen Icon Layout (Vertical Dock)
+    // 6. Hook Dock
     Class dockClass = objc_getClass("SBDockView");
     if (dockClass) {
         SafeSwizzle(dockClass, @selector(setFrame:), (IMP)hooked_dock_setFrame, (IMP *)&orig_dock_setFrame);
-        SafeSwizzle(dockClass, @selector(setCenter:), (IMP)hooked_dock_setCenter, (IMP *)&orig_dock_setCenter);
-        SafeSwizzle(dockClass, @selector(setBounds:), (IMP)hooked_dock_setBounds, (IMP *)&orig_dock_setBounds);
         SafeSwizzle(dockClass, @selector(layoutSubviews), (IMP)hooked_dock_layoutSubviews, (IMP *)&orig_dock_layoutSubviews);
     }
 
-    Class floatingDockClass = objc_getClass("SBFloatingDockView");
-    if (floatingDockClass) {
-        SafeSwizzle(floatingDockClass, @selector(setFrame:), (IMP)hooked_dock_setFrame, (IMP *)&orig_dock_setFrame);
-        SafeSwizzle(floatingDockClass, @selector(setCenter:), (IMP)hooked_dock_setCenter, (IMP *)&orig_dock_setCenter);
-        SafeSwizzle(floatingDockClass, @selector(setBounds:), (IMP)hooked_dock_setBounds, (IMP *)&orig_dock_setBounds);
-        SafeSwizzle(floatingDockClass, @selector(layoutSubviews), (IMP)hooked_dock_layoutSubviews, (IMP *)&orig_dock_layoutSubviews);
-    }
-
+    // 7. Hook Icon Lists (SBIconListView covers both HomeScreen and SBDockIconListView via inheritance)
     Class iconListClass = objc_getClass("SBIconListView");
     if (iconListClass) {
         SafeSwizzle(iconListClass, @selector(layoutSubviews), (IMP)hooked_iconlist_layoutSubviews, (IMP *)&orig_iconlist_layoutSubviews);
-    }
-
-    Class dockIconListClass = objc_getClass("SBDockIconListView");
-    if (dockIconListClass) {
-        SafeSwizzle(dockIconListClass, @selector(layoutSubviews), (IMP)hooked_iconlist_layoutSubviews, (IMP *)&orig_iconlist_layoutSubviews);
     }
 }
