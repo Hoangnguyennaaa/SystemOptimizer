@@ -29,31 +29,49 @@
             <key>cell</key>
             <string>PSGroupCell</string>
             <key>label</key>
-            <string>VỊ TRÍ HIỂN THỊ TRÊN STATUSBAR</string>
+            <string>ẨN BIỂU TƯỢNG HỆ THỐNG GỐC</string>
             <key>footerText</key>
-            <string>Chế độ 'Đè Pin gốc' căn chỉnh khít góc trên phải của iPhone 7 Plus, che lấp hoàn toàn biểu tượng pin cũ.</string>
+            <string>Ẩn các biểu tượng gốc để tránh trùng lặp với cụm 3-trong-1.</string>
         </dict>
         <dict>
             <key>cell</key>
-            <string>PSSegmentCell</string>
+            <string>PSSwitchCell</string>
             <key>default</key>
-            <integer>0</integer>
+            <false/>
             <key>defaults</key>
             <string>com.hoangnguyen.compactstatusbar</string>
             <key>key</key>
-            <string>position</string>
-            <key>validTitles</key>
-            <array>
-                <string>Đè Pin gốc</string>
-                <string>Góc trái</string>
-                <string>Chính giữa</string>
-            </array>
-            <key>validValues</key>
-            <array>
-                <integer>0</integer>
-                <integer>1</integer>
-                <integer>2</integer>
-            </array>
+            <string>hideStockWifi</string>
+            <key>label</key>
+            <string>Ẩn biểu tượng Wi-Fi gốc</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <false/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>hideStockCellular</string>
+            <key>label</key>
+            <string>Ẩn biểu tượng Sóng di động gốc</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>hideStockBatteryPercent</string>
+            <key>label</key>
+            <string>Ẩn chữ số % Pin gốc</string>
             <key>PostNotification</key>
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
@@ -62,7 +80,11 @@
             <key>cell</key>
             <string>PSGroupCell</string>
             <key>label</key>
-            <string>TÍNH NĂNG NÂNG CAO</string>
+            <string>TÍNH NĂNG &amp; HIỆU ỨNG</string>
+            <key>footerText</key>
+            <string>• Chạm 1 lần: Hiện popup HUD tóm tắt Pin, RAM, Mạng.
+• Chạm đúp 2 lần: Hoán đổi đo % Pin và % RAM A10 Fusion.
+• Nhấn giữ: Khóa màn hình nhanh.</string>
         </dict>
         <dict>
             <key>cell</key>
@@ -74,7 +96,49 @@
             <key>key</key>
             <string>autoSpeed</string>
             <key>label</key>
-            <string>Hiện tốc độ mạng khi > 100 KB/s</string>
+            <string>Hiện tốc độ mạng (khi &gt; 100 KB/s)</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>breathingGlow</string>
+            <key>label</key>
+            <string>Hiệu ứng Breathing Glow khi sạc</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <false/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>showRAM</string>
+            <key>label</key>
+            <string>Mặc định đo RAM (thay vì Pin)</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <false/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>dotCount5</string>
+            <key>label</key>
+            <string>Dùng 5 chấm sóng (Tắt = 4 chuẩn)</string>
             <key>PostNotification</key>
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
@@ -83,14 +147,7 @@
             <key>cell</key>
             <string>PSGroupCell</string>
             <key>label</key>
-            <string>HƯỚNG DẪN CỬ CHỈ</string>
-            <key>footerText</key>
-            <string>• Chạm đúp 2 lần trực tiếp vào biểu tượng trên StatusBar để hoán đổi giữa đo % Pin và % RAM A10 Fusion.</string>
-        </dict>
-
-        <dict>
-            <key>cell</key>
-            <string>PSGroupCell</string>
+            <string>THAO TÁC</string>
         </dict>
         <dict>
             <key>cell</key>
