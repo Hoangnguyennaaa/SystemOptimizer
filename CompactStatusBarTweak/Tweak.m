@@ -20,13 +20,27 @@ static void loadPrefs(void) {
     }
 }
 
-// MARK: - View hiển thị Pin 3-trong-1 bằng CAShapeLayer (An toàn 100%, không crash)
+// Hàm Hook an toàn: Dùng class_addMethod để KHÔNG BAO GIỜ ghi đè lên UIView gốc
+static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
+    if (!cls) return;
+    Method m = class_getInstanceMethod(cls, origSel);
+    if (!m) return;
+
+    BOOL added = class_addMethod(cls, origSel, newImp, method_getTypeEncoding(m));
+    if (added) {
+        if (origImp) *origImp = method_getImplementation(m);
+    } else {
+        if (origImp) *origImp = method_getImplementation(m);
+        method_setImplementation(m, newImp);
+    }
+}
+
+// MARK: - View hiển thị Pin 3-trong-1 bằng CAShapeLayer (An toàn tuyệt đối)
 @interface CompactStatusView : UIView
-@property (nonatomic, strong) CAShapeLayer *bgCircleLayer;
+@property (nonatomic, strong) CAShapeLayer *bgLayer;
 @property (nonatomic, strong) CAShapeLayer *trackLayer;
 @property (nonatomic, strong) CAShapeLayer *progressLayer;
 @property (nonatomic, strong) UILabel *label;
-@property (nonatomic, strong) NSMutableArray<CAShapeLayer *> *dotLayers;
 @property (nonatomic, assign) BOOL showRAM;
 @property (nonatomic, strong) NSTimer *timer;
 @end
@@ -40,92 +54,63 @@ static void loadPrefs(void) {
         self.clipsToBounds = NO;
         self.showRAM = p_showRAM;
 
-        // 1. Nền tròn
-        _bgCircleLayer = [CAShapeLayer layer];
-        _bgCircleLayer.fillColor = [UIColor colorWithWhite:0.0 alpha:0.85].CGColor;
-        [self.layer addSublayer:_bgCircleLayer];
+        CGFloat w = 36.0;
+        CGFloat h = 18.0;
 
-        // 2. Track nền khuyết
+        // 1. Nền bo tròn che khít toàn bộ khu vực pin cũ
+        _bgLayer = [CAShapeLayer layer];
+        _bgLayer.fillColor = [UIColor colorWithWhite:0.0 alpha:0.85].CGColor;
+        _bgLayer.path = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, w, h) cornerRadius:h / 2.0].CGPath;
+        [self.layer addSublayer:_bgLayer];
+
+        // 2. Vòng tròn tiến trình
+        CGPoint c = CGPointMake(10.0, h / 2.0);
+        CGFloat r = 6.0;
+        UIBezierPath *circlePath = [UIBezierPath bezierPathWithArcCenter:c radius:r startAngle:-M_PI_2 endAngle:M_PI * 1.5 clockwise:YES];
+
         _trackLayer = [CAShapeLayer layer];
         _trackLayer.fillColor = [UIColor clearColor].CGColor;
         _trackLayer.strokeColor = [UIColor colorWithWhite:1.0 alpha:0.2].CGColor;
-        _trackLayer.lineWidth = 2.0;
-        _trackLayer.lineCap = kCALineCapRound;
+        _trackLayer.lineWidth = 1.8;
+        _trackLayer.path = circlePath.CGPath;
         [self.layer addSublayer:_trackLayer];
 
-        // 3. Tiến trình pin/RAM
         _progressLayer = [CAShapeLayer layer];
         _progressLayer.fillColor = [UIColor clearColor].CGColor;
-        _progressLayer.lineWidth = 2.0;
+        _progressLayer.lineWidth = 1.8;
         _progressLayer.lineCap = kCALineCapRound;
+        _progressLayer.path = circlePath.CGPath;
         [self.layer addSublayer:_progressLayer];
 
-        // 4. Nhãn ở giữa
-        _label = [[UILabel alloc] init];
-        _label.font = [UIFont systemFontOfSize:7.5 weight:UIFontWeightBold];
+        // 3. Số % hiển thị bên cạnh
+        _label = [[UILabel alloc] initWithFrame:CGRectMake(19.0, 0, 16.0, h)];
+        _label.font = [UIFont systemFontOfSize:8.0 weight:UIFontWeightBold];
         _label.textColor = [UIColor whiteColor];
         _label.textAlignment = NSTextAlignmentCenter;
-        _label.backgroundColor = [UIColor clearColor];
         [self addSubview:_label];
 
-        // 5. 5 Chấm sóng
-        _dotLayers = [NSMutableArray array];
-        for (int i = 0; i < 5; i++) {
-            CAShapeLayer *dot = [CAShapeLayer layer];
-            dot.fillColor = [UIColor whiteColor].CGColor;
-            [self.layer addSublayer:dot];
-            [_dotLayers addObject:dot];
-        }
-
         [UIDevice currentDevice].batteryMonitoringEnabled = YES;
-        [self updateLayers];
+        [self updateStats];
 
-        // Cử chỉ chạm 2 lần đổi Pin/RAM
+        // Cử chỉ chạm 2 lần đổi Pin <-> RAM
         UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTap)];
         tap.numberOfTapsRequired = 2;
         [self addGestureRecognizer:tap];
 
-        // Lắng nghe thay đổi mức pin
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateLayers) name:UIDeviceBatteryLevelDidChangeNotification object:nil];
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateLayers) name:UIDeviceBatteryStateDidChangeNotification object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStats) name:UIDeviceBatteryLevelDidChangeNotification object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStats) name:UIDeviceBatteryStateDidChangeNotification object:nil];
 
-        _timer = [NSTimer scheduledTimerWithTimeInterval:2.0 target:self selector:@selector(updateLayers) userInfo:nil repeats:YES];
+        _timer = [NSTimer scheduledTimerWithTimeInterval:2.0 target:self selector:@selector(updateStats) userInfo:nil repeats:YES];
     }
     return self;
 }
 
 - (void)handleDoubleTap {
     self.showRAM = !self.showRAM;
-    [self updateLayers];
+    [self updateStats];
 }
 
-- (void)layoutSubviews {
-    [super layoutSubviews];
-    CGFloat sz = MIN(self.bounds.size.width, self.bounds.size.height);
-    if (sz < 16.0) sz = 18.0;
-    CGPoint c = CGPointMake(self.bounds.size.width / 2.0, self.bounds.size.height / 2.0);
-    CGFloat r = (sz / 2.0) - 1.5;
-
-    _bgCircleLayer.path = [UIBezierPath bezierPathWithArcCenter:c radius:r + 1.0 startAngle:0 endAngle:2 * M_PI clockwise:YES].CGPath;
-
-    CGFloat startAngle = 135.0 * M_PI / 180.0;
-    CGFloat endAngle = 45.0 * M_PI / 180.0;
-    UIBezierPath *arcPath = [UIBezierPath bezierPathWithArcCenter:c radius:r startAngle:startAngle endAngle:endAngle clockwise:YES];
-    _trackLayer.path = arcPath.CGPath;
-    _progressLayer.path = arcPath.CGPath;
-
-    _label.frame = CGRectMake(c.x - r, c.y - r, r * 2, r * 2);
-
-    CGFloat angles[5] = {60.0, 75.0, 90.0, 105.0, 120.0};
-    for (int i = 0; i < 5; i++) {
-        CGFloat rad = angles[i] * M_PI / 180.0;
-        CGFloat dx = c.x + (r - 1.0) * cos(rad);
-        CGFloat dy = c.y + (r - 1.0) * sin(rad);
-        _dotLayers[i].path = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(dx - 1.0, dy - 1.0, 2.0, 2.0)].CGPath;
-    }
-}
-
-- (void)updateLayers {
+- (void)updateStats {
     float rawLevel = [UIDevice currentDevice].batteryLevel;
     CGFloat bat = rawLevel < 0 ? 1.0 : (CGFloat)rawLevel;
     BOOL charging = ([UIDevice currentDevice].batteryState == UIDeviceBatteryStateCharging || [UIDevice currentDevice].batteryState == UIDeviceBatteryStateFull);
@@ -150,16 +135,12 @@ static void loadPrefs(void) {
         if (charging) {
             col = [UIColor colorWithRed:0.2 green:0.9 blue:0.3 alpha:1.0];
         } else if (bat <= 0.20) {
-            col = [UIColor colorWithRed:1.0 green:0.2 blue:0.2 alpha:1.0];
+            col = [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0];
         }
-        _label.text = [NSString stringWithFormat:@"%.0f", bat * 100];
+        _label.text = [NSString stringWithFormat:@"%d", (int)(bat * 100)];
     }
     _progressLayer.strokeColor = col.CGColor;
     _label.textColor = col;
-
-    for (int i = 0; i < 5; i++) {
-        _dotLayers[i].fillColor = (i < 4) ? [UIColor whiteColor].CGColor : [UIColor colorWithWhite:1.0 alpha:0.25].CGColor;
-    }
 }
 
 - (void)dealloc {
@@ -169,7 +150,7 @@ static void loadPrefs(void) {
 
 @end
 
-// MARK: - Hook an toàn vào _UIBatteryView (didMoveToWindow & layoutSubviews)
+// MARK: - Hook an toàn bằng dispatch_async, tránh tuyệt đối đệ quy Layout
 static void (*orig_battery_didMoveToWindow)(UIView *, SEL) = NULL;
 static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
     if (orig_battery_didMoveToWindow) {
@@ -177,34 +158,20 @@ static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
     }
     if (!self.window || !p_enabled) return;
 
-    for (UIView *sub in self.subviews) {
-        if (sub.tag != 998811) {
-            sub.hidden = YES;
-            sub.alpha = 0.0;
-        }
-    }
+    // Ẩn view pin gốc
+    self.hidden = YES;
+    self.alpha = 0.0;
 
-    CompactStatusView *custom = (CompactStatusView *)[self viewWithTag:998811];
-    if (!custom) {
-        custom = [[CompactStatusView alloc] initWithFrame:self.bounds];
-        custom.tag = 998811;
-        custom.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        [self addSubview:custom];
-    }
-}
-
-static void (*orig_battery_layoutSubviews)(UIView *, SEL) = NULL;
-static void hooked_battery_layoutSubviews(UIView *self, SEL _cmd) {
-    if (orig_battery_layoutSubviews) {
-        orig_battery_layoutSubviews(self, _cmd);
-    }
-    if (!p_enabled) return;
-    for (UIView *sub in self.subviews) {
-        if (sub.tag != 998811) {
-            sub.hidden = YES;
-            sub.alpha = 0.0;
+    // Trì hoãn việc thêm subview sang vòng lặp kế tiếp để không làm gián đoạn layout engine
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIView *parent = self.superview;
+        if (parent && ![parent viewWithTag:998811]) {
+            CompactStatusView *custom = [[CompactStatusView alloc] initWithFrame:CGRectMake(self.frame.origin.x, self.frame.origin.y, 36, 18)];
+            custom.tag = 998811;
+            [parent addSubview:custom];
+            [parent bringSubviewToFront:custom];
         }
-    }
+    });
 }
 
 // Ẩn chữ số % mặc định
@@ -220,7 +187,7 @@ static void hooked_setText(id self, SEL _cmd, NSString *text) {
     }
 }
 
-// Respring
+// Lắng nghe lệnh Respring từ Cài đặt
 static void handleRespringNotification(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
     pid_t pid;
     const char *args[] = {"killall", "-9", "SpringBoard", NULL};
@@ -249,29 +216,21 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         CFNotificationSuspensionBehaviorCoalesce
     );
 
-    // Hook _UIBatteryView
+    // 1. Hook an toàn _UIBatteryView
     Class bClass = objc_getClass("_UIBatteryView");
     if (bClass) {
-        Method mMove = class_getInstanceMethod(bClass, @selector(didMoveToWindow));
-        if (mMove) {
-            orig_battery_didMoveToWindow = (void (*)(UIView *, SEL))method_getImplementation(mMove);
-            method_setImplementation(mMove, (IMP)hooked_battery_didMoveToWindow);
-        }
-
-        Method mLayout = class_getInstanceMethod(bClass, @selector(layoutSubviews));
-        if (mLayout) {
-            orig_battery_layoutSubviews = (void (*)(UIView *, SEL))method_getImplementation(mLayout);
-            method_setImplementation(mLayout, (IMP)hooked_battery_layoutSubviews);
-        }
+        SafeSwizzle(bClass, @selector(didMoveToWindow), (IMP)hooked_battery_didMoveToWindow, (IMP *)&orig_battery_didMoveToWindow);
     }
 
-    // Hook _UIStatusBarStringView
+    // 2. Hook an toàn UIStatusBarBatteryItemView (nếu máy ở StatusBar truyền thống)
+    Class legacyClass = objc_getClass("UIStatusBarBatteryItemView");
+    if (legacyClass) {
+        SafeSwizzle(legacyClass, @selector(didMoveToWindow), (IMP)hooked_battery_didMoveToWindow, (IMP *)&orig_battery_didMoveToWindow);
+    }
+
+    // 3. Hook _UIStatusBarStringView để ẩn chữ số %
     Class stringViewClass = objc_getClass("_UIStatusBarStringView");
     if (stringViewClass) {
-        Method m3 = class_getInstanceMethod(stringViewClass, @selector(setText:));
-        if (m3) {
-            orig_setText = (void (*)(id, SEL, NSString *))method_getImplementation(m3);
-            method_setImplementation(m3, (IMP)hooked_setText);
-        }
+        SafeSwizzle(stringViewClass, @selector(setText:), (IMP)hooked_setText, (IMP *)&orig_setText);
     }
 }
