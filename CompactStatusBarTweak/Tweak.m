@@ -4,6 +4,7 @@
 #import <mach/mach_host.h>
 #import <notify.h>
 #import <spawn.h>
+#import <unistd.h>
 #import <sys/types.h>
 #import <sys/socket.h>
 #import <ifaddrs.h>
@@ -423,10 +424,9 @@ static void executeAction(int actionCode, CompactStatusView *view) {
             [view toggleRAMDisplay];
             break;
         case 5: { // Respring
-            pid_t pid;
-            const char *args[] = {"killall", "-9", "SpringBoard", NULL};
-            posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char *const *)args, NULL);
-            posix_spawn(&pid, "/usr/bin/killall", NULL, NULL, (char *const *)args, NULL);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                _exit(0);
+            });
             break;
         }
         default:
@@ -758,12 +758,30 @@ static void hooked_setText(id self, SEL _cmd, NSString *text) {
     }
 }
 
-// MARK: - Notifications
-static void handleRespringNotification(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+// MARK: - Respring & Notifications
+static void doRespringFromPrefs(id self, SEL _cmd, id sender) {
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        CFSTR("com.hoangnguyen.compactstatusbar/Respring"),
+        NULL,
+        NULL,
+        YES
+    );
+
     pid_t pid;
-    const char *args[] = {"killall", "-9", "SpringBoard", NULL};
-    posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char *const *)args, NULL);
-    posix_spawn(&pid, "/usr/bin/killall", NULL, NULL, (char *const *)args, NULL);
+    const char *sbrArgs[] = {"sbreload", NULL};
+    posix_spawn(&pid, "/var/jb/usr/bin/sbreload", NULL, NULL, (char *const *)sbrArgs, NULL);
+    posix_spawn(&pid, "/usr/bin/sbreload", NULL, NULL, (char *const *)sbrArgs, NULL);
+
+    const char *kArgs[] = {"killall", "-9", "SpringBoard", NULL};
+    posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char *const *)kArgs, NULL);
+    posix_spawn(&pid, "/usr/bin/killall", NULL, NULL, (char *const *)kArgs, NULL);
+}
+
+static void handleRespringNotification(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        _exit(0);
+    });
 }
 
 static void handleReloadNotification(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
@@ -783,6 +801,21 @@ static void handleReloadNotification(CFNotificationCenterRef center, void *obser
 
 // MARK: - Constructor
 __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
+    Class psListClass = objc_getClass("PSListController");
+    if (psListClass) {
+        class_replaceMethod(psListClass, sel_registerName("respring"), (IMP)doRespringFromPrefs, "v@:");
+        class_replaceMethod(psListClass, sel_registerName("respring:"), (IMP)doRespringFromPrefs, "v@:@");
+    }
+    class_replaceMethod([UIViewController class], sel_registerName("respring"), (IMP)doRespringFromPrefs, "v@:");
+    class_replaceMethod([UIViewController class], sel_registerName("respring:"), (IMP)doRespringFromPrefs, "v@:@");
+    class_replaceMethod([NSObject class], sel_registerName("respring"), (IMP)doRespringFromPrefs, "v@:");
+    class_replaceMethod([NSObject class], sel_registerName("respring:"), (IMP)doRespringFromPrefs, "v@:@");
+
+    NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
+    if ([bundleID isEqualToString:@"com.apple.Preferences"]) {
+        return;
+    }
+
     loadPrefs();
 
     CFNotificationCenterAddObserver(

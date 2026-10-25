@@ -474,9 +474,7 @@
             <key>label</key>
             <string>Khởi động lại SpringBoard (Respring)</string>
             <key>action</key>
-            <string>respring</string>
-            <key>PostNotification</key>
-            <string>com.hoangnguyen.compactstatusbar/Respring</string>
+            <string>respring:</string>
         </dict>
     </array>
     <key>title</key>

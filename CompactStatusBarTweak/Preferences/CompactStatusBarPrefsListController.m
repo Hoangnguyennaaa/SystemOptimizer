@@ -19,7 +19,19 @@
 }
 
 - (void)respring:(id)sender {
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        CFSTR("com.hoangnguyen.compactstatusbar/Respring"),
+        NULL,
+        NULL,
+        YES
+    );
+
     pid_t pid;
+    const char *sbrArgs[] = {"sbreload", NULL};
+    posix_spawn(&pid, "/var/jb/usr/bin/sbreload", NULL, NULL, (char *const *)sbrArgs, NULL);
+    posix_spawn(&pid, "/usr/bin/sbreload", NULL, NULL, (char *const *)sbrArgs, NULL);
+
     const char *args[] = {"killall", "-9", "SpringBoard", NULL};
     posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char *const *)args, NULL);
     posix_spawn(&pid, "/usr/bin/killall", NULL, NULL, (char *const *)args, NULL);
