@@ -39,21 +39,18 @@ static void loadPrefs(void) {
 
 // MARK: - Helper Functions (Network, RAM, Cellular, Wi-Fi)
 
-// MARK: - Forward Declarations for SpringBoard Classes
-@interface SBWiFiManager : NSObject
-+ (instancetype)sharedInstance;
+// MARK: - Protocols for Runtime SpringBoard Classes (No linker dependency)
+@protocol SBWiFiManagerProtocol <NSObject>
 - (NSString *)currentNetworkName;
 - (BOOL)isPowered;
 - (int)signalStrengthBars;
 @end
 
-@interface SBTelephonyManager : NSObject
-+ (instancetype)sharedTelephonyManager;
+@protocol SBTelephonyManagerProtocol <NSObject>
 - (int)signalStrengthBars;
 @end
 
-@interface SBLockScreenManager : NSObject
-+ (instancetype)sharedInstance;
+@protocol SBLockScreenManagerProtocol <NSObject>
 - (void)lockUIFromSource:(int)source withOptions:(id)options;
 @end
 
@@ -101,7 +98,7 @@ static uint64_t getNetworkDownloadBytes(void) {
 static BOOL isWifiActive(void) {
     Class wifiClass = objc_getClass("SBWiFiManager");
     if (wifiClass && [wifiClass respondsToSelector:@selector(sharedInstance)]) {
-        SBWiFiManager *wifiMgr = [SBWiFiManager sharedInstance];
+        id<SBWiFiManagerProtocol> wifiMgr = (id<SBWiFiManagerProtocol>)[wifiClass performSelector:@selector(sharedInstance)];
         if ([wifiMgr respondsToSelector:@selector(currentNetworkName)]) {
             NSString *name = [wifiMgr currentNetworkName];
             if (name && name.length > 0) return YES;
@@ -116,7 +113,7 @@ static BOOL isWifiActive(void) {
 static int getCellularSignalBars(void) {
     Class teleClass = objc_getClass("SBTelephonyManager");
     if (teleClass && [teleClass respondsToSelector:@selector(sharedTelephonyManager)]) {
-        SBTelephonyManager *teleMgr = [SBTelephonyManager sharedTelephonyManager];
+        id<SBTelephonyManagerProtocol> teleMgr = (id<SBTelephonyManagerProtocol>)[teleClass performSelector:@selector(sharedTelephonyManager)];
         if ([teleMgr respondsToSelector:@selector(signalStrengthBars)]) {
             return [teleMgr signalStrengthBars];
         }
@@ -412,7 +409,7 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 
         Class lmClass = objc_getClass("SBLockScreenManager");
         if (lmClass && [lmClass respondsToSelector:@selector(sharedInstance)]) {
-            SBLockScreenManager *mgr = [SBLockScreenManager sharedInstance];
+            id<SBLockScreenManagerProtocol> mgr = (id<SBLockScreenManagerProtocol>)[lmClass performSelector:@selector(sharedInstance)];
             if ([mgr respondsToSelector:@selector(lockUIFromSource:withOptions:)]) {
                 [mgr lockUIFromSource:1 withOptions:nil];
             }
