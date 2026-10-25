@@ -155,6 +155,9 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 @property (nonatomic, strong) NSTimer *timer;
 @property (nonatomic, assign) uint64_t lastDownloadBytes;
 @property (nonatomic, assign) NSTimeInterval lastSampleTime;
+
+- (void)rebuildCellularDots;
+- (void)updateStats;
 @end
 
 @implementation CompactStatusView
