@@ -22,7 +22,7 @@
         </dict>
         <dict>
             <key>cell</key>
-            <string>PSCustomCell</string>
+            <string>PSControlTableCell</string>
             <key>cellClass</key>
             <string>CSBPreviewCell</string>
             <key>height</key>
@@ -57,7 +57,87 @@
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
 
-        <!-- 2. Ẩn Icon Hệ Thống (Tránh Bị Đè) -->
+        <!-- 2. Thanh Tác Vụ Dọc (Vertical Dock) -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>THANH TÁC VỤ DỌC (VERTICAL DOCK)</string>
+            <key>footerText</key>
+            <string>Chuyển thanh Dock ở dưới thành thanh tác vụ dọc căn giữa ở cạnh phải (như hình mẫu). Khi bật, các icon và widget trên màn hình chính sẽ tự động dời sang trái để không bị đè lên thanh tác vụ.</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <false/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>verticalDockEnabled</string>
+            <key>label</key>
+            <string>Bật Thanh tác vụ dọc</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSegmentCell</string>
+            <key>default</key>
+            <integer>1</integer>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>dockPosition</string>
+            <key>validTitles</key>
+            <array>
+                <string>Dưới (Gốc)</string>
+                <string>Dọc Bên Phải</string>
+                <string>Dọc Bên Trái</string>
+            </array>
+            <key>validValues</key>
+            <array>
+                <integer>0</integer>
+                <integer>1</integer>
+                <integer>2</integer>
+            </array>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>adjustIconGridMargin</string>
+            <key>label</key>
+            <string>Tự co gọn icon màn hình chính</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>0.0</real>
+            <key>min</key>
+            <real>-150.0</real>
+            <key>max</key>
+            <real>150.0</real>
+            <key>showValue</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>dockOffsetY</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+
+        <!-- 3. Ẩn Icon Hệ Thống (Tránh Bị Đè) -->
         <dict>
             <key>cell</key>
             <string>PSGroupCell</string>
@@ -235,7 +315,7 @@
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
 
-        <!-- 3. Tinh chỉnh thủ công -->
+        <!-- 4. Tinh chỉnh thủ công -->
         <dict>
             <key>cell</key>
             <string>PSGroupCell</string>
@@ -317,7 +397,7 @@
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
 
-        <!-- 4. Hiển thị phần trăm pin -->
+        <!-- 5. Hiển thị phần trăm pin -->
         <dict>
             <key>cell</key>
             <string>PSGroupCell</string>
@@ -349,7 +429,7 @@
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
 
-        <!-- 5. Giao diện & Màu sắc -->
+        <!-- 6. Giao diện & Màu sắc -->
         <dict>
             <key>cell</key>
             <string>PSGroupCell</string>
@@ -425,7 +505,7 @@
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
 
-        <!-- 6. Tốc độ mạng thời gian thực -->
+        <!-- 7. Tốc độ mạng thời gian thực -->
         <dict>
             <key>cell</key>
             <string>PSGroupCell</string>
@@ -459,7 +539,7 @@
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
 
-        <!-- 7. Cử chỉ & Phản hồi rung -->
+        <!-- 8. Cử chỉ & Phản hồi rung -->
         <dict>
             <key>cell</key>
             <string>PSGroupCell</string>
@@ -601,7 +681,7 @@
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
 
-        <!-- 8. Thao tác -->
+        <!-- 9. Thao tác -->
         <dict>
             <key>cell</key>
             <string>PSGroupCell</string>

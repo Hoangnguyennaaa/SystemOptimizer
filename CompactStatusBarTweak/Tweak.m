@@ -66,6 +66,12 @@ static BOOL p_breathingGlow = YES;
 static BOOL p_showRAM = NO;
 static BOOL p_dotCount5 = NO;
 
+// Vertical Dock Preferences
+static BOOL p_verticalDockEnabled = NO;
+static int p_dockPosition = 1; // 0 = Bottom (Default), 1 = Vertical Right, 2 = Vertical Left
+static BOOL p_adjustIconGridMargin = YES;
+static CGFloat p_dockOffsetY = 0.0;
+
 // Stock Status Bar Item Hiding
 static BOOL p_hideStockBattery = YES;
 static BOOL p_hideStockBatteryPercent = YES;
@@ -106,6 +112,11 @@ static void loadPrefs(void) {
         p_breathingGlow = prefs[@"breathingGlow"] ? [prefs[@"breathingGlow"] boolValue] : YES;
         p_showRAM = prefs[@"showRAM"] ? [prefs[@"showRAM"] boolValue] : NO;
         p_dotCount5 = prefs[@"dotCount5"] ? [prefs[@"dotCount5"] boolValue] : NO;
+
+        p_verticalDockEnabled = prefs[@"verticalDockEnabled"] ? [prefs[@"verticalDockEnabled"] boolValue] : NO;
+        p_dockPosition = prefs[@"dockPosition"] ? [prefs[@"dockPosition"] intValue] : 1;
+        p_adjustIconGridMargin = prefs[@"adjustIconGridMargin"] ? [prefs[@"adjustIconGridMargin"] boolValue] : YES;
+        p_dockOffsetY = prefs[@"dockOffsetY"] ? [prefs[@"dockOffsetY"] floatValue] : 0.0;
 
         p_hideStockBattery = prefs[@"hideStockBattery"] ? [prefs[@"hideStockBattery"] boolValue] : YES;
         p_hideStockBatteryPercent = prefs[@"hideStockBatteryPercent"] ? [prefs[@"hideStockBatteryPercent"] boolValue] : YES;
@@ -1124,6 +1135,45 @@ static void handlePreviewReloadNotification(CFNotificationCenterRef center, void
     [_gaugePreview updateStats];
 }
 
+- (void)refreshCellContentsWithSpecifier:(id)specifier {
+    _specifier = specifier;
+    [self syncFromPrefs];
+}
+
+- (BOOL)canReload {
+    return YES;
+}
+
+- (id)value {
+    return nil;
+}
+
+- (void)setValue:(id)value {
+}
+
+- (id)target {
+    return self;
+}
+
+- (id)cellTarget {
+    return self;
+}
+
+- (id)cellAction {
+    return nil;
+}
+
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector {
+    NSMethodSignature *sig = [super methodSignatureForSelector:aSelector];
+    if (!sig) {
+        sig = [NSMethodSignature signatureWithObjCTypes:"v@:"];
+    }
+    return sig;
+}
+
+- (void)forwardInvocation:(NSInvocation *)anInvocation {
+}
+
 - (void)dealloc {
     CFNotificationCenterRemoveObserver(
         CFNotificationCenterGetDarwinNotifyCenter(),
@@ -1321,6 +1371,165 @@ static void hooked_img_setImage(UIImageView *self, SEL _cmd, UIImage *image) {
     checkAndApplyImageVisibility(self);
 }
 
+// MARK: - Vertical Dock & Icon Grid Hooks
+static void getIconViewsRecursively(UIView *view, NSMutableArray<UIView *> *result) {
+    if (!view) return;
+    NSString *clsName = NSStringFromClass([view class]);
+    if ([clsName containsString:@"IconView"] &&
+        ![clsName containsString:@"ListView"] &&
+        ![clsName containsString:@"Background"] &&
+        ![clsName containsString:@"Scroll"]) {
+        [result addObject:view];
+        return;
+    }
+    for (UIView *child in view.subviews) {
+        if (child.tag != 998844) {
+            getIconViewsRecursively(child, result);
+        }
+    }
+}
+
+static void (*orig_dock_setFrame)(UIView *, SEL, CGRect) = NULL;
+static void hooked_dock_setFrame(UIView *self, SEL _cmd, CGRect frame) {
+    if (p_enabled && p_verticalDockEnabled) {
+        CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
+        CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
+        CGFloat dockW = 74.0;
+        CGFloat dockH = 286.0;
+        CGFloat dockX = (p_dockPosition == 2) ? 10.0 : (screenW - dockW - 10.0);
+        CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
+        frame = CGRectMake(dockX, dockY, dockW, dockH);
+    }
+    if (orig_dock_setFrame) {
+        orig_dock_setFrame(self, _cmd, frame);
+    }
+}
+
+static void (*orig_dock_layoutSubviews)(UIView *, SEL) = NULL;
+static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
+    if (orig_dock_layoutSubviews) orig_dock_layoutSubviews(self, _cmd);
+    if (!p_enabled || !p_verticalDockEnabled) return;
+
+    CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
+    CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
+
+    CGFloat dockW = 74.0;
+    CGFloat dockH = 286.0;
+    CGFloat dockX = (p_dockPosition == 2) ? 10.0 : (screenW - dockW - 10.0);
+    CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
+
+    self.frame = CGRectMake(dockX, dockY, dockW, dockH);
+    self.layer.zPosition = 999.0;
+
+    UIVisualEffectView *glass = (UIVisualEffectView *)[self viewWithTag:998844];
+    if (!glass) {
+        UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial];
+        glass = [[UIVisualEffectView alloc] initWithEffect:blur];
+        glass.tag = 998844;
+        glass.layer.cornerRadius = 32.0;
+        glass.layer.masksToBounds = YES;
+        glass.clipsToBounds = YES;
+        glass.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
+        glass.layer.borderWidth = 1.2;
+        [self insertSubview:glass atIndex:0];
+    }
+    glass.frame = self.bounds;
+
+    for (UIView *sub in self.subviews) {
+        if (sub != glass) {
+            NSString *sName = NSStringFromClass([sub class]);
+            if ([sName containsString:@"Background"] || [sName containsString:@"Material"]) {
+                sub.hidden = YES;
+                sub.alpha = 0.0;
+            } else if ([sName containsString:@"ListView"]) {
+                sub.frame = self.bounds;
+            }
+        }
+    }
+
+    NSMutableArray<UIView *> *icons = [NSMutableArray array];
+    getIconViewsRecursively(self, icons);
+
+    if (icons.count > 0) {
+        [icons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+            CGFloat ax = a.superview ? [a.superview convertPoint:a.frame.origin toView:self].x : a.frame.origin.x;
+            CGFloat bx = b.superview ? [b.superview convertPoint:b.frame.origin toView:self].x : b.frame.origin.x;
+            if (ax < bx) return NSOrderedAscending;
+            else if (ax > bx) return NSOrderedDescending;
+            return NSOrderedSame;
+        }];
+
+        CGFloat iconSize = 54.0;
+        CGFloat padY = 16.0;
+        CGFloat availableH = dockH - (2.0 * padY);
+        CGFloat totalIconH = icons.count * iconSize;
+        CGFloat spacing = (icons.count > 1) ? ((availableH - totalIconH) / (icons.count - 1)) : 14.0;
+        if (spacing < 6.0) spacing = 6.0;
+
+        for (NSUInteger i = 0; i < icons.count; i++) {
+            UIView *icon = icons[i];
+            CGFloat targetX = (dockW - iconSize) / 2.0;
+            CGFloat targetY = padY + i * (iconSize + spacing);
+
+            if (icon.superview && icon.superview != self) {
+                CGPoint pInSuper = [self convertPoint:CGPointMake(targetX, targetY) toView:icon.superview];
+                icon.frame = CGRectMake(pInSuper.x, pInSuper.y, iconSize, iconSize);
+            } else {
+                icon.frame = CGRectMake(targetX, targetY, iconSize, iconSize);
+            }
+
+            for (UIView *lbl in icon.subviews) {
+                if ([lbl isKindOfClass:[UILabel class]] || [NSStringFromClass([lbl class]) containsString:@"Label"]) {
+                    lbl.hidden = YES;
+                    lbl.alpha = 0.0;
+                }
+            }
+        }
+    }
+}
+
+static void (*orig_iconlist_layoutSubviews)(UIView *, SEL) = NULL;
+static void hooked_iconlist_layoutSubviews(UIView *self, SEL _cmd) {
+    if (orig_iconlist_layoutSubviews) orig_iconlist_layoutSubviews(self, _cmd);
+    if (!p_enabled || !p_verticalDockEnabled || !p_adjustIconGridMargin) return;
+
+    UIView *p = self.superview;
+    while (p) {
+        if ([NSStringFromClass([p class]) containsString:@"Dock"]) return;
+        p = p.superview;
+    }
+    if ([NSStringFromClass([self class]) containsString:@"Dock"]) return;
+
+    CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
+    CGFloat dockReserve = 86.0;
+    CGFloat factor = (screenW - dockReserve - 10.0) / screenW;
+    if (factor > 0.95 || factor < 0.6) factor = 0.76;
+
+    for (UIView *subview in self.subviews) {
+        NSString *cls = NSStringFromClass([subview class]);
+        if ([cls containsString:@"Background"] || [cls containsString:@"Scroll"]) continue;
+
+        CGRect f = subview.frame;
+        if (f.size.width <= 0 || f.size.height <= 0) continue;
+
+        CGFloat newX = f.origin.x;
+        CGFloat newW = f.size.width;
+
+        if (p_dockPosition == 1) { // Right Dock
+            newX = 8.0 + (f.origin.x * factor);
+            if (newW > (screenW - dockReserve - 16.0)) {
+                newW = screenW - dockReserve - 16.0;
+            }
+        } else if (p_dockPosition == 2) { // Left Dock
+            newX = dockReserve + 6.0 + (f.origin.x * factor);
+            if (newW > (screenW - dockReserve - 16.0)) {
+                newW = screenW - dockReserve - 16.0;
+            }
+        }
+        subview.frame = CGRectMake(newX, f.origin.y, newW, f.size.height);
+    }
+}
+
 // MARK: - Notifications
 static void handleRespringNotification(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -1339,6 +1548,10 @@ static void handleReloadNotification(CFNotificationCenterRef center, void *obser
                 [custom applyPreferences];
                 [custom updateStats];
             }
+        }
+        for (UIWindow *win in [UIApplication sharedApplication].windows) {
+            [win setNeedsLayout];
+            [win layoutIfNeeded];
         }
     });
 }
@@ -1430,5 +1643,17 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         SafeSwizzle(imgViewClass, @selector(didMoveToWindow), (IMP)hooked_img_didMoveToWindow, (IMP *)&orig_img_didMoveToWindow);
         SafeSwizzle(imgViewClass, @selector(layoutSubviews), (IMP)hooked_img_layoutSubviews, (IMP *)&orig_img_layoutSubviews);
         SafeSwizzle(imgViewClass, @selector(setImage:), (IMP)hooked_img_setImage, (IMP *)&orig_img_setImage);
+    }
+
+    // 6. Hook Dock & Home Screen Icon Layout (Vertical Dock)
+    Class dockClass = objc_getClass("SBDockView");
+    if (dockClass) {
+        SafeSwizzle(dockClass, @selector(setFrame:), (IMP)hooked_dock_setFrame, (IMP *)&orig_dock_setFrame);
+        SafeSwizzle(dockClass, @selector(layoutSubviews), (IMP)hooked_dock_layoutSubviews, (IMP *)&orig_dock_layoutSubviews);
+    }
+
+    Class iconListClass = objc_getClass("SBIconListView");
+    if (iconListClass) {
+        SafeSwizzle(iconListClass, @selector(layoutSubviews), (IMP)hooked_iconlist_layoutSubviews, (IMP *)&orig_iconlist_layoutSubviews);
     }
 }
