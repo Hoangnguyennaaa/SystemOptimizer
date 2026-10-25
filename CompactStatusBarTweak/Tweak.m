@@ -3,6 +3,7 @@
 #import <mach/mach.h>
 #import <mach/mach_host.h>
 #import <notify.h>
+#import <spawn.h>
 
 static BOOL p_enabled = YES;
 static BOOL p_showRAM = NO;
