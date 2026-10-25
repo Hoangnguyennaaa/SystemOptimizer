@@ -95,67 +95,176 @@ static int p_actionLongPress = 1;
 static int p_hapticFeedback = 1;
 
 static void loadPrefs(void) {
-    NSString *prefPath = @"/var/jb/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
-    if (![[NSFileManager defaultManager] fileExistsAtPath:prefPath]) {
-        prefPath = @"/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
-    }
+    CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.compactstatusbar"));
+
+    NSString *prefPath = @"/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
     NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:prefPath];
-    if (prefs) {
-        p_enabled = prefs[@"enabled"] ? [prefs[@"enabled"] boolValue] : YES;
-        p_dragModeEnabled = prefs[@"dragModeEnabled"] ? [prefs[@"dragModeEnabled"] boolValue] : NO;
-        p_iconScale = prefs[@"iconScale"] ? [prefs[@"iconScale"] floatValue] : 1.0;
-        p_iconOpacity = prefs[@"iconOpacity"] ? [prefs[@"iconOpacity"] floatValue] : 1.0;
-        p_offsetX = prefs[@"offsetX"] ? [prefs[@"offsetX"] floatValue] : 0.0;
-        p_offsetY = prefs[@"offsetY"] ? [prefs[@"offsetY"] floatValue] : 0.0;
-        p_deviceModel = prefs[@"deviceModel"] ? [prefs[@"deviceModel"] intValue] : 0;
-        p_batteryPercentMode = prefs[@"batteryPercentMode"] ? [prefs[@"batteryPercentMode"] intValue] : 0;
-        p_speedThreshold = prefs[@"speedThreshold"] ? [prefs[@"speedThreshold"] intValue] : 2;
-        p_colorMode = prefs[@"colorMode"] ? [prefs[@"colorMode"] intValue] : 0;
-        p_breathingGlow = prefs[@"breathingGlow"] ? [prefs[@"breathingGlow"] boolValue] : YES;
-        p_showRAM = prefs[@"showRAM"] ? [prefs[@"showRAM"] boolValue] : NO;
-        p_dotCount5 = prefs[@"dotCount5"] ? [prefs[@"dotCount5"] boolValue] : NO;
 
-        p_verticalDockEnabled = prefs[@"verticalDockEnabled"] ? [prefs[@"verticalDockEnabled"] boolValue] : NO;
-        p_dockPosition = prefs[@"dockPosition"] ? [prefs[@"dockPosition"] intValue] : 1;
-        p_adjustIconGridMargin = prefs[@"adjustIconGridMargin"] ? [prefs[@"adjustIconGridMargin"] boolValue] : YES;
-        p_dockOffsetY = prefs[@"dockOffsetY"] ? [prefs[@"dockOffsetY"] floatValue] : 0.0;
-        p_dockIconSize = prefs[@"dockIconSize"] ? [prefs[@"dockIconSize"] floatValue] : 54.0;
-        p_dockMarginX = prefs[@"dockMarginX"] ? [prefs[@"dockMarginX"] floatValue] : 10.0;
+    Boolean keyExists = false;
 
-        p_hideStockBattery = prefs[@"hideStockBattery"] ? [prefs[@"hideStockBattery"] boolValue] : YES;
-        p_hideStockBatteryPercent = prefs[@"hideStockBatteryPercent"] ? [prefs[@"hideStockBatteryPercent"] boolValue] : YES;
-        p_hideStockWifi = prefs[@"hideStockWifi"] ? [prefs[@"hideStockWifi"] boolValue] : NO;
-        p_hideStockCellular = prefs[@"hideStockCellular"] ? [prefs[@"hideStockCellular"] boolValue] : NO;
-        p_hideStockCarrier = prefs[@"hideStockCarrier"] ? [prefs[@"hideStockCarrier"] boolValue] : NO;
-        p_hideStockTime = prefs[@"hideStockTime"] ? [prefs[@"hideStockTime"] boolValue] : NO;
-        p_hideStockLocation = prefs[@"hideStockLocation"] ? [prefs[@"hideStockLocation"] boolValue] : NO;
-        p_hideStockVPN = prefs[@"hideStockVPN"] ? [prefs[@"hideStockVPN"] boolValue] : NO;
-        p_hideStockFocus = prefs[@"hideStockFocus"] ? [prefs[@"hideStockFocus"] boolValue] : NO;
-        p_hideStockAlarm = prefs[@"hideStockAlarm"] ? [prefs[@"hideStockAlarm"] boolValue] : NO;
-        p_hideStockBluetooth = prefs[@"hideStockBluetooth"] ? [prefs[@"hideStockBluetooth"] boolValue] : NO;
-        p_hideStockAirplane = prefs[@"hideStockAirplane"] ? [prefs[@"hideStockAirplane"] boolValue] : NO;
+    Boolean b = CFPreferencesGetAppBooleanValue(CFSTR("enabled"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_enabled = (BOOL)b;
+    else if (prefs && prefs[@"enabled"]) p_enabled = [prefs[@"enabled"] boolValue];
+    else p_enabled = YES;
 
-        p_actionSingleTap = prefs[@"actionSingleTap"] ? [prefs[@"actionSingleTap"] intValue] : 0;
-        p_actionDoubleTap = prefs[@"actionDoubleTap"] ? [prefs[@"actionDoubleTap"] intValue] : 4;
-        p_actionLongPress = prefs[@"actionLongPress"] ? [prefs[@"actionLongPress"] intValue] : 1;
-        p_hapticFeedback = prefs[@"hapticFeedback"] ? [prefs[@"hapticFeedback"] intValue] : 1;
-    }
+    b = CFPreferencesGetAppBooleanValue(CFSTR("dragModeEnabled"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_dragModeEnabled = (BOOL)b;
+    else if (prefs && prefs[@"dragModeEnabled"]) p_dragModeEnabled = [prefs[@"dragModeEnabled"] boolValue];
+    else p_dragModeEnabled = NO;
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("verticalDockEnabled"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_verticalDockEnabled = (BOOL)b;
+    else if (prefs && prefs[@"verticalDockEnabled"]) p_verticalDockEnabled = [prefs[@"verticalDockEnabled"] boolValue];
+    else p_verticalDockEnabled = NO;
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("adjustIconGridMargin"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_adjustIconGridMargin = (BOOL)b;
+    else if (prefs && prefs[@"adjustIconGridMargin"]) p_adjustIconGridMargin = [prefs[@"adjustIconGridMargin"] boolValue];
+    else p_adjustIconGridMargin = YES;
+
+    CFIndex idx = CFPreferencesGetAppIntegerValue(CFSTR("dockPosition"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_dockPosition = (int)idx;
+    else if (prefs && prefs[@"dockPosition"]) p_dockPosition = [prefs[@"dockPosition"] intValue];
+    else p_dockPosition = 1;
+
+    CFPropertyListRef ref = CFPreferencesCopyAppValue(CFSTR("dockOffsetY"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_dockOffsetY = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"dockOffsetY"]) p_dockOffsetY = [prefs[@"dockOffsetY"] floatValue];
+    else p_dockOffsetY = 0.0;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("dockIconSize"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_dockIconSize = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"dockIconSize"]) p_dockIconSize = [prefs[@"dockIconSize"] floatValue];
+    else p_dockIconSize = 54.0;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("dockMarginX"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_dockMarginX = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"dockMarginX"]) p_dockMarginX = [prefs[@"dockMarginX"] floatValue];
+    else p_dockMarginX = 10.0;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("offsetX"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_offsetX = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"offsetX"]) p_offsetX = [prefs[@"offsetX"] floatValue];
+    else p_offsetX = 0.0;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("offsetY"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_offsetY = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"offsetY"]) p_offsetY = [prefs[@"offsetY"] floatValue];
+    else p_offsetY = 0.0;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("iconScale"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_iconScale = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"iconScale"]) p_iconScale = [prefs[@"iconScale"] floatValue];
+    else p_iconScale = 1.0;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("iconOpacity"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_iconOpacity = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"iconOpacity"]) p_iconOpacity = [prefs[@"iconOpacity"] floatValue];
+    else p_iconOpacity = 1.0;
+
+    idx = CFPreferencesGetAppIntegerValue(CFSTR("deviceModel"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_deviceModel = (int)idx;
+    else if (prefs && prefs[@"deviceModel"]) p_deviceModel = [prefs[@"deviceModel"] intValue];
+
+    idx = CFPreferencesGetAppIntegerValue(CFSTR("batteryPercentMode"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_batteryPercentMode = (int)idx;
+    else if (prefs && prefs[@"batteryPercentMode"]) p_batteryPercentMode = [prefs[@"batteryPercentMode"] intValue];
+
+    idx = CFPreferencesGetAppIntegerValue(CFSTR("speedThreshold"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_speedThreshold = (int)idx;
+    else if (prefs && prefs[@"speedThreshold"]) p_speedThreshold = [prefs[@"speedThreshold"] intValue];
+
+    idx = CFPreferencesGetAppIntegerValue(CFSTR("colorMode"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_colorMode = (int)idx;
+    else if (prefs && prefs[@"colorMode"]) p_colorMode = [prefs[@"colorMode"] intValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("breathingGlow"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_breathingGlow = (BOOL)b;
+    else if (prefs && prefs[@"breathingGlow"]) p_breathingGlow = [prefs[@"breathingGlow"] boolValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("showRAM"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_showRAM = (BOOL)b;
+    else if (prefs && prefs[@"showRAM"]) p_showRAM = [prefs[@"showRAM"] boolValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("dotCount5"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_dotCount5 = (BOOL)b;
+    else if (prefs && prefs[@"dotCount5"]) p_dotCount5 = [prefs[@"dotCount5"] boolValue];
+
+    // Stock item hiding
+    b = CFPreferencesGetAppBooleanValue(CFSTR("hideStockBattery"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_hideStockBattery = (BOOL)b;
+    else if (prefs && prefs[@"hideStockBattery"]) p_hideStockBattery = [prefs[@"hideStockBattery"] boolValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("hideStockBatteryPercent"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_hideStockBatteryPercent = (BOOL)b;
+    else if (prefs && prefs[@"hideStockBatteryPercent"]) p_hideStockBatteryPercent = [prefs[@"hideStockBatteryPercent"] boolValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("hideStockWifi"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_hideStockWifi = (BOOL)b;
+    else if (prefs && prefs[@"hideStockWifi"]) p_hideStockWifi = [prefs[@"hideStockWifi"] boolValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("hideStockCellular"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_hideStockCellular = (BOOL)b;
+    else if (prefs && prefs[@"hideStockCellular"]) p_hideStockCellular = [prefs[@"hideStockCellular"] boolValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("hideStockCarrier"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_hideStockCarrier = (BOOL)b;
+    else if (prefs && prefs[@"hideStockCarrier"]) p_hideStockCarrier = [prefs[@"hideStockCarrier"] boolValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("hideStockTime"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_hideStockTime = (BOOL)b;
+    else if (prefs && prefs[@"hideStockTime"]) p_hideStockTime = [prefs[@"hideStockTime"] boolValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("hideStockLocation"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_hideStockLocation = (BOOL)b;
+    else if (prefs && prefs[@"hideStockLocation"]) p_hideStockLocation = [prefs[@"hideStockLocation"] boolValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("hideStockVPN"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_hideStockVPN = (BOOL)b;
+    else if (prefs && prefs[@"hideStockVPN"]) p_hideStockVPN = [prefs[@"hideStockVPN"] boolValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("hideStockFocus"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_hideStockFocus = (BOOL)b;
+    else if (prefs && prefs[@"hideStockFocus"]) p_hideStockFocus = [prefs[@"hideStockFocus"] boolValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("hideStockAlarm"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_hideStockAlarm = (BOOL)b;
+    else if (prefs && prefs[@"hideStockAlarm"]) p_hideStockAlarm = [prefs[@"hideStockAlarm"] boolValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("hideStockBluetooth"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_hideStockBluetooth = (BOOL)b;
+    else if (prefs && prefs[@"hideStockBluetooth"]) p_hideStockBluetooth = [prefs[@"hideStockBluetooth"] boolValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("hideStockAirplane"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_hideStockAirplane = (BOOL)b;
+    else if (prefs && prefs[@"hideStockAirplane"]) p_hideStockAirplane = [prefs[@"hideStockAirplane"] boolValue];
+
+    idx = CFPreferencesGetAppIntegerValue(CFSTR("actionSingleTap"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_actionSingleTap = (int)idx;
+    else if (prefs && prefs[@"actionSingleTap"]) p_actionSingleTap = [prefs[@"actionSingleTap"] intValue];
+
+    idx = CFPreferencesGetAppIntegerValue(CFSTR("actionDoubleTap"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_actionDoubleTap = (int)idx;
+    else if (prefs && prefs[@"actionDoubleTap"]) p_actionDoubleTap = [prefs[@"actionDoubleTap"] intValue];
+
+    idx = CFPreferencesGetAppIntegerValue(CFSTR("actionLongPress"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_actionLongPress = (int)idx;
+    else if (prefs && prefs[@"actionLongPress"]) p_actionLongPress = [prefs[@"actionLongPress"] intValue];
+
+    idx = CFPreferencesGetAppIntegerValue(CFSTR("hapticFeedback"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_hapticFeedback = (int)idx;
+    else if (prefs && prefs[@"hapticFeedback"]) p_hapticFeedback = [prefs[@"hapticFeedback"] intValue];
 }
 
 static void savePreferenceNumber(NSString *key, NSNumber *val) {
-    NSString *prefPath = @"/var/jb/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
-    if (![[NSFileManager defaultManager] fileExistsAtPath:@"/var/jb/var/mobile/Library/Preferences"]) {
-        prefPath = @"/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
-    }
+    CFPreferencesSetAppValue((CFStringRef)key, (__bridge CFPropertyListRef)val, CFSTR("com.hoangnguyen.compactstatusbar"));
+    CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.compactstatusbar"));
+
+    NSString *prefPath = @"/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
     NSMutableDictionary *dict = [NSMutableDictionary dictionaryWithContentsOfFile:prefPath];
     if (!dict) dict = [NSMutableDictionary dictionary];
     dict[key] = val;
     [dict writeToFile:prefPath atomically:YES];
-
-    NSString *fallback = @"/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
-    if (![prefPath isEqualToString:fallback]) {
-        [dict writeToFile:fallback atomically:YES];
-    }
 
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
@@ -256,6 +365,10 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
     }
 }
 
+@class CompactStatusView;
+static __weak CompactStatusView *g_activeStatusView = nil;
+static __weak UIView *g_activeDockView = nil;
+
 // MARK: - CompactStatusView: Vector 3-in-1 Gauge View
 @interface CompactStatusView : UIView
 @property (nonatomic, strong) CAShapeLayer *trackLayer;
@@ -321,6 +434,12 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
     return self;
 }
 
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
+    CGFloat inset = p_dragModeEnabled ? -35.0 : -15.0;
+    CGRect touchBounds = CGRectInset(self.bounds, inset, inset);
+    return CGRectContainsPoint(touchBounds, point);
+}
+
 - (void)applyPreferences {
     self.transform = CGAffineTransformMakeScale(p_iconScale, p_iconScale);
     self.alpha = p_iconOpacity;
@@ -333,6 +452,13 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
             [self addGestureRecognizer:self.dragPanGesture];
         }
         self.dragPanGesture.enabled = YES;
+        UIView *p = self.superview;
+        while (p) {
+            p.userInteractionEnabled = YES;
+            p.clipsToBounds = NO;
+            if ([p isKindOfClass:[UIWindow class]]) break;
+            p = p.superview;
+        }
     } else {
         self.layer.borderWidth = 0.0;
         if (self.dragPanGesture) {
@@ -365,6 +491,14 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 
 - (void)updateDragHUDWithX:(CGFloat)x y:(CGFloat)y finished:(BOOL)finished {
     UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+    if (!keyWindow) {
+        for (UIWindow *w in [UIApplication sharedApplication].windows) {
+            if (!w.hidden && w.bounds.size.width > 200) {
+                keyWindow = w;
+                break;
+            }
+        }
+    }
     if (!keyWindow) return;
 
     UILabel *hud = (UILabel *)[keyWindow viewWithTag:998833];
@@ -1600,6 +1734,38 @@ static inline BOOL shouldHideStatusBarStringView(UIView *self, NSString *text) {
 
 // MARK: - Hooks for SpringBoard Status Bar Items
 
+static UIView *(*orig_statusbar_hitTest)(UIView *, SEL, CGPoint, UIEvent *) = NULL;
+static UIView *hooked_statusbar_hitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
+    if (g_activeStatusView && p_enabled && !g_activeStatusView.hidden && g_activeStatusView.alpha > 0.01) {
+        if (g_activeStatusView.window == self.window || [g_activeStatusView isDescendantOfView:self]) {
+            CGPoint pInCustom = [self convertPoint:point toView:g_activeStatusView];
+            if ([g_activeStatusView pointInside:pInCustom withEvent:event]) {
+                return g_activeStatusView;
+            }
+        }
+    }
+    if (orig_statusbar_hitTest) {
+        return orig_statusbar_hitTest(self, _cmd, point, event);
+    }
+    return nil;
+}
+
+static UIView *(*orig_sbwin_hitTest)(UIWindow *, SEL, CGPoint, UIEvent *) = NULL;
+static UIView *hooked_sbwin_hitTest(UIWindow *self, SEL _cmd, CGPoint point, UIEvent *event) {
+    if (g_activeStatusView && p_enabled && !g_activeStatusView.hidden && g_activeStatusView.alpha > 0.01) {
+        if (g_activeStatusView.window == self) {
+            CGPoint pInCustom = [self convertPoint:point toView:g_activeStatusView];
+            if ([g_activeStatusView pointInside:pInCustom withEvent:event]) {
+                return g_activeStatusView;
+            }
+        }
+    }
+    if (orig_sbwin_hitTest) {
+        return orig_sbwin_hitTest(self, _cmd, point, event);
+    }
+    return nil;
+}
+
 static void (*orig_battery_didMoveToWindow)(UIView *, SEL) = NULL;
 static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
     if (orig_battery_didMoveToWindow) {
@@ -1621,10 +1787,19 @@ static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
                 custom.tag = 998811;
                 [parent addSubview:custom];
             }
+            g_activeStatusView = custom;
             custom.anchorCenter = self.center;
             custom.center = CGPointMake(self.center.x + p_offsetX, self.center.y + p_offsetY);
             [parent bringSubviewToFront:custom];
             [custom applyPreferences];
+
+            UIView *p = parent;
+            while (p) {
+                p.userInteractionEnabled = YES;
+                p.clipsToBounds = NO;
+                if ([p isKindOfClass:[UIWindow class]]) break;
+                p = p.superview;
+            }
         }
     });
 }
@@ -1642,11 +1817,16 @@ static void hooked_battery_layoutSubviews(UIView *self, SEL _cmd) {
         UIView *parent = self.superview;
         if (parent) {
             CompactStatusView *custom = (CompactStatusView *)[parent viewWithTag:998811];
-            if (custom) {
-                custom.anchorCenter = self.center;
-                if (!p_dragModeEnabled) {
-                    custom.center = CGPointMake(self.center.x + p_offsetX, self.center.y + p_offsetY);
-                }
+            if (!custom) {
+                custom = [[CompactStatusView alloc] initWithFrame:CGRectMake(0, 0, 22.0, 22.0)];
+                custom.tag = 998811;
+                [parent addSubview:custom];
+                [custom applyPreferences];
+            }
+            g_activeStatusView = custom;
+            custom.anchorCenter = self.center;
+            if (!p_dragModeEnabled) {
+                custom.center = CGPointMake(self.center.x + p_offsetX, self.center.y + p_offsetY);
             }
         }
     }
@@ -1783,10 +1963,52 @@ static void hooked_dock_setFrame(UIView *self, SEL _cmd, CGRect frame) {
     }
 }
 
+static void (*orig_dock_setCenter)(UIView *, SEL, CGPoint) = NULL;
+static void hooked_dock_setCenter(UIView *self, SEL _cmd, CGPoint center) {
+    if (p_enabled && p_verticalDockEnabled) {
+        CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
+        CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
+        CGFloat dockW, dockH;
+        getDockGeometry(4, &dockW, &dockH, NULL, NULL, NULL);
+        CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
+        CGFloat dockX = (p_dockPosition == 2) ? marginX : (screenW - dockW - marginX);
+        CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
+        center = CGPointMake(dockX + dockW / 2.0, dockY + dockH / 2.0);
+    }
+    if (orig_dock_setCenter) {
+        orig_dock_setCenter(self, _cmd, center);
+    }
+}
+
+static void (*orig_dock_setBounds)(UIView *, SEL, CGRect) = NULL;
+static void hooked_dock_setBounds(UIView *self, SEL _cmd, CGRect bounds) {
+    if (p_enabled && p_verticalDockEnabled) {
+        CGFloat dockW, dockH;
+        getDockGeometry(4, &dockW, &dockH, NULL, NULL, NULL);
+        bounds = CGRectMake(0, 0, dockW, dockH);
+    }
+    if (orig_dock_setBounds) {
+        orig_dock_setBounds(self, _cmd, bounds);
+    }
+}
+
 static void (*orig_dock_layoutSubviews)(UIView *, SEL) = NULL;
 static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
     if (orig_dock_layoutSubviews) orig_dock_layoutSubviews(self, _cmd);
-    if (!p_enabled || !p_verticalDockEnabled) return;
+    g_activeDockView = self;
+
+    if (!p_enabled || !p_verticalDockEnabled) {
+        UIView *glass = [self viewWithTag:998844];
+        if (glass) glass.hidden = YES;
+        for (UIView *sub in self.subviews) {
+            NSString *sName = NSStringFromClass([sub class]);
+            if ([sName containsString:@"Background"] || [sName containsString:@"Material"]) {
+                sub.hidden = NO;
+                sub.alpha = 1.0;
+            }
+        }
+        return;
+    }
 
     CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
     CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
@@ -1803,6 +2025,8 @@ static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
 
     self.frame = CGRectMake(dockX, dockY, dockW, dockH);
     self.layer.zPosition = 999.0;
+    self.clipsToBounds = NO;
+    if (self.superview) self.superview.clipsToBounds = NO;
 
     UIVisualEffectView *glass = (UIVisualEffectView *)[self viewWithTag:998844];
     if (!glass) {
@@ -1815,6 +2039,7 @@ static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
         glass.layer.borderWidth = 1.2;
         [self insertSubview:glass atIndex:0];
     }
+    glass.hidden = NO;
     glass.frame = self.bounds;
     glass.layer.cornerRadius = dockW / 2.0;
 
@@ -1864,14 +2089,54 @@ static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
 static void (*orig_iconlist_layoutSubviews)(UIView *, SEL) = NULL;
 static void hooked_iconlist_layoutSubviews(UIView *self, SEL _cmd) {
     if (orig_iconlist_layoutSubviews) orig_iconlist_layoutSubviews(self, _cmd);
-    if (!p_enabled || !p_verticalDockEnabled || !p_adjustIconGridMargin) return;
+    if (!p_enabled || !p_verticalDockEnabled) return;
 
-    UIView *p = self.superview;
-    while (p) {
-        if ([NSStringFromClass([p class]) containsString:@"Dock"]) return;
-        p = p.superview;
+    BOOL isDockList = NO;
+    if ([NSStringFromClass([self class]) containsString:@"Dock"]) {
+        isDockList = YES;
+    } else {
+        UIView *p = self.superview;
+        while (p) {
+            if ([NSStringFromClass([p class]) containsString:@"Dock"]) {
+                isDockList = YES;
+                break;
+            }
+            p = p.superview;
+        }
     }
-    if ([NSStringFromClass([self class]) containsString:@"Dock"]) return;
+
+    if (isDockList) {
+        NSMutableArray<UIView *> *dockIcons = [NSMutableArray array];
+        getIconViewsRecursively(self, dockIcons);
+        if (dockIcons.count > 0) {
+            CGFloat dockW, dockH, iconSize, spacing, padY;
+            getDockGeometry(dockIcons.count, &dockW, &dockH, &iconSize, &spacing, &padY);
+
+            [dockIcons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+                if (a.frame.origin.y != b.frame.origin.y && fabs(a.frame.origin.y - b.frame.origin.y) > 5.0) {
+                    return (a.frame.origin.y < b.frame.origin.y) ? NSOrderedAscending : NSOrderedDescending;
+                }
+                return (a.frame.origin.x < b.frame.origin.x) ? NSOrderedAscending : (a.frame.origin.x > b.frame.origin.x ? NSOrderedDescending : NSOrderedSame);
+            }];
+
+            for (NSUInteger i = 0; i < dockIcons.count; i++) {
+                UIView *icon = dockIcons[i];
+                CGFloat targetX = (dockW - iconSize) / 2.0;
+                CGFloat targetY = padY + i * (iconSize + spacing);
+                icon.frame = CGRectMake(targetX, targetY, iconSize, iconSize);
+
+                for (UIView *lbl in icon.subviews) {
+                    if ([lbl isKindOfClass:[UILabel class]] || [NSStringFromClass([lbl class]) containsString:@"Label"]) {
+                        lbl.hidden = YES;
+                        lbl.alpha = 0.0;
+                    }
+                }
+            }
+        }
+        return;
+    }
+
+    if (!p_adjustIconGridMargin) return;
 
     CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
     CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 54.0;
@@ -1916,13 +2181,17 @@ static void handleRespringNotification(CFNotificationCenterRef center, void *obs
 static void handleReloadNotification(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
     loadPrefs();
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
-        if (keyWindow) {
-            CompactStatusView *custom = (CompactStatusView *)[keyWindow viewWithTag:998811];
-            if (custom) {
-                [custom rebuildCellularDots];
-                [custom applyPreferences];
-                [custom updateStats];
+        if (g_activeStatusView) {
+            [g_activeStatusView rebuildCellularDots];
+            [g_activeStatusView applyPreferences];
+            [g_activeStatusView updateStats];
+        }
+        if (g_activeDockView) {
+            [g_activeDockView setNeedsLayout];
+            [g_activeDockView layoutIfNeeded];
+            if (g_activeDockView.superview) {
+                [g_activeDockView.superview setNeedsLayout];
+                [g_activeDockView.superview layoutIfNeeded];
             }
         }
         for (UIWindow *win in [UIApplication sharedApplication].windows) {
@@ -1968,6 +2237,22 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         NULL,
         CFNotificationSuspensionBehaviorCoalesce
     );
+
+    // 0. Hook Status Bar Window & Status Bar for Touch Forwarding (Drag & Drop / Taps)
+    Class sbWinClass = objc_getClass("UIStatusBarWindow");
+    if (sbWinClass) {
+        SafeSwizzle(sbWinClass, @selector(hitTest:withEvent:), (IMP)hooked_sbwin_hitTest, (IMP *)&orig_sbwin_hitTest);
+    }
+
+    Class modernSBClass = objc_getClass("_UIStatusBar");
+    if (modernSBClass) {
+        SafeSwizzle(modernSBClass, @selector(hitTest:withEvent:), (IMP)hooked_statusbar_hitTest, (IMP *)&orig_statusbar_hitTest);
+    }
+
+    Class baseSBClass = objc_getClass("UIStatusBar_Base");
+    if (baseSBClass) {
+        SafeSwizzle(baseSBClass, @selector(hitTest:withEvent:), (IMP)hooked_statusbar_hitTest, (IMP *)&orig_statusbar_hitTest);
+    }
 
     // 1. Hook Battery View
     Class bClass = objc_getClass("_UIBatteryView");
@@ -2025,11 +2310,26 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
     Class dockClass = objc_getClass("SBDockView");
     if (dockClass) {
         SafeSwizzle(dockClass, @selector(setFrame:), (IMP)hooked_dock_setFrame, (IMP *)&orig_dock_setFrame);
+        SafeSwizzle(dockClass, @selector(setCenter:), (IMP)hooked_dock_setCenter, (IMP *)&orig_dock_setCenter);
+        SafeSwizzle(dockClass, @selector(setBounds:), (IMP)hooked_dock_setBounds, (IMP *)&orig_dock_setBounds);
         SafeSwizzle(dockClass, @selector(layoutSubviews), (IMP)hooked_dock_layoutSubviews, (IMP *)&orig_dock_layoutSubviews);
+    }
+
+    Class floatingDockClass = objc_getClass("SBFloatingDockView");
+    if (floatingDockClass) {
+        SafeSwizzle(floatingDockClass, @selector(setFrame:), (IMP)hooked_dock_setFrame, (IMP *)&orig_dock_setFrame);
+        SafeSwizzle(floatingDockClass, @selector(setCenter:), (IMP)hooked_dock_setCenter, (IMP *)&orig_dock_setCenter);
+        SafeSwizzle(floatingDockClass, @selector(setBounds:), (IMP)hooked_dock_setBounds, (IMP *)&orig_dock_setBounds);
+        SafeSwizzle(floatingDockClass, @selector(layoutSubviews), (IMP)hooked_dock_layoutSubviews, (IMP *)&orig_dock_layoutSubviews);
     }
 
     Class iconListClass = objc_getClass("SBIconListView");
     if (iconListClass) {
         SafeSwizzle(iconListClass, @selector(layoutSubviews), (IMP)hooked_iconlist_layoutSubviews, (IMP *)&orig_iconlist_layoutSubviews);
+    }
+
+    Class dockIconListClass = objc_getClass("SBDockIconListView");
+    if (dockIconListClass) {
+        SafeSwizzle(dockIconListClass, @selector(layoutSubviews), (IMP)hooked_iconlist_layoutSubviews, (IMP *)&orig_iconlist_layoutSubviews);
     }
 }
