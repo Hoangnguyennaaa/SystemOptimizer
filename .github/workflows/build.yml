@@ -14,6 +14,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Select Xcode Developer Tools
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app
+          xcrun --sdk iphoneos --show-sdk-path
+
       - name: Install dependencies (ldid)
         run: |
           brew install ldid
@@ -22,18 +27,10 @@ jobs:
         run: |
           sed -i '' 's/\r$//' build.sh
           chmod +x build.sh
-          bash build.sh
+          bash -x build.sh
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: SystemOptimizer-ipa
           path: SystemOptimizer.ipa
-
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: SystemOptimizer.ipa
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

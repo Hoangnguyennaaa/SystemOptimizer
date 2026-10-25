@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -ex
 
-echo "[*] Step 1: Compiling RootHelper..."
+echo "[*] Step 0: Checking SDK..."
 SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+echo "SDK Path: $SDK_PATH"
 
+echo "[*] Step 1: Compiling RootHelper..."
 xcrun -sdk iphoneos clang -arch arm64 \
     -isysroot "$SDK_PATH" \
     -miphoneos-version-min=15.0 \
@@ -13,6 +15,8 @@ echo "[*] Step 2: Compiling SwiftUI App with swiftc..."
 xcrun -sdk iphoneos swiftc \
     -target arm64-apple-ios15.0 \
     -sdk "$SDK_PATH" \
+    -module-name SystemOptimizer \
+    -emit-executable \
     -parse-as-library \
     -framework SwiftUI \
     -framework UIKit \
