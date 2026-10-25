@@ -4,16 +4,73 @@
 <dict>
     <key>entry</key>
     <dict>
-        <key>bundle</key>
-        <string>CompactStatusBarPrefs</string>
         <key>cell</key>
         <string>PSLinkCell</string>
-        <key>detail</key>
-        <string>CompactStatusBarPrefsListController</string>
-        <key>isController</key>
-        <true/>
         <key>label</key>
         <string>CompactStatusBar</string>
     </dict>
+    <key>items</key>
+    <array>
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>TRẠNG THÁI TWEAK</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>enabled</string>
+            <key>label</key>
+            <string>Bật CompactStatusBar</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>CHẾ ĐỘ HIỂN THỊ</string>
+            <key>footerText</key>
+            <string>• Chạm đúp 2 lần trực tiếp vào biểu tượng trên StatusBar để hoán đổi giữa đo % Pin và % RAM A10 Fusion.</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <false/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>showRAM</string>
+            <key>label</key>
+            <string>Mặc định hiển thị RAM (thay vì Pin)</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>THAO TÁC</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSButtonCell</string>
+            <key>label</key>
+            <string>Khởi động lại SpringBoard (Respring)</string>
+            <key>action</key>
+            <string>respring</string>
+        </dict>
+    </array>
+    <key>title</key>
+    <string>CompactStatusBar</string>
 </dict>
 </plist>

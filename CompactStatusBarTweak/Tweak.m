@@ -2,12 +2,10 @@
 #import <objc/runtime.h>
 #import <mach/mach.h>
 #import <mach/mach_host.h>
-#import <ifaddrs.h>
-#import <net/if.h>
+#import <notify.h>
 
 static BOOL p_enabled = YES;
-static NSInteger p_position = 0; // 0: Đè pin gốc, 1: Góc trái, 2: Giữa
-static BOOL p_autoSpeed = YES;
+static BOOL p_showRAM = NO;
 
 static void loadPrefs(void) {
     NSString *prefPath = @"/var/jb/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
@@ -17,8 +15,7 @@ static void loadPrefs(void) {
     NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:prefPath];
     if (prefs) {
         p_enabled = prefs[@"enabled"] ? [prefs[@"enabled"] boolValue] : YES;
-        p_position = prefs[@"position"] ? [prefs[@"position"] integerValue] : 0;
-        p_autoSpeed = prefs[@"autoSpeed"] ? [prefs[@"autoSpeed"] boolValue] : YES;
+        p_showRAM = prefs[@"showRAM"] ? [prefs[@"showRAM"] boolValue] : NO;
     }
 }
 
@@ -40,7 +37,7 @@ static void loadPrefs(void) {
         self.batteryLevel = 1.0;
         self.isCharging = NO;
         self.signalBars = 4;
-        self.showRAM = NO;
+        self.showRAM = p_showRAM;
 
         [UIDevice currentDevice].batteryMonitoringEnabled = YES;
         [self updateStats];
@@ -81,7 +78,7 @@ static void loadPrefs(void) {
     UIDeviceBatteryState state = [UIDevice currentDevice].batteryState;
     self.isCharging = (state == UIDeviceBatteryStateCharging || state == UIDeviceBatteryStateFull);
 
-    // Đọc RAM trống từ Mach kernel (A10 Fusion)
+    // Đọc RAM trống từ Mach kernel (A10 Fusion 3GB)
     mach_msg_type_number_t count = (mach_msg_type_number_t)(sizeof(vm_statistics64_data_t) / sizeof(integer_t));
     vm_statistics64_data_t vmstat;
     if (host_statistics64(mach_host_self(), HOST_VM_INFO64, (integer_t *)&vmstat, &count) == KERN_SUCCESS) {
@@ -162,42 +159,63 @@ static void loadPrefs(void) {
 
 @end
 
-// MARK: - Swizzle SpringBoard Status Bar
-static id (*orig_applyUpdate)(id, SEL, id, id) = NULL;
-static id hooked_applyUpdate(id self, SEL _cmd, id arg1, id arg2) {
-    id result = orig_applyUpdate ? orig_applyUpdate(self, _cmd, arg1, arg2) : nil;
+// MARK: - Hook trực tiếp _UIBatteryView (Dùng cho cả iPhone X StatusBar, Little15, và iOS 15 Modern)
+static void (*orig_battery_layoutSubviews)(UIView *, SEL) = NULL;
+static void hooked_battery_layoutSubviews(UIView *self, SEL _cmd) {
+    if (orig_battery_layoutSubviews) {
+        orig_battery_layoutSubviews(self, _cmd);
+    }
 
-    if (!p_enabled) return result;
+    if (!p_enabled) return;
 
-    @try {
-        UIView *bView = [self valueForKey:@"_batteryView"];
-        if (bView) {
-            bView.hidden = YES;
-            bView.alpha = 0.0;
+    // 1. Ẩn triệt để view pin gốc của Apple
+    self.hidden = YES;
+    self.alpha = 0.0;
+
+    // 2. Chèn CompactStatusView vào superview cùng tọa độ
+    UIView *parent = self.superview;
+    if (parent) {
+        CompactStatusView *custom = (CompactStatusView *)[parent viewWithTag:998811];
+        CGRect targetFrame = CGRectMake(self.frame.origin.x, self.frame.origin.y, 36, 18);
+        if (!custom) {
+            custom = [[CompactStatusView alloc] initWithFrame:targetFrame];
+            custom.tag = 998811;
+            [parent addSubview:custom];
+        } else {
+            custom.frame = targetFrame;
         }
-
-        UIView *itemView = nil;
-        @try {
-            itemView = [self valueForKey:@"_itemView"];
-        } @catch (NSException *e) {}
-
-        if (!itemView && [self respondsToSelector:@selector(view)]) {
-            itemView = (UIView *)[self performSelector:@selector(view)];
-        }
-
-        if (itemView) {
-            CompactStatusView *customView = [itemView viewWithTag:998811];
-            if (!customView) {
-                customView = [[CompactStatusView alloc] initWithFrame:CGRectMake(0, 0, 36, 18)];
-                customView.tag = 998811;
-                [itemView addSubview:customView];
-            }
-        }
-    } @catch (NSException *e) {}
-
-    return result;
+        [parent bringSubviewToFront:custom];
+    }
 }
 
+// Hook Legacy UIStatusBarBatteryItemView (Dùng cho giao diện iPhone 7 Plus chuẩn)
+static void (*orig_legacy_layoutSubviews)(UIView *, SEL) = NULL;
+static void hooked_legacy_layoutSubviews(UIView *self, SEL _cmd) {
+    if (orig_legacy_layoutSubviews) {
+        orig_legacy_layoutSubviews(self, _cmd);
+    }
+
+    if (!p_enabled) return;
+
+    self.hidden = YES;
+    self.alpha = 0.0;
+
+    UIView *parent = self.superview;
+    if (parent) {
+        CompactStatusView *custom = (CompactStatusView *)[parent viewWithTag:998811];
+        CGRect targetFrame = CGRectMake(self.frame.origin.x, self.frame.origin.y, 36, 18);
+        if (!custom) {
+            custom = [[CompactStatusView alloc] initWithFrame:targetFrame];
+            custom.tag = 998811;
+            [parent addSubview:custom];
+        } else {
+            custom.frame = targetFrame;
+        }
+        [parent bringSubviewToFront:custom];
+    }
+}
+
+// Ẩn chữ số % mặc định
 static void (*orig_setText)(id, SEL, NSString *) = NULL;
 static void hooked_setText(id self, SEL _cmd, NSString *text) {
     if (p_enabled && text && [text containsString:@"%"]) {
@@ -210,9 +228,18 @@ static void hooked_setText(id self, SEL _cmd, NSString *text) {
     }
 }
 
+// Lắng nghe lệnh Respring từ Cài đặt
+static void handleRespringNotification(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    pid_t pid;
+    const char *args[] = {"killall", "-9", "SpringBoard", NULL};
+    posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char *const *)args, NULL);
+    posix_spawn(&pid, "/usr/bin/killall", NULL, NULL, (char *const *)args, NULL);
+}
+
 __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
     loadPrefs();
 
+    // Lắng nghe đổi cài đặt
     CFNotificationCenterAddObserver(
         CFNotificationCenterGetDarwinNotifyCenter(),
         NULL,
@@ -222,21 +249,43 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         CFNotificationSuspensionBehaviorCoalesce
     );
 
-    Class batteryItemClass = objc_getClass("_UIStatusBarBatteryItem");
-    if (batteryItemClass) {
-        Method m = class_getInstanceMethod(batteryItemClass, NSSelectorFromString(@"applyUpdate:toDisplayItem:"));
+    // Lắng nghe Respring
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        NULL,
+        (CFNotificationCallback)handleRespringNotification,
+        CFSTR("com.hoangnguyen.compactstatusbar/Respring"),
+        NULL,
+        CFNotificationSuspensionBehaviorCoalesce
+    );
+
+    // 1. Hook _UIBatteryView (Toàn bộ StatusBar hiện đại iOS 15 & Little15)
+    Class bClass = objc_getClass("_UIBatteryView");
+    if (bClass) {
+        Method m = class_getInstanceMethod(bClass, @selector(layoutSubviews));
         if (m) {
-            orig_applyUpdate = (id (*)(id, SEL, id, id))method_getImplementation(m);
-            method_setImplementation(m, (IMP)hooked_applyUpdate);
+            orig_battery_layoutSubviews = (void (*)(UIView *, SEL))method_getImplementation(m);
+            method_setImplementation(m, (IMP)hooked_battery_layoutSubviews);
         }
     }
 
+    // 2. Hook UIStatusBarBatteryItemView (StatusBar truyền thống iPhone 7 Plus)
+    Class legacyClass = objc_getClass("UIStatusBarBatteryItemView");
+    if (legacyClass) {
+        Method m2 = class_getInstanceMethod(legacyClass, @selector(layoutSubviews));
+        if (m2) {
+            orig_legacy_layoutSubviews = (void (*)(UIView *, SEL))method_getImplementation(m2);
+            method_setImplementation(m2, (IMP)hooked_legacy_layoutSubviews);
+        }
+    }
+
+    // 3. Hook _UIStatusBarStringView (Ẩn chữ số % mặc định)
     Class stringViewClass = objc_getClass("_UIStatusBarStringView");
     if (stringViewClass) {
-        Method m2 = class_getInstanceMethod(stringViewClass, @selector(setText:));
-        if (m2) {
-            orig_setText = (void (*)(id, SEL, NSString *))method_getImplementation(m2);
-            method_setImplementation(m2, (IMP)hooked_setText);
+        Method m3 = class_getInstanceMethod(stringViewClass, @selector(setText:));
+        if (m3) {
+            orig_setText = (void (*)(id, SEL, NSString *))method_getImplementation(m3);
+            method_setImplementation(m3, (IMP)hooked_setText);
         }
     }
 }
