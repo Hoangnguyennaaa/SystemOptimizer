@@ -1183,6 +1183,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     BOOL lowPower = [NSProcessInfo processInfo].isLowPowerModeEnabled;
 
     CGFloat ramRatio = getRAMUsedRatio(NULL, NULL);
+    int pct = self.showRAM ? (int)(ramRatio * 100) : (int)(bat * 100);
 
     // 1. Tiến trình vòng cung ngoài
     CGFloat progressVal = self.showRAM ? MIN(MAX(ramRatio, 0.0), 1.0) : bat;
@@ -1279,7 +1280,6 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         _wifiWave1Layer.hidden = YES;
         _wifiWave2Layer.hidden = YES;
         _centerLabel.hidden = NO;
-        int pct = self.showRAM ? (int)(ramRatio * 100) : (int)(bat * 100);
         _centerLabel.text = [NSString stringWithFormat:@"%d", pct];
         _centerLabel.textColor = col;
     } else if (p_badgeStyle == 2 && hasSpeed) {
@@ -1309,7 +1309,6 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     // 7. Chế độ hiện % pin mép ngoài (Mode 3)
     if (p_batteryPercentMode == 3) {
         _sidePercentLabel.hidden = NO;
-        int pct = self.showRAM ? (int)(ramRatio * 100) : (int)(bat * 100);
         _sidePercentLabel.text = [NSString stringWithFormat:@"%d%%", pct];
         _sidePercentLabel.textColor = col;
     } else {
