@@ -51,6 +51,94 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
+			<string>CHẾ ĐỘ GIAO DIỆN &amp; THÔNG TIN BỔ SUNG</string>
+			<key>footerText</key>
+			<string>Chọn phong cách hiển thị: Capsule kính mờ bo tròn sang trọng, Minimalist phẳng tối giản không khung, hoặc Thu gọn 22pt mở rộng Thẻ khi chạm.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSegmentCell</string>
+			<key>default</key>
+			<integer>0</integer>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>badgeStyle</string>
+			<key>validTitles</key>
+			<array>
+				<string>Capsule Kính Mờ</string>
+				<string>Minimalist Phẳng</string>
+				<string>Thu Gọn + Thẻ</string>
+			</array>
+			<key>validValues</key>
+			<array>
+				<integer>0</integer>
+				<integer>1</integer>
+				<integer>2</integer>
+			</array>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>showNetworkSpeed</string>
+			<key>label</key>
+			<string>Tốc độ mạng riêng biệt (KB/s, MB/s)</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>showSSID</string>
+			<key>label</key>
+			<string>Tên Wi-Fi (SSID) / Mạng di động</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>showThermalState</string>
+			<key>label</key>
+			<string>Chấm nhiệt độ thiết bị (Xanh/Vàng/Đỏ)</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<false/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>showRAMText</string>
+			<key>label</key>
+			<string>Dung lượng RAM (GB)</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
 			<string>ẨN BIỂU TƯỢNG HỆ THỐNG (TRÁNH BỊ ĐÈ)</string>
 			<key>footerText</key>
 			<string>Tắt các biểu tượng hệ thống không mong muốn để thanh trạng thái gọn gàng và không bị đè lên nhau.</string>

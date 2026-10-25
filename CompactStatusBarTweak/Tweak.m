@@ -70,6 +70,13 @@ static CGFloat p_ccOffsetY = 0.0;
 static CGFloat p_ccIconScale = 1.0;
 static int p_deviceModel = 0; // 0 = Auto, 1 = Island, 2 = Notch, 3 = Classic
 static int p_batteryPercentMode = 0; // 0 = Ẩn, 1 = Ở tâm, 2 = Bên cạnh
+
+// Badge Style & Additional Information Preferences
+static int p_badgeStyle = 0; // 0 = Capsule Kính Mờ, 1 = Minimalist Phẳng, 2 = Thu Gọn + Thẻ Chạm
+static BOOL p_showNetworkSpeed = YES;
+static BOOL p_showSSID = YES;
+static BOOL p_showThermalState = YES;
+static BOOL p_showRAMText = NO;
 static int p_speedThreshold = 2; // 0 = Tắt, 1 = >50K, 2 = >100K, 3 = Luôn hiện
 static int p_colorMode = 0; // 0 = Dynamic, 1 = Monochrome, 2 = Neon Cyan, 3 = Neon Purple
 static BOOL p_breathingGlow = YES;
@@ -167,6 +174,31 @@ static void loadPrefs(void) {
     idx = CFPreferencesGetAppIntegerValue(CFSTR("deviceModel"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
     if (keyExists) p_deviceModel = (int)idx;
     else if (prefs && prefs[@"deviceModel"]) p_deviceModel = [prefs[@"deviceModel"] intValue];
+
+    idx = CFPreferencesGetAppIntegerValue(CFSTR("badgeStyle"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_badgeStyle = (int)idx;
+    else if (prefs && prefs[@"badgeStyle"]) p_badgeStyle = [prefs[@"badgeStyle"] intValue];
+    else p_badgeStyle = 0;
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("showNetworkSpeed"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_showNetworkSpeed = (BOOL)b;
+    else if (prefs && prefs[@"showNetworkSpeed"]) p_showNetworkSpeed = [prefs[@"showNetworkSpeed"] boolValue];
+    else p_showNetworkSpeed = YES;
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("showSSID"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_showSSID = (BOOL)b;
+    else if (prefs && prefs[@"showSSID"]) p_showSSID = [prefs[@"showSSID"] boolValue];
+    else p_showSSID = YES;
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("showThermalState"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_showThermalState = (BOOL)b;
+    else if (prefs && prefs[@"showThermalState"]) p_showThermalState = [prefs[@"showThermalState"] boolValue];
+    else p_showThermalState = YES;
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("showRAMText"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_showRAMText = (BOOL)b;
+    else if (prefs && prefs[@"showRAMText"]) p_showRAMText = [prefs[@"showRAMText"] boolValue];
+    else p_showRAMText = NO;
 
     idx = CFPreferencesGetAppIntegerValue(CFSTR("batteryPercentMode"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
     if (keyExists) p_batteryPercentMode = (int)idx;
@@ -279,6 +311,80 @@ static void savePreferenceNumber(NSString *key, NSNumber *val) {
 
 // MARK: - Helper Functions (Network, RAM, Cellular, Wi-Fi)
 
+static void getNetworkTrafficBytes(uint64_t *outDown, uint64_t *outUp) {
+    struct ifaddrs *ifa_list = NULL;
+    uint64_t downBytes = 0;
+    uint64_t upBytes = 0;
+    if (getifaddrs(&ifa_list) == 0) {
+        for (struct ifaddrs *ifa = ifa_list; ifa != NULL; ifa = ifa->ifa_next) {
+            if (ifa->ifa_addr && ifa->ifa_addr->sa_family == AF_LINK) {
+                struct if_data_compact *ifd = (struct if_data_compact *)ifa->ifa_data;
+                if (ifd) {
+                    if (strncmp(ifa->ifa_name, "en", 2) == 0 || strncmp(ifa->ifa_name, "pdp_ip", 6) == 0) {
+                        downBytes += ifd->ifi_ibytes;
+                        upBytes += ifd->ifi_obytes;
+                    }
+                }
+            }
+        }
+        freeifaddrs(ifa_list);
+    }
+    if (outDown) *outDown = downBytes;
+    if (outUp) *outUp = upBytes;
+}
+
+static NSString *formatSpeedCompact(double bytesPerSec) {
+    if (bytesPerSec >= 1048576.0) {
+        return [NSString stringWithFormat:@"%.1fM", bytesPerSec / 1048576.0];
+    } else if (bytesPerSec >= 1024.0) {
+        return [NSString stringWithFormat:@"%dK", (int)(bytesPerSec / 1024.0)];
+    } else {
+        return @"0K";
+    }
+}
+
+static NSString *getConnectedSSID(void) {
+    Class wifiClass = objc_getClass("SBWiFiManager");
+    if (wifiClass && [wifiClass respondsToSelector:@selector(sharedInstance)]) {
+        id<SBWiFiManagerProtocol> wifiMgr = (id<SBWiFiManagerProtocol>)[wifiClass performSelector:@selector(sharedInstance)];
+        if ([wifiMgr respondsToSelector:@selector(currentNetworkName)]) {
+            NSString *name = [wifiMgr currentNetworkName];
+            if (name && name.length > 0) return name;
+        }
+    }
+    return nil;
+}
+
+static NSString *getNetworkTypeString(void) {
+    NSString *ssid = getConnectedSSID();
+    if (ssid) {
+        if (ssid.length > 7) {
+            return [NSString stringWithFormat:@"%@..", [ssid substringToIndex:6]];
+        }
+        return ssid;
+    }
+    int bars = getCellularSignalBars();
+    if (bars > 0) return @"LTE";
+    return @"Offline";
+}
+
+static int getThermalState(void) {
+    if (@available(iOS 11.0, *)) {
+        return (int)[NSProcessInfo processInfo].thermalState;
+    }
+    return 0;
+}
+
+static NSString *getThermalStateString(int state) {
+    switch (state) {
+        case 0: return @"Mát mẻ";
+        case 1: return @"Ấm nhẹ";
+        case 2: return @"Nóng";
+        case 3: return @"Rất nóng";
+        default: return @"Bình thường";
+    }
+}
+
 static uint64_t getNetworkDownloadBytes(void) {
     struct ifaddrs *ifa_list = NULL;
     uint64_t totalBytes = 0;
@@ -378,6 +484,10 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
 
 // MARK: - CompactStatusView: Vector 3-in-1 Gauge View
 @interface CompactStatusView : UIView
+@property (nonatomic, strong) UIView *pillContainerView;
+@property (nonatomic, strong) UIVisualEffectView *blurEffectView;
+@property (nonatomic, strong) UIView *gaugeContainerView;
+
 @property (nonatomic, strong) CAShapeLayer *trackLayer;
 @property (nonatomic, strong) CAShapeLayer *progressLayer;
 @property (nonatomic, strong) CAShapeLayer *wifiDotLayer;
@@ -387,12 +497,22 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
 @property (nonatomic, strong) UILabel *centerLabel;
 @property (nonatomic, strong) UILabel *sidePercentLabel;
 
+// Extra Information Views
+@property (nonatomic, strong) UIView *extraInfoContainer;
+@property (nonatomic, strong) UILabel *networkSpeedLabel;
+@property (nonatomic, strong) UILabel *ssidLabel;
+@property (nonatomic, strong) UIView *thermalDotView;
+@property (nonatomic, strong) UILabel *ramLabel;
+
 @property (nonatomic, assign) BOOL isControlCenter;
 @property (nonatomic, assign) BOOL showRAM;
 @property (nonatomic, assign) BOOL isBreathing;
 @property (nonatomic, strong) NSTimer *timer;
 @property (nonatomic, assign) uint64_t lastDownloadBytes;
+@property (nonatomic, assign) uint64_t lastUploadBytes;
 @property (nonatomic, assign) NSTimeInterval lastSampleTime;
+@property (nonatomic, assign) double currentDownSpeed;
+@property (nonatomic, assign) double currentUpSpeed;
 
 @property (nonatomic, assign) CGPoint anchorCenter;
 @property (nonatomic, strong) UIPanGestureRecognizer *dragPanGesture;
@@ -404,16 +524,18 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
 - (void)toggleRAMDisplay;
 - (void)handleDragPan:(UIPanGestureRecognizer *)pan;
 - (void)updateDragHUDWithX:(CGFloat)x y:(CGFloat)y finished:(BOOL)finished;
+- (void)hudActionButtonClicked:(UIButton *)sender;
+- (void)dismissHUD:(UITapGestureRecognizer *)tap;
 @end
 
 @implementation CompactStatusView
 
 - (CGSize)intrinsicContentSize {
-    return CGSizeMake(22.0, 22.0);
+    return self.bounds.size;
 }
 
 - (CGSize)sizeThatFits:(CGSize)size {
-    return CGSizeMake(22.0, 22.0);
+    return self.bounds.size;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -429,7 +551,7 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
         [self applyPreferences];
 
         [UIDevice currentDevice].batteryMonitoringEnabled = YES;
-        self.lastDownloadBytes = getNetworkDownloadBytes();
+        getNetworkTrafficBytes(&_lastDownloadBytes, &_lastUploadBytes);
         self.lastSampleTime = [NSDate timeIntervalSinceReferenceDate];
 
         [self updateStats];
@@ -485,7 +607,8 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     self.center = CGPointMake(self.center.x + translation.x, self.center.y + translation.y);
     [pan setTranslation:CGPointZero inView:superview];
 
-    CGFloat curX = self.center.x - self.anchorCenter.x;
+    CGFloat totalW = self.pillContainerView.frame.size.width;
+    CGFloat curX = (self.center.x + (totalW - 22.0) / 2.0) - self.anchorCenter.x;
     CGFloat curY = self.center.y - self.anchorCenter.y;
     if (self.isControlCenter) {
         p_ccOffsetX = curX;
@@ -554,11 +677,27 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
 }
 
 - (void)setupLayers {
+    // 0. Container & Capsule
+    _pillContainerView = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 22.0, 22.0)];
+    _pillContainerView.clipsToBounds = YES;
+    _pillContainerView.backgroundColor = [UIColor clearColor];
+    [self addSubview:_pillContainerView];
+
+    _blurEffectView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterialDark]];
+    _blurEffectView.frame = _pillContainerView.bounds;
+    _blurEffectView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    _blurEffectView.hidden = YES;
+    [_pillContainerView addSubview:_blurEffectView];
+
+    // 1. Gauge subview (22x22)
+    _gaugeContainerView = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 22.0, 22.0)];
+    _gaugeContainerView.backgroundColor = [UIColor clearColor];
+    [_pillContainerView addSubview:_gaugeContainerView];
+
     CGPoint center = CGPointMake(11.0, 11.0);
     CGFloat radius = 9.2;
     CGFloat strokeWidth = 1.8;
 
-    // 1. Vòng cung Pin / RAM (Outer Arc): quét 270 độ theo chiều kim đồng hồ từ 135 độ đến 45 độ
     CGFloat startAngle = 135.0 * M_PI / 180.0;
     CGFloat endAngle = 45.0 * M_PI / 180.0;
     UIBezierPath *arcPath = [UIBezierPath bezierPathWithArcCenter:center
@@ -573,7 +712,7 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     _trackLayer.lineWidth = strokeWidth;
     _trackLayer.lineCap = kCALineCapRound;
     _trackLayer.path = arcPath.CGPath;
-    [self.layer addSublayer:_trackLayer];
+    [_gaugeContainerView.layer addSublayer:_trackLayer];
 
     _progressLayer = [CAShapeLayer layer];
     _progressLayer.fillColor = [UIColor clearColor].CGColor;
@@ -581,16 +720,15 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     _progressLayer.lineCap = kCALineCapRound;
     _progressLayer.path = arcPath.CGPath;
     _progressLayer.strokeEnd = 1.0;
-    [self.layer addSublayer:_progressLayer];
+    [_gaugeContainerView.layer addSublayer:_progressLayer];
 
-    // 2. Wi-Fi ở tâm (Center Wi-Fi): Tâm phát sóng tại (11.0, 13.5)
     CGPoint wifiOrigin = CGPointMake(11.0, 13.5);
 
     UIBezierPath *baseDotPath = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(11.0 - 0.9, 13.0 - 0.9, 1.8, 1.8)];
     _wifiDotLayer = [CAShapeLayer layer];
     _wifiDotLayer.fillColor = [UIColor colorWithWhite:1.0 alpha:0.95].CGColor;
     _wifiDotLayer.path = baseDotPath.CGPath;
-    [self.layer addSublayer:_wifiDotLayer];
+    [_gaugeContainerView.layer addSublayer:_wifiDotLayer];
 
     CGFloat startWifi = 225.0 * M_PI / 180.0;
     CGFloat endWifi = 315.0 * M_PI / 180.0;
@@ -602,7 +740,7 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     _wifiWave1Layer.lineWidth = 1.1;
     _wifiWave1Layer.lineCap = kCALineCapRound;
     _wifiWave1Layer.path = w1.CGPath;
-    [self.layer addSublayer:_wifiWave1Layer];
+    [_gaugeContainerView.layer addSublayer:_wifiWave1Layer];
 
     UIBezierPath *w2 = [UIBezierPath bezierPathWithArcCenter:wifiOrigin radius:5.6 startAngle:startWifi endAngle:endWifi clockwise:YES];
     _wifiWave2Layer = [CAShapeLayer layer];
@@ -611,25 +749,53 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     _wifiWave2Layer.lineWidth = 1.1;
     _wifiWave2Layer.lineCap = kCALineCapRound;
     _wifiWave2Layer.path = w2.CGPath;
-    [self.layer addSublayer:_wifiWave2Layer];
+    [_gaugeContainerView.layer addSublayer:_wifiWave2Layer];
 
-    // 3. Nhãn hiển thị tâm (Center Label: Tốc độ mạng / 4G / % Pin tâm)
     _centerLabel = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 6.0, 22.0, 10.0)];
     _centerLabel.font = [UIFont systemFontOfSize:6.5 weight:UIFontWeightBold];
     _centerLabel.textColor = [UIColor whiteColor];
     _centerLabel.textAlignment = NSTextAlignmentCenter;
     _centerLabel.hidden = YES;
-    [self addSubview:_centerLabel];
+    [_gaugeContainerView addSubview:_centerLabel];
 
-    // 4. Nhãn hiển thị số % Pin bên cạnh vòng tròn (Side Percent Label)
     _sidePercentLabel = [[UILabel alloc] initWithFrame:CGRectMake(-30.0, 3.0, 28.0, 16.0)];
     _sidePercentLabel.font = [UIFont systemFontOfSize:9.0 weight:UIFontWeightBold];
     _sidePercentLabel.textColor = [UIColor whiteColor];
     _sidePercentLabel.textAlignment = NSTextAlignmentRight;
     _sidePercentLabel.hidden = YES;
-    [self addSubview:_sidePercentLabel];
+    [_gaugeContainerView addSubview:_sidePercentLabel];
 
-    // 5. Các chấm sóng di động ở đáy
+    // 2. Extra Information Container
+    _extraInfoContainer = [[UIView alloc] initWithFrame:CGRectMake(22.0, 0.0, 0.0, 22.0)];
+    _extraInfoContainer.backgroundColor = [UIColor clearColor];
+    _extraInfoContainer.clipsToBounds = YES;
+    _extraInfoContainer.hidden = YES;
+    [_pillContainerView addSubview:_extraInfoContainer];
+
+    _networkSpeedLabel = [[UILabel alloc] init];
+    _networkSpeedLabel.font = [UIFont systemFontOfSize:7.5 weight:UIFontWeightBold];
+    _networkSpeedLabel.textColor = [UIColor colorWithRed:0.25 green:0.95 blue:0.55 alpha:1.0];
+    _networkSpeedLabel.textAlignment = NSTextAlignmentCenter;
+    [_extraInfoContainer addSubview:_networkSpeedLabel];
+
+    _ssidLabel = [[UILabel alloc] init];
+    _ssidLabel.font = [UIFont systemFontOfSize:7.5 weight:UIFontWeightMedium];
+    _ssidLabel.textColor = [UIColor colorWithWhite:0.92 alpha:1.0];
+    _ssidLabel.textAlignment = NSTextAlignmentCenter;
+    [_extraInfoContainer addSubview:_ssidLabel];
+
+    _thermalDotView = [[UIView alloc] init];
+    _thermalDotView.layer.cornerRadius = 2.5;
+    _thermalDotView.layer.masksToBounds = YES;
+    _thermalDotView.backgroundColor = [UIColor colorWithRed:0.25 green:0.9 blue:0.4 alpha:1.0];
+    [_extraInfoContainer addSubview:_thermalDotView];
+
+    _ramLabel = [[UILabel alloc] init];
+    _ramLabel.font = [UIFont systemFontOfSize:7.5 weight:UIFontWeightBold];
+    _ramLabel.textColor = [UIColor colorWithRed:0.3 green:0.8 blue:1.0 alpha:1.0];
+    _ramLabel.textAlignment = NSTextAlignmentCenter;
+    [_extraInfoContainer addSubview:_ramLabel];
+
     [self rebuildCellularDots];
 }
 
@@ -655,7 +821,7 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
         CAShapeLayer *dl = [CAShapeLayer layer];
         dl.path = dp.CGPath;
         dl.fillColor = [UIColor colorWithWhite:1.0 alpha:0.95].CGColor;
-        [self.layer addSublayer:dl];
+        [_gaugeContainerView.layer addSublayer:dl];
         [_dotLayers addObject:dl];
     }
 }
@@ -675,7 +841,6 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     [self addGestureRecognizer:longPress];
 }
 
-// MARK: - Actions Dispatcher
 static void executeAction(int actionCode, CompactStatusView *view) {
     switch (actionCode) {
         case 0: // Hiện Popup HUD
@@ -758,15 +923,24 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     [self updateStats];
 }
 
-// MARK: - HUD Popup
+// MARK: - HUD Popup: Interactive Frosted Card
 - (void)showHUD {
     UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+    if (!keyWindow) {
+        for (UIWindow *w in [UIApplication sharedApplication].windows) {
+            if (!w.hidden && w.bounds.size.width > 200) {
+                keyWindow = w;
+                break;
+            }
+        }
+    }
     if (!keyWindow) return;
 
     UIView *existingHUD = [keyWindow viewWithTag:998822];
     if (existingHUD) {
         [UIView animateWithDuration:0.2 animations:^{
             existingHUD.alpha = 0.0;
+            existingHUD.transform = CGAffineTransformMakeScale(0.92, 0.92);
         } completion:^(BOOL finished) {
             [existingHUD removeFromSuperview];
         }];
@@ -776,6 +950,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     float rawBat = [UIDevice currentDevice].batteryLevel;
     int batPercent = (rawBat < 0) ? 100 : (int)(rawBat * 100);
     BOOL charging = ([UIDevice currentDevice].batteryState == UIDeviceBatteryStateCharging || [UIDevice currentDevice].batteryState == UIDeviceBatteryStateFull);
+    BOOL lowPower = [NSProcessInfo processInfo].isLowPowerModeEnabled;
 
     uint64_t ramUsed = 0, ramTotal = 0;
     getRAMUsedRatio(&ramUsed, &ramTotal);
@@ -783,43 +958,163 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     double ramTotalGB = (double)ramTotal / 1073741824.0;
     int ramPercent = (int)((double)ramUsed / (double)ramTotal * 100);
 
-    NSString *netStr = isWifiActive() ? @"Wi-Fi" : @"4G/LTE";
+    NSString *ssid = getConnectedSSID();
+    NSString *netName = ssid ? [NSString stringWithFormat:@"Wi-Fi: %@", ssid] : @"Mạng di động (LTE/5G)";
 
-    CGFloat hudW = 230.0;
-    CGFloat hudH = 34.0;
+    double downSpeed = self.currentDownSpeed;
+    double upSpeed = self.currentUpSpeed;
+    NSString *speedStr = [NSString stringWithFormat:@"↓ %@  ↑ %@", formatSpeedCompact(downSpeed), formatSpeedCompact(upSpeed)];
+
+    int thermal = getThermalState();
+    NSString *thermalStr = getThermalStateString(thermal);
+    UIColor *thermalCol = (thermal == 0) ? [UIColor colorWithRed:0.25 green:0.9 blue:0.4 alpha:1.0] :
+                          (thermal == 1) ? [UIColor colorWithRed:1.0 green:0.85 blue:0.2 alpha:1.0] :
+                          (thermal == 2) ? [UIColor colorWithRed:1.0 green:0.55 blue:0.1 alpha:1.0] :
+                                           [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0];
+
+    CGFloat hudW = 280.0;
+    CGFloat hudH = 132.0;
     CGFloat hudX = (keyWindow.bounds.size.width - hudW) / 2.0;
-    CGFloat hudY = 48.0;
+    CGFloat hudY = 50.0;
 
     UIVisualEffectView *hud = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterialDark]];
     hud.frame = CGRectMake(hudX, hudY, hudW, hudH);
-    hud.layer.cornerRadius = 17.0;
+    hud.layer.cornerRadius = 22.0;
     hud.layer.masksToBounds = YES;
+    hud.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.22].CGColor;
+    hud.layer.borderWidth = 0.5;
     hud.tag = 998822;
     hud.alpha = 0.0;
+    hud.transform = CGAffineTransformMakeScale(0.92, 0.92);
 
-    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 0, hudW - 20, hudH)];
-    titleLabel.font = [UIFont systemFontOfSize:10.5 weight:UIFontWeightMedium];
-    titleLabel.textColor = [UIColor whiteColor];
-    titleLabel.textAlignment = NSTextAlignmentCenter;
-    titleLabel.numberOfLines = 1;
-    titleLabel.text = [NSString stringWithFormat:@"🔋 %d%%%@  |  🧠 %.1f/%.0fGB (%d%%)  |  📶 %@",
-                       batPercent, charging ? @"⚡" : @"",
-                       ramUsedGB, ramTotalGB, ramPercent,
-                       netStr];
-    [hud.contentView addSubview:titleLabel];
+    UIView *cv = hud.contentView;
+
+    UILabel *header = [[UILabel alloc] initWithFrame:CGRectMake(16, 8, hudW - 32, 16)];
+    header.font = [UIFont systemFontOfSize:9.5 weight:UIFontWeightBold];
+    header.textColor = [UIColor colorWithWhite:0.75 alpha:1.0];
+    header.text = @"⚡ THÔNG TIN HỆ THỐNG & KẾT NỐI";
+    [cv addSubview:header];
+
+    UILabel *batVal = [[UILabel alloc] initWithFrame:CGRectMake(16, 26, 120, 20)];
+    batVal.font = [UIFont systemFontOfSize:13.5 weight:UIFontWeightBold];
+    batVal.textColor = charging ? [UIColor colorWithRed:0.25 green:0.9 blue:0.4 alpha:1.0] : (lowPower ? [UIColor colorWithRed:1.0 green:0.85 blue:0.2 alpha:1.0] : [UIColor whiteColor]);
+    batVal.text = [NSString stringWithFormat:@"🔋 %d%% %@", batPercent, charging ? @"⚡" : @""];
+    [cv addSubview:batVal];
+
+    UILabel *batSub = [[UILabel alloc] initWithFrame:CGRectMake(16, 44, 120, 14)];
+    batSub.font = [UIFont systemFontOfSize:8.5 weight:UIFontWeightMedium];
+    batSub.textColor = [UIColor colorWithWhite:0.65 alpha:1.0];
+    batSub.text = charging ? @"Đang sạc pin" : (lowPower ? @"Chế độ tiết kiệm" : @"Đang dùng pin");
+    [cv addSubview:batSub];
+
+    UILabel *ramVal = [[UILabel alloc] initWithFrame:CGRectMake(146, 26, 120, 20)];
+    ramVal.font = [UIFont systemFontOfSize:12.5 weight:UIFontWeightBold];
+    ramVal.textColor = [UIColor colorWithRed:0.3 green:0.8 blue:1.0 alpha:1.0];
+    ramVal.text = [NSString stringWithFormat:@"🧠 %.1f/%.0f GB", ramUsedGB, ramTotalGB];
+    [cv addSubview:ramVal];
+
+    UILabel *ramSub = [[UILabel alloc] initWithFrame:CGRectMake(146, 44, 120, 14)];
+    ramSub.font = [UIFont systemFontOfSize:8.5 weight:UIFontWeightMedium];
+    ramSub.textColor = [UIColor colorWithWhite:0.65 alpha:1.0];
+    ramSub.text = [NSString stringWithFormat:@"Đã dùng: %d%%", ramPercent];
+    [cv addSubview:ramSub];
+
+    UILabel *netVal = [[UILabel alloc] initWithFrame:CGRectMake(16, 60, 124, 18)];
+    netVal.font = [UIFont systemFontOfSize:10.0 weight:UIFontWeightBold];
+    netVal.textColor = [UIColor whiteColor];
+    netVal.text = [NSString stringWithFormat:@"📶 %@", netName];
+    [cv addSubview:netVal];
+
+    UILabel *netSub = [[UILabel alloc] initWithFrame:CGRectMake(16, 76, 124, 14)];
+    netSub.font = [UIFont systemFontOfSize:8.0 weight:UIFontWeightMedium];
+    netSub.textColor = [UIColor colorWithRed:0.25 green:0.95 blue:0.5 alpha:1.0];
+    netSub.text = speedStr;
+    [cv addSubview:netSub];
+
+    UILabel *thermVal = [[UILabel alloc] initWithFrame:CGRectMake(146, 60, 120, 18)];
+    thermVal.font = [UIFont systemFontOfSize:10.0 weight:UIFontWeightBold];
+    thermVal.textColor = thermalCol;
+    thermVal.text = [NSString stringWithFormat:@"🌡️ Nhiệt độ: %@", thermalStr];
+    [cv addSubview:thermVal];
+
+    UILabel *thermSub = [[UILabel alloc] initWithFrame:CGRectMake(146, 76, 120, 14)];
+    thermSub.font = [UIFont systemFontOfSize:8.5 weight:UIFontWeightMedium];
+    thermSub.textColor = [UIColor colorWithWhite:0.65 alpha:1.0];
+    thermSub.text = (thermal == 0) ? @"Hoạt động tối ưu" : @"Máy đang ấm/nóng";
+    [cv addSubview:thermSub];
+
+    CGFloat btnW = (hudW - 32 - 16) / 3.0;
+    NSArray *btnTitles = @[@"🔒 Khóa", @"📸 Chụp", @"⚡ Respring"];
+    for (int i = 0; i < 3; i++) {
+        UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+        btn.frame = CGRectMake(16 + i * (btnW + 8), 98, btnW, 24);
+        btn.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
+        btn.layer.cornerRadius = 12.0;
+        btn.layer.borderWidth = 0.5;
+        btn.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.2].CGColor;
+        [btn setTitle:btnTitles[i] forState:UIControlStateNormal];
+        btn.titleLabel.font = [UIFont systemFontOfSize:9.5 weight:UIFontWeightBold];
+        [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        btn.tag = 100 + i;
+        [btn addTarget:self action:@selector(hudActionButtonClicked:) forControlEvents:UIControlEventTouchUpInside];
+        [cv addSubview:btn];
+    }
+
     [keyWindow addSubview:hud];
 
-    [UIView animateWithDuration:0.25 animations:^{
+    [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:0.82 initialSpringVelocity:0.6 options:UIViewAnimationOptionCurveEaseOut animations:^{
         hud.alpha = 1.0;
-    }];
+        hud.transform = CGAffineTransformIdentity;
+    } completion:nil];
 
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [UIView animateWithDuration:0.25 animations:^{
+    UITapGestureRecognizer *tapDismiss = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(dismissHUD:)];
+    [hud addGestureRecognizer:tapDismiss];
+
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (hud && hud.superview) {
+            [UIView animateWithDuration:0.25 animations:^{
+                hud.alpha = 0.0;
+                hud.transform = CGAffineTransformMakeScale(0.92, 0.92);
+            } completion:^(BOOL finished) {
+                [hud removeFromSuperview];
+            }];
+        }
+    });
+}
+
+- (void)hudActionButtonClicked:(UIButton *)sender {
+    triggerHaptic(2);
+    int tag = (int)sender.tag;
+    UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+    UIView *hud = [keyWindow viewWithTag:998822];
+    if (hud) {
+        [UIView animateWithDuration:0.2 animations:^{
             hud.alpha = 0.0;
+        } completion:^(BOOL fin) {
+            [hud removeFromSuperview];
+        }];
+    }
+    if (tag == 100) {
+        executeAction(1, self);
+    } else if (tag == 101) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            executeAction(3, self);
+        });
+    } else if (tag == 102) {
+        executeAction(5, self);
+    }
+}
+
+- (void)dismissHUD:(UITapGestureRecognizer *)tap {
+    UIView *hud = tap.view;
+    if (hud) {
+        [UIView animateWithDuration:0.2 animations:^{
+            hud.alpha = 0.0;
+            hud.transform = CGAffineTransformMakeScale(0.92, 0.92);
         } completion:^(BOOL finished) {
             [hud removeFromSuperview];
         }];
-    });
+    }
 }
 
 // MARK: - Update Statistics (1-second cycle)
@@ -836,15 +1131,15 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     CGFloat progressVal = self.showRAM ? MIN(MAX(ramRatio, 0.0), 1.0) : bat;
     _progressLayer.strokeEnd = progressVal;
 
-    // 2. Màu sắc vòng cung theo ColorMode
+    // 2. Màu sắc vòng cung
     UIColor *col = [UIColor colorWithWhite:1.0 alpha:0.95];
-    if (p_colorMode == 1) { // Đơn sắc thích ứng
+    if (p_colorMode == 1) { // Đơn sắc
         col = [UIColor colorWithWhite:1.0 alpha:0.95];
     } else if (p_colorMode == 2) { // Neon Cyan
         col = [UIColor colorWithRed:0.0 green:0.96 blue:1.0 alpha:1.0];
     } else if (p_colorMode == 3) { // Neon Tím
         col = [UIColor colorWithRed:0.75 green:0.33 blue:0.93 alpha:1.0];
-    } else { // Dynamic hệ thống (0)
+    } else { // Dynamic
         if (self.showRAM) {
             if (ramRatio > 0.85) col = [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0];
             else if (ramRatio > 0.65) col = [UIColor colorWithRed:1.0 green:0.60 blue:0.10 alpha:1.0];
@@ -861,7 +1156,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     }
     _progressLayer.strokeColor = col.CGColor;
 
-    // 3. Hiệu ứng Breathing Glow khi đang sạc
+    // 3. Hiệu ứng Breathing Glow
     if (charging && p_breathingGlow) {
         if (!self.isBreathing) {
             _progressLayer.shadowColor = col.CGColor;
@@ -885,29 +1180,32 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         }
     }
 
-    // 4. Đo lưu lượng mạng thời gian thực
-    uint64_t currentBytes = getNetworkDownloadBytes();
+    // 4. Đo lưu lượng mạng (Download & Upload)
+    uint64_t curDown = 0, curUp = 0;
+    getNetworkTrafficBytes(&curDown, &curUp);
     NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
-    double speed = 0.0;
+    double downSpeed = 0.0, upSpeed = 0.0;
     if (self.lastSampleTime > 0 && now > self.lastSampleTime) {
         double dt = now - self.lastSampleTime;
-        uint64_t deltaBytes = (currentBytes >= self.lastDownloadBytes) ? (currentBytes - self.lastDownloadBytes) : 0;
-        speed = (double)deltaBytes / dt;
+        if (curDown >= self.lastDownloadBytes) downSpeed = (double)(curDown - self.lastDownloadBytes) / dt;
+        if (curUp >= self.lastUploadBytes) upSpeed = (double)(curUp - self.lastUploadBytes) / dt;
     }
-    self.lastDownloadBytes = currentBytes;
+    self.lastDownloadBytes = curDown;
+    self.lastUploadBytes = curUp;
     self.lastSampleTime = now;
+    self.currentDownSpeed = downSpeed;
+    self.currentUpSpeed = upSpeed;
 
     BOOL wifiOn = isWifiActive();
 
-    // Kiểm tra ngưỡng tốc độ mạng
-    BOOL showSpeed = NO;
-    if (p_speedThreshold == 1 && speed > 51200.0) showSpeed = YES;      // > 50 KB/s
-    else if (p_speedThreshold == 2 && speed > 102400.0) showSpeed = YES; // > 100 KB/s
-    else if (p_speedThreshold == 3) showSpeed = YES;                     // Luôn hiện
+    // 5. Kiểm tra ngưỡng tốc độ mạng
+    BOOL hasSpeed = NO;
+    if (p_speedThreshold == 1 && (downSpeed > 51200.0 || upSpeed > 51200.0)) hasSpeed = YES;
+    else if (p_speedThreshold == 2 && (downSpeed > 102400.0 || upSpeed > 102400.0)) hasSpeed = YES;
+    else if (p_speedThreshold == 3) hasSpeed = YES;
 
-    // 5. Logic hiển thị ở tâm (Tâm: % Pin, Tốc độ mạng, hoặc Wi-Fi)
+    // 6. Hiển thị ở tâm Gauge 22x22
     if (p_batteryPercentMode == 1) {
-        // Chế độ 1: Hiện % Pin ngay tại tâm
         _wifiDotLayer.hidden = YES;
         _wifiWave1Layer.hidden = YES;
         _wifiWave2Layer.hidden = YES;
@@ -915,20 +1213,14 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         int pct = self.showRAM ? (int)(ramRatio * 100) : (int)(bat * 100);
         _centerLabel.text = [NSString stringWithFormat:@"%d", pct];
         _centerLabel.textColor = col;
-    } else if (showSpeed) {
-        // Hiện tốc độ mạng ở tâm
+    } else if (p_badgeStyle == 2 && hasSpeed) {
         _wifiDotLayer.hidden = YES;
         _wifiWave1Layer.hidden = YES;
         _wifiWave2Layer.hidden = YES;
         _centerLabel.hidden = NO;
-        if (speed >= 1048576.0) {
-            _centerLabel.text = [NSString stringWithFormat:@"%.1fM", speed / 1048576.0];
-        } else {
-            _centerLabel.text = [NSString stringWithFormat:@"%dK", (int)(speed / 1024.0)];
-        }
+        _centerLabel.text = formatSpeedCompact(downSpeed > 0 ? downSpeed : upSpeed);
         _centerLabel.textColor = [UIColor colorWithRed:0.25 green:0.90 blue:0.40 alpha:1.0];
     } else if (wifiOn) {
-        // Hiện biểu tượng Wi-Fi chuẩn
         _centerLabel.hidden = YES;
         _wifiDotLayer.hidden = NO;
         _wifiWave1Layer.hidden = NO;
@@ -937,7 +1229,6 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         _wifiWave1Layer.opacity = 1.0;
         _wifiWave2Layer.opacity = 1.0;
     } else {
-        // Dùng 4G
         _wifiDotLayer.hidden = YES;
         _wifiWave1Layer.hidden = YES;
         _wifiWave2Layer.hidden = YES;
@@ -946,7 +1237,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         _centerLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.90];
     }
 
-    // 6. Chế độ 2: Hiện số % pin bên cạnh vòng tròn
+    // 7. Chế độ hiện % pin cạnh trái
     if (p_batteryPercentMode == 2) {
         _sidePercentLabel.hidden = NO;
         int pct = self.showRAM ? (int)(ramRatio * 100) : (int)(bat * 100);
@@ -956,7 +1247,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         _sidePercentLabel.hidden = YES;
     }
 
-    // 7. Các chấm sóng di động ở đáy
+    // 8. Chấm sóng di động
     int cellBars = getCellularSignalBars();
     int totalDots = (int)_dotLayers.count;
     int litCount = 0;
@@ -969,12 +1260,103 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         else if (cellBars == 1) litCount = 1;
         else litCount = 0;
     }
-
     for (int i = 0; i < totalDots; i++) {
         CAShapeLayer *dot = _dotLayers[i];
         BOOL isLit = (i < litCount);
         dot.fillColor = isLit ? [UIColor colorWithWhite:1.0 alpha:0.95].CGColor
                               : [UIColor colorWithWhite:1.0 alpha:0.25].CGColor;
+    }
+
+    // 9. Bố cục Pill đa thông tin (Mode 0 & Mode 1)
+    if (p_badgeStyle == 2) {
+        _extraInfoContainer.hidden = YES;
+        _blurEffectView.hidden = YES;
+        _pillContainerView.layer.borderWidth = 0.0;
+        _pillContainerView.backgroundColor = [UIColor clearColor];
+        _pillContainerView.frame = CGRectMake(0, 0, 22.0, 22.0);
+        self.bounds = CGRectMake(0, 0, 22.0, 22.0);
+    } else {
+        _extraInfoContainer.hidden = NO;
+        CGFloat curX = 3.0;
+
+        if (p_showNetworkSpeed && hasSpeed) {
+            _networkSpeedLabel.hidden = NO;
+            double targetSpeed = (downSpeed >= upSpeed) ? downSpeed : upSpeed;
+            NSString *prefix = (downSpeed >= upSpeed) ? @"↓" : @"↑";
+            _networkSpeedLabel.text = [NSString stringWithFormat:@"%@%@", prefix, formatSpeedCompact(targetSpeed)];
+            CGSize sz = [_networkSpeedLabel sizeThatFits:CGSizeMake(100, 16)];
+            CGFloat w = MAX(sz.width, 24.0);
+            _networkSpeedLabel.frame = CGRectMake(curX, 3.0, w, 16.0);
+            curX += w + 5.0;
+        } else {
+            _networkSpeedLabel.hidden = YES;
+        }
+
+        if (p_showSSID) {
+            _ssidLabel.hidden = NO;
+            _ssidLabel.text = getNetworkTypeString();
+            CGSize sz = [_ssidLabel sizeThatFits:CGSizeMake(100, 16)];
+            CGFloat w = MAX(sz.width, 20.0);
+            _ssidLabel.frame = CGRectMake(curX, 3.0, w, 16.0);
+            curX += w + 5.0;
+        } else {
+            _ssidLabel.hidden = YES;
+        }
+
+        if (p_showThermalState) {
+            _thermalDotView.hidden = NO;
+            int thermal = getThermalState();
+            UIColor *thCol = (thermal == 0) ? [UIColor colorWithRed:0.25 green:0.9 blue:0.4 alpha:1.0] :
+                             (thermal == 1) ? [UIColor colorWithRed:1.0 green:0.85 blue:0.2 alpha:1.0] :
+                             (thermal == 2) ? [UIColor colorWithRed:1.0 green:0.55 blue:0.1 alpha:1.0] :
+                                              [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0];
+            _thermalDotView.backgroundColor = thCol;
+            _thermalDotView.frame = CGRectMake(curX, 8.5, 5.0, 5.0);
+            curX += 5.0 + 5.0;
+        } else {
+            _thermalDotView.hidden = YES;
+        }
+
+        if (p_showRAMText) {
+            _ramLabel.hidden = NO;
+            uint64_t ramUsed = 0;
+            getRAMUsedRatio(&ramUsed, NULL);
+            _ramLabel.text = [NSString stringWithFormat:@"%.1fG", (double)ramUsed / 1073741824.0];
+            CGSize sz = [_ramLabel sizeThatFits:CGSizeMake(100, 16)];
+            CGFloat w = MAX(sz.width, 22.0);
+            _ramLabel.frame = CGRectMake(curX, 3.0, w, 16.0);
+            curX += w + 4.0;
+        } else {
+            _ramLabel.hidden = YES;
+        }
+
+        CGFloat extraW = (curX > 3.0) ? (curX - 1.0) : 0.0;
+        CGFloat totalW = 22.0 + extraW;
+
+        _extraInfoContainer.frame = CGRectMake(22.0, 0.0, extraW, 22.0);
+        _pillContainerView.frame = CGRectMake(0.0, 0.0, totalW, 22.0);
+        self.bounds = CGRectMake(0.0, 0.0, totalW, 22.0);
+
+        if (p_badgeStyle == 0) { // Capsule Kính Mờ
+            _blurEffectView.hidden = NO;
+            _pillContainerView.layer.cornerRadius = 11.0;
+            _pillContainerView.layer.borderWidth = 0.5;
+            _pillContainerView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.20].CGColor;
+            _pillContainerView.backgroundColor = [UIColor colorWithWhite:0.08 alpha:0.38];
+        } else { // Minimalist Phẳng
+            _blurEffectView.hidden = YES;
+            _pillContainerView.layer.borderWidth = 0.0;
+            _pillContainerView.layer.cornerRadius = 0.0;
+            _pillContainerView.backgroundColor = [UIColor clearColor];
+        }
+    }
+
+    // 10. Căn toạ độ neo (Anchor Position)
+    if (!p_dragModeEnabled && self.superview) {
+        CGFloat offX = self.isControlCenter ? p_ccOffsetX : p_offsetX;
+        CGFloat offY = self.isControlCenter ? p_ccOffsetY : p_offsetY;
+        CGFloat totalW = _pillContainerView.frame.size.width;
+        self.center = CGPointMake(self.anchorCenter.x + offX - (totalW - 22.0) / 2.0, self.anchorCenter.y + offY);
     }
 }
 
