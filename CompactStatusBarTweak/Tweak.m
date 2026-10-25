@@ -1933,7 +1933,6 @@ static void getIconViewsRecursively(UIView *view, NSMutableArray<UIView *> *resu
     }
 }
 
-static void (*orig_dock_setFrame)(UIView *, SEL, CGRect) = NULL;
 static inline void getDockGeometry(NSUInteger iconCount, CGFloat *outW, CGFloat *outH, CGFloat *outIconSize, CGFloat *outSpacing, CGFloat *outPadY) {
     CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 54.0;
     CGFloat padY = 16.0;
@@ -1954,8 +1953,120 @@ static inline void getDockGeometry(NSUInteger iconCount, CGFloat *outW, CGFloat 
     if (outPadY) *outPadY = padY;
 }
 
+static void applyVerticalDockLayout(UIView *self) {
+    BOOL isVertical = p_enabled && (p_verticalDockEnabled || p_dockPosition != 0);
+
+    if (!isVertical) {
+        UIView *glass = [self viewWithTag:998844];
+        if (glass) glass.hidden = YES;
+        for (UIView *sub in self.subviews) {
+            NSString *sName = NSStringFromClass([sub class]);
+            if ([sName containsString:@"Background"] || [sName containsString:@"Material"] || [sName containsString:@"Platter"] || [sName containsString:@"Divider"]) {
+                sub.hidden = NO;
+                sub.alpha = 1.0;
+            }
+        }
+        return;
+    }
+
+    CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
+    CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
+
+    NSMutableArray<UIView *> *icons = [NSMutableArray array];
+    getIconViewsRecursively(self, icons);
+
+    CGFloat dockW, dockH, iconSize, spacing, padY;
+    getDockGeometry(icons.count, &dockW, &dockH, &iconSize, &spacing, &padY);
+
+    CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
+    CGFloat dockX = (p_dockPosition == 2) ? marginX : (screenW - dockW - marginX);
+    CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
+
+    self.layer.zPosition = 999.0;
+    self.clipsToBounds = NO;
+
+    UIView *p = self.superview;
+    while (p && ![p isKindOfClass:[UIWindow class]]) {
+        p.clipsToBounds = NO;
+        if ([p isKindOfClass:objc_getClass("SBFloatingDockContainerView")] ||
+            [NSStringFromClass([p class]) containsString:@"Container"] ||
+            [NSStringFromClass([p class]) containsString:@"Platter"]) {
+            p.frame = [UIScreen mainScreen].bounds;
+        }
+        p = p.superview;
+    }
+
+    if (fabs(self.frame.origin.x - dockX) > 1.0 || fabs(self.frame.origin.y - dockY) > 1.0 ||
+        fabs(self.frame.size.width - dockW) > 1.0 || fabs(self.frame.size.height - dockH) > 1.0) {
+        self.frame = CGRectMake(dockX, dockY, dockW, dockH);
+    }
+
+    UIVisualEffectView *glass = (UIVisualEffectView *)[self viewWithTag:998844];
+    if (!glass) {
+        UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial];
+        glass = [[UIVisualEffectView alloc] initWithEffect:blur];
+        glass.tag = 998844;
+        glass.layer.masksToBounds = YES;
+        glass.clipsToBounds = YES;
+        glass.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
+        glass.layer.borderWidth = 1.2;
+        [self insertSubview:glass atIndex:0];
+    }
+    glass.hidden = NO;
+    glass.frame = CGRectMake(0, 0, dockW, dockH);
+    glass.layer.cornerRadius = dockW / 2.0;
+
+    for (UIView *sub in self.subviews) {
+        if (sub != glass) {
+            NSString *sName = NSStringFromClass([sub class]);
+            if ([sName containsString:@"Background"] ||
+                [sName containsString:@"Material"] ||
+                [sName containsString:@"Platter"] ||
+                [sName containsString:@"Divider"] ||
+                sub.frame.size.width <= 3.0) {
+                sub.hidden = YES;
+                sub.alpha = 0.0;
+            } else if ([sName containsString:@"ListView"]) {
+                sub.frame = CGRectMake(0, 0, dockW, dockH);
+                sub.clipsToBounds = NO;
+            }
+        }
+    }
+
+    if (icons.count > 0) {
+        [icons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+            CGFloat ax = a.superview ? [a.superview convertPoint:a.frame.origin toView:self].x : a.frame.origin.x;
+            CGFloat bx = b.superview ? [b.superview convertPoint:b.frame.origin toView:self].x : b.frame.origin.x;
+            if (ax < bx) return NSOrderedAscending;
+            else if (ax > bx) return NSOrderedDescending;
+            return NSOrderedSame;
+        }];
+
+        for (NSUInteger i = 0; i < icons.count; i++) {
+            UIView *icon = icons[i];
+            CGFloat targetX = (dockW - iconSize) / 2.0;
+            CGFloat targetY = padY + i * (iconSize + spacing);
+
+            if (icon.superview && icon.superview != self) {
+                CGPoint pInSuper = [self convertPoint:CGPointMake(targetX, targetY) toView:icon.superview];
+                icon.frame = CGRectMake(pInSuper.x, pInSuper.y, iconSize, iconSize);
+            } else {
+                icon.frame = CGRectMake(targetX, targetY, iconSize, iconSize);
+            }
+
+            for (UIView *lbl in icon.subviews) {
+                if ([lbl isKindOfClass:[UILabel class]] || [NSStringFromClass([lbl class]) containsString:@"Label"]) {
+                    lbl.hidden = YES;
+                    lbl.alpha = 0.0;
+                }
+            }
+        }
+    }
+}
+
+static void (*orig_dock_setFrame)(UIView *, SEL, CGRect) = NULL;
 static void hooked_dock_setFrame(UIView *self, SEL _cmd, CGRect frame) {
-    if (p_enabled && p_verticalDockEnabled) {
+    if (p_enabled && (p_verticalDockEnabled || p_dockPosition != 0)) {
         CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
         CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
         CGFloat dockW, dockH;
@@ -1979,75 +2090,58 @@ static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
     if (g_inDockLayout) return;
     g_inDockLayout = YES;
 
-    if (!p_enabled || !p_verticalDockEnabled) {
-        UIView *glass = [self viewWithTag:998844];
-        if (glass) glass.hidden = YES;
-        for (UIView *sub in self.subviews) {
-            NSString *sName = NSStringFromClass([sub class]);
-            if ([sName containsString:@"Background"] || [sName containsString:@"Material"]) {
-                sub.hidden = NO;
-                sub.alpha = 1.0;
-            }
-        }
-        g_inDockLayout = NO;
-        return;
-    }
-
-    CGFloat dockW = self.bounds.size.width;
-    CGFloat dockH = self.bounds.size.height;
-    if (dockW > dockH) {
-        CGFloat dw, dh;
-        getDockGeometry(4, &dw, &dh, NULL, NULL, NULL);
-        dockW = dw;
-        dockH = dh;
-    }
-
-    self.layer.zPosition = 999.0;
-    self.clipsToBounds = NO;
-    if (self.superview) self.superview.clipsToBounds = NO;
-
-    UIVisualEffectView *glass = (UIVisualEffectView *)[self viewWithTag:998844];
-    if (!glass) {
-        UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial];
-        glass = [[UIVisualEffectView alloc] initWithEffect:blur];
-        glass.tag = 998844;
-        glass.layer.masksToBounds = YES;
-        glass.clipsToBounds = YES;
-        glass.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
-        glass.layer.borderWidth = 1.2;
-        [self insertSubview:glass atIndex:0];
-    }
-    glass.hidden = NO;
-    glass.frame = CGRectMake(0, 0, dockW, dockH);
-    glass.layer.cornerRadius = dockW / 2.0;
-
-    for (UIView *sub in self.subviews) {
-        if (sub != glass) {
-            NSString *sName = NSStringFromClass([sub class]);
-            if ([sName containsString:@"Background"] || [sName containsString:@"Material"]) {
-                sub.hidden = YES;
-                sub.alpha = 0.0;
-            }
-        }
-    }
+    applyVerticalDockLayout(self);
 
     g_inDockLayout = NO;
+}
+
+static void (*orig_floatingdock_setFrame)(UIView *, SEL, CGRect) = NULL;
+static void hooked_floatingdock_setFrame(UIView *self, SEL _cmd, CGRect frame) {
+    if (p_enabled && (p_verticalDockEnabled || p_dockPosition != 0)) {
+        CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
+        CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
+        CGFloat dockW, dockH;
+        getDockGeometry(4, &dockW, &dockH, NULL, NULL, NULL);
+        CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
+        CGFloat dockX = (p_dockPosition == 2) ? marginX : (screenW - dockW - marginX);
+        CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
+        frame = CGRectMake(dockX, dockY, dockW, dockH);
+    }
+    if (orig_floatingdock_setFrame) {
+        orig_floatingdock_setFrame(self, _cmd, frame);
+    }
+}
+
+static BOOL g_inFloatingDockLayout = NO;
+static void (*orig_floatingdock_layoutSubviews)(UIView *, SEL) = NULL;
+static void hooked_floatingdock_layoutSubviews(UIView *self, SEL _cmd) {
+    if (orig_floatingdock_layoutSubviews) orig_floatingdock_layoutSubviews(self, _cmd);
+    g_activeDockView = self;
+
+    if (g_inFloatingDockLayout) return;
+    g_inFloatingDockLayout = YES;
+
+    applyVerticalDockLayout(self);
+
+    g_inFloatingDockLayout = NO;
 }
 
 static BOOL g_inIconListLayout = NO;
 static void (*orig_iconlist_layoutSubviews)(UIView *, SEL) = NULL;
 static void hooked_iconlist_layoutSubviews(UIView *self, SEL _cmd) {
     if (orig_iconlist_layoutSubviews) orig_iconlist_layoutSubviews(self, _cmd);
-    if (!p_enabled || !p_verticalDockEnabled) return;
+    if (!p_enabled) return;
     if (g_inIconListLayout) return;
     g_inIconListLayout = YES;
+
+    BOOL isVertical = (p_verticalDockEnabled || p_dockPosition != 0);
 
     BOOL isDockList = NO;
     if ([NSStringFromClass([self class]) containsString:@"Dock"]) {
         isDockList = YES;
     } else {
         UIView *p = self.superview;
-        while (p) {
+        while (p && ![p isKindOfClass:[UIWindow class]]) {
             if ([NSStringFromClass([p class]) containsString:@"Dock"]) {
                 isDockList = YES;
                 break;
@@ -2057,70 +2151,33 @@ static void hooked_iconlist_layoutSubviews(UIView *self, SEL _cmd) {
     }
 
     if (isDockList) {
-        NSMutableArray<UIView *> *dockIcons = [NSMutableArray array];
-        getIconViewsRecursively(self, dockIcons);
-        if (dockIcons.count > 0) {
-            CGFloat dockW, dockH, iconSize, spacing, padY;
-            getDockGeometry(dockIcons.count, &dockW, &dockH, &iconSize, &spacing, &padY);
-
-            [dockIcons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
-                if (fabs(a.frame.origin.y - b.frame.origin.y) > 5.0) {
-                    return (a.frame.origin.y < b.frame.origin.y) ? NSOrderedAscending : NSOrderedDescending;
-                }
-                return (a.frame.origin.x < b.frame.origin.x) ? NSOrderedAscending : (a.frame.origin.x > b.frame.origin.x ? NSOrderedDescending : NSOrderedSame);
-            }];
-
-            for (NSUInteger i = 0; i < dockIcons.count; i++) {
-                UIView *icon = dockIcons[i];
-                CGFloat targetX = (dockW - iconSize) / 2.0;
-                CGFloat targetY = padY + i * (iconSize + spacing);
-                icon.frame = CGRectMake(targetX, targetY, iconSize, iconSize);
-
-                for (UIView *lbl in icon.subviews) {
-                    if ([lbl isKindOfClass:[UILabel class]] || [NSStringFromClass([lbl class]) containsString:@"Label"]) {
-                        lbl.hidden = YES;
-                        lbl.alpha = 0.0;
-                    }
-                }
+        if (isVertical) {
+            UIView *dock = self;
+            while (dock && ![dock isKindOfClass:objc_getClass("SBDockView")] &&
+                   ![dock isKindOfClass:objc_getClass("SBFloatingDockView")] &&
+                   ![dock isKindOfClass:[UIWindow class]]) {
+                dock = dock.superview;
+            }
+            if (dock && ![dock isKindOfClass:[UIWindow class]]) {
+                applyVerticalDockLayout(dock);
             }
         }
         g_inIconListLayout = NO;
         return;
     }
 
-    if (p_adjustIconGridMargin) {
-        CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
+    // Home Screen Icon List View: Shift grid away from vertical dock
+    if (isVertical && p_adjustIconGridMargin) {
         CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 54.0;
         CGFloat dockW = iconSize + 20.0;
         CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
-        CGFloat dockReserve = dockW + marginX + 6.0;
-        CGFloat factor = (screenW - dockReserve - 10.0) / screenW;
-        if (factor > 0.95 || factor < 0.6) factor = 0.76;
-
-        for (UIView *subview in self.subviews) {
-            NSString *cls = NSStringFromClass([subview class]);
-            if ([cls containsString:@"Background"] || [cls containsString:@"Scroll"]) continue;
-
-            CGRect f = subview.frame;
-            if (f.size.width <= 0 || f.size.height <= 0) continue;
-
-            CGFloat newX = f.origin.x;
-            CGFloat newW = f.size.width;
-
-            if (p_dockPosition == 1) { // Right Dock
-                newX = 8.0 + (f.origin.x * factor);
-                if (newW > (screenW - dockReserve - 16.0)) {
-                    newW = screenW - dockReserve - 16.0;
-                }
-            } else if (p_dockPosition == 2) { // Left Dock
-                newX = dockReserve + 6.0 + (f.origin.x * factor);
-                if (newW > (screenW - dockReserve - 16.0)) {
-                    newW = screenW - dockReserve - 16.0;
-                }
-            }
-            subview.frame = CGRectMake(newX, f.origin.y, newW, f.size.height);
-        }
+        CGFloat dockReserve = dockW + marginX;
+        CGFloat shiftX = (p_dockPosition == 1) ? -(dockReserve / 2.0) : (dockReserve / 2.0);
+        self.transform = CGAffineTransformMakeTranslation(shiftX, 0);
+    } else {
+        self.transform = CGAffineTransformIdentity;
     }
+
     g_inIconListLayout = NO;
 }
 
@@ -2140,11 +2197,21 @@ static void handleReloadNotification(CFNotificationCenterRef center, void *obser
             [g_activeStatusView updateStats];
         }
         if (g_activeDockView) {
+            applyVerticalDockLayout(g_activeDockView);
             [g_activeDockView setNeedsLayout];
             [g_activeDockView layoutIfNeeded];
             if (g_activeDockView.superview) {
                 [g_activeDockView.superview setNeedsLayout];
                 [g_activeDockView.superview layoutIfNeeded];
+            }
+        } else {
+            for (UIWindow *win in [UIApplication sharedApplication].windows) {
+                UIView *v = [win viewWithTag:998844].superview;
+                if (v) {
+                    g_activeDockView = v;
+                    applyVerticalDockLayout(v);
+                    break;
+                }
             }
         }
         for (UIWindow *win in [UIApplication sharedApplication].windows) {
@@ -2227,14 +2294,21 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         SafeSwizzle(imgViewClass, @selector(setImage:), (IMP)hooked_img_setImage, (IMP *)&orig_img_setImage);
     }
 
-    // 6. Hook Dock
+    // 6. Hook Classic Dock (SBDockView)
     Class dockClass = objc_getClass("SBDockView");
     if (dockClass) {
         SafeSwizzle(dockClass, @selector(setFrame:), (IMP)hooked_dock_setFrame, (IMP *)&orig_dock_setFrame);
         SafeSwizzle(dockClass, @selector(layoutSubviews), (IMP)hooked_dock_layoutSubviews, (IMP *)&orig_dock_layoutSubviews);
     }
 
-    // 7. Hook Icon Lists (SBIconListView covers both HomeScreen and SBDockIconListView via inheritance)
+    // 7. Hook Floating Dock (SBFloatingDockView)
+    Class floatingDockClass = objc_getClass("SBFloatingDockView");
+    if (floatingDockClass) {
+        SafeSwizzle(floatingDockClass, @selector(setFrame:), (IMP)hooked_floatingdock_setFrame, (IMP *)&orig_floatingdock_setFrame);
+        SafeSwizzle(floatingDockClass, @selector(layoutSubviews), (IMP)hooked_floatingdock_layoutSubviews, (IMP *)&orig_floatingdock_layoutSubviews);
+    }
+
+    // 8. Hook Icon Lists (SBIconListView covers both HomeScreen and Dock icon lists via inheritance)
     Class iconListClass = objc_getClass("SBIconListView");
     if (iconListClass) {
         SafeSwizzle(iconListClass, @selector(layoutSubviews), (IMP)hooked_iconlist_layoutSubviews, (IMP *)&orig_iconlist_layoutSubviews);
