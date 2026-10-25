@@ -2241,7 +2241,7 @@ static NSUInteger hooked_config_numberOfPortraitColumns(id self, SEL _cmd) {
     if (!p_enabled || p_gridMode == 0) return orig;
 
     if (orig_config_numberOfPortraitRows) {
-        NSUInteger rows = orig_config_numberOfPortraitRows(self, @selector(numberOfPortraitRows));
+        NSUInteger rows = orig_config_numberOfPortraitRows(self, sel_registerName("numberOfPortraitRows"));
         if (rows <= 1) return orig; // Dock
     }
     return 3;
@@ -2254,13 +2254,12 @@ static NSUInteger hooked_config_numberOfPortraitRows(id self, SEL _cmd) {
     return 7;
 }
 
-static UIEdgeInsets (*orig_config_portraitLayoutInsets)(id, SEL) = NULL;
 static UIEdgeInsets hooked_config_portraitLayoutInsets(id self, SEL _cmd) {
     UIEdgeInsets orig = orig_config_portraitLayoutInsets ? orig_config_portraitLayoutInsets(self, _cmd) : UIEdgeInsetsZero;
     if (!p_enabled) return orig;
 
     if (orig_config_numberOfPortraitRows) {
-        NSUInteger rows = orig_config_numberOfPortraitRows(self, @selector(numberOfPortraitRows));
+        NSUInteger rows = orig_config_numberOfPortraitRows(self, sel_registerName("numberOfPortraitRows"));
         if (rows <= 1) return orig; // Dock
     }
 
@@ -2523,23 +2522,23 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
     // 8. Hook SBIconListGridLayoutConfiguration (Native 3x7 Grid & Safe Layout Insets)
     Class configClass = objc_getClass("SBIconListGridLayoutConfiguration");
     if (configClass) {
-        SafeSwizzle(configClass, sel_registerName("numberOfPortraitColumns"), (IMP)hooked_config_numberOfPortraitColumns, (IMP *)&orig_config_numberOfPortraitColumns);
-        SafeSwizzle(configClass, sel_registerName("numberOfPortraitRows"), (IMP)hooked_config_numberOfPortraitRows, (IMP *)&orig_config_numberOfPortraitRows);
-        SafeSwizzle(configClass, sel_registerName("portraitLayoutInsets"), (IMP)hooked_config_portraitLayoutInsets, (IMP *)&orig_config_portraitLayoutInsets);
+        SafeSwizzle(configClass, sel_registerName("numberOfPortraitColumns"), (IMP)(void *)hooked_config_numberOfPortraitColumns, (IMP *)(void *)&orig_config_numberOfPortraitColumns);
+        SafeSwizzle(configClass, sel_registerName("numberOfPortraitRows"), (IMP)(void *)hooked_config_numberOfPortraitRows, (IMP *)(void *)&orig_config_numberOfPortraitRows);
+        SafeSwizzle(configClass, sel_registerName("portraitLayoutInsets"), (IMP)(void *)hooked_config_portraitLayoutInsets, (IMP *)(void *)&orig_config_portraitLayoutInsets);
     }
 
     // 9. Hook SBIconListView (Layout, Column/Row Counts & Fallback Insets)
     Class iconListClass = objc_getClass("SBIconListView");
     if (iconListClass) {
-        SafeSwizzle(iconListClass, @selector(layoutSubviews), (IMP)hooked_iconlist_layoutSubviews, (IMP *)&orig_iconlist_layoutSubviews);
-        SafeSwizzle(iconListClass, sel_registerName("iconColumnsForCurrentOrientation"), (IMP)hooked_iconlist_columns, (IMP *)&orig_iconlist_columns);
-        SafeSwizzle(iconListClass, sel_registerName("iconRowsForCurrentOrientation"), (IMP)hooked_iconlist_rows, (IMP *)&orig_iconlist_rows);
-        SafeSwizzle(iconListClass, sel_registerName("layoutInsets"), (IMP)hooked_iconlist_layoutInsets, (IMP *)&orig_iconlist_layoutInsets);
+        SafeSwizzle(iconListClass, @selector(layoutSubviews), (IMP)(void *)hooked_iconlist_layoutSubviews, (IMP *)(void *)&orig_iconlist_layoutSubviews);
+        SafeSwizzle(iconListClass, sel_registerName("iconColumnsForCurrentOrientation"), (IMP)(void *)hooked_iconlist_columns, (IMP *)(void *)&orig_iconlist_columns);
+        SafeSwizzle(iconListClass, sel_registerName("iconRowsForCurrentOrientation"), (IMP)(void *)hooked_iconlist_rows, (IMP *)(void *)&orig_iconlist_rows);
+        SafeSwizzle(iconListClass, sel_registerName("layoutInsets"), (IMP)(void *)hooked_iconlist_layoutInsets, (IMP *)(void *)&orig_iconlist_layoutInsets);
     }
 
     // 10. Hook SBIconListModel (Limit to 21 icons per home screen page in 3x7 mode)
     Class listModelClass = objc_getClass("SBIconListModel");
     if (listModelClass) {
-        SafeSwizzle(listModelClass, sel_registerName("maxNumberOfIcons"), (IMP)hooked_listmodel_maxNumberOfIcons, (IMP *)&orig_listmodel_maxNumberOfIcons);
+        SafeSwizzle(listModelClass, sel_registerName("maxNumberOfIcons"), (IMP)(void *)hooked_listmodel_maxNumberOfIcons, (IMP *)(void *)&orig_listmodel_maxNumberOfIcons);
     }
 }

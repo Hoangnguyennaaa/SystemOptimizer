@@ -7,6 +7,9 @@ on:
       - '.github/workflows/build_tweak_deb.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-14
@@ -38,6 +41,23 @@ jobs:
           echo '```text' >> $GITHUB_STEP_SUMMARY
           cat CompactStatusBarTweak/build.log >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Build Log Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: CompactStatusBarTweak/build.log
+
+      - name: Push failure log to branch
+        if: failure()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B debug-build-log
+          git add -f CompactStatusBarTweak/build.log
+          git commit -m "Build failure log [skip ci]" || true
+          git push -f origin debug-build-log || true
 
       - name: Upload Tweak DEB Artifact
         uses: actions/upload-artifact@v4
