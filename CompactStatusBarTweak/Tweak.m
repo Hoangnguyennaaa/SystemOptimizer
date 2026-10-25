@@ -1,5 +1,6 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
+#import <objc/message.h>
 #import <mach/mach.h>
 #import <mach/mach_host.h>
 #import <notify.h>
