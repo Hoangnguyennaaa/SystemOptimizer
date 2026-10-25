@@ -60,7 +60,7 @@
 
 - (void)updateStats {
     float rawLevel = [UIDevice currentDevice].batteryLevel;
-    self.batteryLevel = rawLevel < 0 ? 1.0 : rawLevel;
+    self.batteryLevel = rawLevel < 0 ? 1.0 : (CGFloat)rawLevel;
     UIDeviceBatteryState state = [UIDevice currentDevice].batteryState;
     self.isCharging = (state == UIDeviceBatteryStateCharging || state == UIDeviceBatteryStateFull);
 
@@ -146,9 +146,9 @@
 @end
 
 // MARK: - Swizzle SpringBoard Status Bar
-static void (*orig_applyUpdate)(id, SEL, id, id);
+static id (*orig_applyUpdate)(id, SEL, id, id) = NULL;
 static id hooked_applyUpdate(id self, SEL _cmd, id arg1, id arg2) {
-    id result = orig_applyUpdate(self, _cmd, arg1, arg2);
+    id result = orig_applyUpdate ? orig_applyUpdate(self, _cmd, arg1, arg2) : nil;
 
     @try {
         UIView *bView = [self valueForKey:@"_batteryView"];
@@ -157,9 +157,13 @@ static id hooked_applyUpdate(id self, SEL _cmd, id arg1, id arg2) {
             bView.alpha = 0.0;
         }
 
-        UIView *itemView = [self valueForKey:@"_itemView"];
+        UIView *itemView = nil;
+        @try {
+            itemView = [self valueForKey:@"_itemView"];
+        } @catch (NSException *e) {}
+
         if (!itemView && [self respondsToSelector:@selector(view)]) {
-            itemView = [self performSelector:@selector(view)];
+            itemView = (UIView *)[self performSelector:@selector(view)];
         }
 
         if (itemView) {
@@ -175,14 +179,16 @@ static id hooked_applyUpdate(id self, SEL _cmd, id arg1, id arg2) {
     return result;
 }
 
-static void (*orig_setText)(id, SEL, NSString *);
+static void (*orig_setText)(id, SEL, NSString *) = NULL;
 static void hooked_setText(id self, SEL _cmd, NSString *text) {
     if (text && [text containsString:@"%"]) {
         ((UIView *)self).hidden = YES;
         ((UIView *)self).alpha = 0.0;
         return;
     }
-    orig_setText(self, _cmd, text);
+    if (orig_setText) {
+        orig_setText(self, _cmd, text);
+    }
 }
 
 __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
@@ -190,7 +196,7 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
     if (batteryItemClass) {
         Method m = class_getInstanceMethod(batteryItemClass, NSSelectorFromString(@"applyUpdate:toDisplayItem:"));
         if (m) {
-            orig_applyUpdate = (void *)method_getImplementation(m);
+            orig_applyUpdate = (id (*)(id, SEL, id, id))method_getImplementation(m);
             method_setImplementation(m, (IMP)hooked_applyUpdate);
         }
     }
@@ -199,7 +205,7 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
     if (stringViewClass) {
         Method m2 = class_getInstanceMethod(stringViewClass, @selector(setText:));
         if (m2) {
-            orig_setText = (void *)method_getImplementation(m2);
+            orig_setText = (void (*)(id, SEL, NSString *))method_getImplementation(m2);
             method_setImplementation(m2, (IMP)hooked_setText);
         }
     }
