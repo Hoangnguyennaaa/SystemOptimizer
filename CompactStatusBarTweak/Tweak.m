@@ -69,7 +69,7 @@ static CGFloat p_ccOffsetX = 0.0;
 static CGFloat p_ccOffsetY = 0.0;
 static CGFloat p_ccIconScale = 1.0;
 static int p_deviceModel = 0; // 0 = Auto, 1 = Island, 2 = Notch, 3 = Classic
-static int p_batteryPercentMode = 0; // 0 = Ẩn, 1 = Ở tâm, 2 = Bên cạnh
+static int p_batteryPercentMode = 2; // 0 = Ẩn, 1 = Ở tâm, 2 = Trên Capsule / Kế bên, 3 = Mép ngoài
 
 // Badge Style & Additional Information Preferences
 static int p_badgeStyle = 0; // 0 = Capsule Kính Mờ, 1 = Minimalist Phẳng, 2 = Thu Gọn + Thẻ Chạm
@@ -543,6 +543,7 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
 
 // Extra Information Views
 @property (nonatomic, strong) UIView *extraInfoContainer;
+@property (nonatomic, strong) UILabel *batteryPercentLabel;
 @property (nonatomic, strong) UILabel *networkSpeedLabel;
 @property (nonatomic, strong) UILabel *ssidLabel;
 @property (nonatomic, strong) UIView *thermalDotView;
@@ -802,12 +803,15 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     _centerLabel.hidden = YES;
     [_gaugeContainerView addSubview:_centerLabel];
 
-    _sidePercentLabel = [[UILabel alloc] initWithFrame:CGRectMake(-30.0, 3.0, 28.0, 16.0)];
+
+
+    // Side percent label added directly to self so it is never clipped
+    _sidePercentLabel = [[UILabel alloc] initWithFrame:CGRectMake(-34.0, 3.0, 32.0, 16.0)];
     _sidePercentLabel.font = [UIFont systemFontOfSize:9.0 weight:UIFontWeightBold];
     _sidePercentLabel.textColor = [UIColor whiteColor];
     _sidePercentLabel.textAlignment = NSTextAlignmentRight;
     _sidePercentLabel.hidden = YES;
-    [_gaugeContainerView addSubview:_sidePercentLabel];
+    [self addSubview:_sidePercentLabel];
 
     // 2. Extra Information Container
     _extraInfoContainer = [[UIView alloc] initWithFrame:CGRectMake(22.0, 0.0, 0.0, 22.0)];
@@ -815,6 +819,12 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     _extraInfoContainer.clipsToBounds = YES;
     _extraInfoContainer.hidden = YES;
     [_pillContainerView addSubview:_extraInfoContainer];
+
+    _batteryPercentLabel = [[UILabel alloc] init];
+    _batteryPercentLabel.font = [UIFont systemFontOfSize:8.0 weight:UIFontWeightBold];
+    _batteryPercentLabel.textColor = [UIColor whiteColor];
+    _batteryPercentLabel.textAlignment = NSTextAlignmentCenter;
+    [_extraInfoContainer addSubview:_batteryPercentLabel];
 
     _networkSpeedLabel = [[UILabel alloc] init];
     _networkSpeedLabel.font = [UIFont systemFontOfSize:7.5 weight:UIFontWeightBold];
@@ -1296,8 +1306,8 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         _centerLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.90];
     }
 
-    // 7. Chế độ hiện % pin cạnh trái
-    if (p_batteryPercentMode == 2) {
+    // 7. Chế độ hiện % pin mép ngoài (Mode 3)
+    if (p_batteryPercentMode == 3) {
         _sidePercentLabel.hidden = NO;
         int pct = self.showRAM ? (int)(ramRatio * 100) : (int)(bat * 100);
         _sidePercentLabel.text = [NSString stringWithFormat:@"%d%%", pct];
@@ -1338,6 +1348,21 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         _extraInfoContainer.hidden = NO;
         CGFloat curX = 3.0;
 
+        // A. Nhãn phần trăm Pin trên Capsule / Kế bên vòng đo
+        if (p_batteryPercentMode == 2) {
+            _batteryPercentLabel.hidden = NO;
+            NSString *pctStr = charging ? [NSString stringWithFormat:@"%d%%⚡", pct] : [NSString stringWithFormat:@"%d%%", pct];
+            _batteryPercentLabel.text = pctStr;
+            _batteryPercentLabel.textColor = col;
+            CGSize sz = [_batteryPercentLabel sizeThatFits:CGSizeMake(60, 16)];
+            CGFloat w = MAX(sz.width, 22.0);
+            _batteryPercentLabel.frame = CGRectMake(curX, 3.0, w, 16.0);
+            curX += w + 4.0;
+        } else {
+            _batteryPercentLabel.hidden = YES;
+        }
+
+        // B. Nhãn tốc độ mạng
         if (p_showNetworkSpeed && hasSpeed) {
             _networkSpeedLabel.hidden = NO;
             double targetSpeed = (downSpeed >= upSpeed) ? downSpeed : upSpeed;
@@ -1413,12 +1438,16 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         }
     }
 
-    // 10. Căn toạ độ neo (Anchor Position)
+    // 10. Căn toạ độ neo (Anchor Position) với bộ lọc vi dao động (Micro-jitter filter)
     if (!p_dragModeEnabled && self.superview) {
         CGFloat offX = self.isControlCenter ? p_ccOffsetX : p_offsetX;
         CGFloat offY = self.isControlCenter ? p_ccOffsetY : p_offsetY;
         CGFloat totalW = _pillContainerView.frame.size.width;
-        self.center = CGPointMake(self.anchorCenter.x + offX - (totalW - 22.0) / 2.0, self.anchorCenter.y + offY);
+        if (totalW < 22.0) totalW = 22.0;
+        CGPoint targetCenter = CGPointMake(self.anchorCenter.x + offX - (totalW - 22.0) / 2.0, self.anchorCenter.y + offY);
+        if (fabs(self.center.x - targetCenter.x) > 0.5 || fabs(self.center.y - targetCenter.y) > 0.5) {
+            self.center = targetCenter;
+        }
     }
 }
 
@@ -1921,6 +1950,27 @@ static inline BOOL isControlCenterView(UIView *view) {
     return NO;
 }
 
+static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBattery, UIView *container, BOOL isCC) {
+    if (!custom || !stockBattery || !container) return;
+    if (p_dragModeEnabled) return;
+
+    CGRect rectInContainer = [stockBattery convertRect:stockBattery.bounds toView:container];
+    CGPoint centerInContainer = CGPointMake(CGRectGetMidX(rectInContainer), CGRectGetMidY(rectInContainer));
+    if (centerInContainer.x <= 0 || centerInContainer.y <= 0) return;
+
+    custom.anchorCenter = centerInContainer;
+
+    CGFloat offX = isCC ? p_ccOffsetX : p_offsetX;
+    CGFloat offY = isCC ? p_ccOffsetY : p_offsetY;
+    CGFloat totalW = custom.pillContainerView.frame.size.width;
+    if (totalW < 22.0) totalW = 22.0;
+
+    CGPoint targetCenter = CGPointMake(centerInContainer.x + offX - (totalW - 22.0) / 2.0, centerInContainer.y + offY);
+    if (fabs(custom.center.x - targetCenter.x) > 0.5 || fabs(custom.center.y - targetCenter.y) > 0.5) {
+        custom.center = targetCenter;
+    }
+}
+
 static void (*orig_battery_didMoveToWindow)(UIView *, SEL) = NULL;
 static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
     if (orig_battery_didMoveToWindow) {
@@ -1940,63 +1990,53 @@ static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
 
     if (isCC && !p_ccEnabled) return;
 
-    dispatch_async(dispatch_get_main_queue(), ^{
-        UIView *parent = self.superview;
-        if (parent) {
-            UIView *container = parent;
-            UIView *v = parent;
-            while (v && ![v isKindOfClass:[UIWindow class]]) {
-                NSString *cn = NSStringFromClass([v class]);
-                if ([cn isEqualToString:@"_UIStatusBar"] || [cn isEqualToString:@"UIStatusBar"]) {
-                    container = v;
-                    break;
-                }
-                v = v.superview;
+    UIView *parent = self.superview;
+    if (parent) {
+        UIView *container = parent;
+        UIView *v = parent;
+        while (v && ![v isKindOfClass:[UIWindow class]]) {
+            NSString *cn = NSStringFromClass([v class]);
+            if ([cn isEqualToString:@"_UIStatusBar"] || [cn isEqualToString:@"UIStatusBar"]) {
+                container = v;
+                break;
             }
-
-            CompactStatusView *custom = (CompactStatusView *)[container viewWithTag:998811];
-            if (!custom) {
-                custom = (CompactStatusView *)[parent viewWithTag:998811];
-            }
-            if (!custom) {
-                custom = [[CompactStatusView alloc] initWithFrame:CGRectMake(0, 0, 22.0, 22.0)];
-                custom.tag = 998811;
-                [container addSubview:custom];
-            } else if (custom.superview != container) {
-                [custom removeFromSuperview];
-                [container addSubview:custom];
-            }
-
-            custom.isControlCenter = isCC;
-            if (isCC) {
-                g_activeCCStatusView = custom;
-            } else {
-                g_activeStatusView = custom;
-            }
-
-            CGPoint centerInContainer = [self.superview convertPoint:self.center toView:container];
-            custom.anchorCenter = centerInContainer;
-
-            CGFloat offX = isCC ? p_ccOffsetX : p_offsetX;
-            CGFloat offY = isCC ? p_ccOffsetY : p_offsetY;
-
-            if (!p_dragModeEnabled) {
-                custom.center = CGPointMake(centerInContainer.x + offX, centerInContainer.y + offY);
-            }
-            [container bringSubviewToFront:custom];
-            [custom applyPreferences];
-
-            container.userInteractionEnabled = YES;
-            container.clipsToBounds = NO;
-            UIView *p = container.superview;
-            while (p) {
-                p.userInteractionEnabled = YES;
-                p.clipsToBounds = NO;
-                if ([p isKindOfClass:[UIWindow class]]) break;
-                p = p.superview;
-            }
+            v = v.superview;
         }
-    });
+
+        CompactStatusView *custom = (CompactStatusView *)[container viewWithTag:998811];
+        if (!custom) {
+            custom = (CompactStatusView *)[parent viewWithTag:998811];
+        }
+        if (!custom) {
+            custom = [[CompactStatusView alloc] initWithFrame:CGRectMake(0, 0, 22.0, 22.0)];
+            custom.tag = 998811;
+            [container addSubview:custom];
+        } else if (custom.superview != container) {
+            [custom removeFromSuperview];
+            [container addSubview:custom];
+        }
+
+        custom.isControlCenter = isCC;
+        if (isCC) {
+            g_activeCCStatusView = custom;
+        } else {
+            g_activeStatusView = custom;
+        }
+
+        updateCustomViewPosition(custom, self, container, isCC);
+        [container bringSubviewToFront:custom];
+        [custom applyPreferences];
+
+        container.userInteractionEnabled = YES;
+        container.clipsToBounds = NO;
+        UIView *p = container.superview;
+        while (p) {
+            p.userInteractionEnabled = YES;
+            p.clipsToBounds = NO;
+            if ([p isKindOfClass:[UIWindow class]]) break;
+            p = p.superview;
+        }
+    }
 }
 
 static void (*orig_battery_layoutSubviews)(UIView *, SEL) = NULL;
@@ -2052,15 +2092,7 @@ static void hooked_battery_layoutSubviews(UIView *self, SEL _cmd) {
                     g_activeStatusView = custom;
                 }
 
-                CGPoint centerInContainer = [self.superview convertPoint:self.center toView:container];
-                custom.anchorCenter = centerInContainer;
-
-                CGFloat offX = isCC ? p_ccOffsetX : p_offsetX;
-                CGFloat offY = isCC ? p_ccOffsetY : p_offsetY;
-
-                if (!p_dragModeEnabled) {
-                    custom.center = CGPointMake(centerInContainer.x + offX, centerInContainer.y + offY);
-                }
+                updateCustomViewPosition(custom, self, container, isCC);
             }
         }
     }
