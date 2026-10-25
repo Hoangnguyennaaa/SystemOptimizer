@@ -104,6 +104,8 @@ static void loadPrefs(void) {
     NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:prefPath];
 
     Boolean keyExists = false;
+    CFIndex idx = 0;
+    CFPropertyListRef ref = NULL;
 
     Boolean b = CFPreferencesGetAppBooleanValue(CFSTR("enabled"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
     if (keyExists) p_enabled = (BOOL)b;
