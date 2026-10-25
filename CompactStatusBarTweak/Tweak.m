@@ -39,13 +39,35 @@ static void loadPrefs(void) {
 
 // MARK: - Helper Functions (Network, RAM, Cellular, Wi-Fi)
 
+// Custom if_data layout on Darwin to avoid missing <net/if_var.h> in iOS SDK
+struct if_data_compact {
+    u_char   ifi_type;
+    u_char   ifi_typelen;
+    u_char   ifi_physical;
+    u_char   ifi_addrlen;
+    u_char   ifi_hdrlen;
+    u_char   ifi_recvquota;
+    u_char   ifi_xmitquota;
+    u_char   ifi_unused1;
+    u_int32_t ifi_mtu;
+    u_int32_t ifi_metric;
+    u_int32_t ifi_baudrate;
+    u_int32_t ifi_ipackets;
+    u_int32_t ifi_ierrors;
+    u_int32_t ifi_opackets;
+    u_int32_t ifi_oerrors;
+    u_int32_t ifi_collisions;
+    u_int32_t ifi_ibytes;
+    u_int32_t ifi_obytes;
+};
+
 static uint64_t getNetworkDownloadBytes(void) {
     struct ifaddrs *ifa_list = NULL;
     uint64_t totalBytes = 0;
     if (getifaddrs(&ifa_list) == 0) {
         for (struct ifaddrs *ifa = ifa_list; ifa != NULL; ifa = ifa->ifa_next) {
             if (ifa->ifa_addr && ifa->ifa_addr->sa_family == AF_LINK) {
-                struct if_data *ifd = (struct if_data *)ifa->ifa_data;
+                struct if_data_compact *ifd = (struct if_data_compact *)ifa->ifa_data;
                 if (ifd) {
                     if (strncmp(ifa->ifa_name, "en", 2) == 0 || strncmp(ifa->ifa_name, "pdp_ip", 6) == 0) {
                         totalBytes += ifd->ifi_ibytes;
