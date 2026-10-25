@@ -7,7 +7,7 @@ echo "[*] Step 1: Compiling CompactStatusBar.dylib..."
 xcrun -sdk iphoneos clang -arch arm64 \
     -target arm64-apple-ios15.0 \
     -miphoneos-version-min=15.0 \
-    -shared \
+    -dynamiclib \
     -isysroot "$SDK_PATH" \
     -framework UIKit \
     -framework Foundation \

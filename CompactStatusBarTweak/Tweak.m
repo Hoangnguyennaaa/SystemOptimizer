@@ -1,6 +1,7 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 #import <mach/mach.h>
+#import <mach/mach_host.h>
 #import <ifaddrs.h>
 #import <net/if.h>
 
@@ -27,7 +28,7 @@
         [UIDevice currentDevice].batteryMonitoringEnabled = YES;
         [self updateStats];
 
-        // Lắng nghe pin
+        // Lắng nghe thay đổi mức pin
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(updateStats)
                                                      name:UIDeviceBatteryLevelDidChangeNotification
@@ -63,10 +64,10 @@
     UIDeviceBatteryState state = [UIDevice currentDevice].batteryState;
     self.isCharging = (state == UIDeviceBatteryStateCharging || state == UIDeviceBatteryStateFull);
 
-    // Đọc RAM trống
-    mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
+    // Đọc RAM trống từ Mach kernel
+    mach_msg_type_number_t count = (mach_msg_type_number_t)(sizeof(vm_statistics64_data_t) / sizeof(integer_t));
     vm_statistics64_data_t vmstat;
-    if (host_statistics64(mach_host_self(), HOST_VM_INFO64, (host_info64_t)&vmstat, &count) == KERN_SUCCESS) {
+    if (host_statistics64(mach_host_self(), HOST_VM_INFO64, (integer_t *)&vmstat, &count) == KERN_SUCCESS) {
         vm_size_t pageSize = 16384;
         host_page_size(mach_host_self(), &pageSize);
         uint64_t freeBytes = (uint64_t)(vmstat.free_count + vmstat.inactive_count) * pageSize;
@@ -150,14 +151,12 @@ static id hooked_applyUpdate(id self, SEL _cmd, id arg1, id arg2) {
     id result = orig_applyUpdate(self, _cmd, arg1, arg2);
 
     @try {
-        // Ẩn view pin gốc của Apple
         UIView *bView = [self valueForKey:@"_batteryView"];
         if (bView) {
             bView.hidden = YES;
             bView.alpha = 0.0;
         }
 
-        // Chèn CompactStatusView vào thanh StatusBar
         UIView *itemView = [self valueForKey:@"_itemView"];
         if (!itemView && [self respondsToSelector:@selector(view)]) {
             itemView = [self performSelector:@selector(view)];
@@ -176,7 +175,6 @@ static id hooked_applyUpdate(id self, SEL _cmd, id arg1, id arg2) {
     return result;
 }
 
-// Ẩn chữ số % mặc định của iOS
 static void (*orig_setText)(id, SEL, NSString *);
 static void hooked_setText(id self, SEL _cmd, NSString *text) {
     if (text && [text containsString:@"%"]) {
@@ -187,7 +185,6 @@ static void hooked_setText(id self, SEL _cmd, NSString *text) {
     orig_setText(self, _cmd, text);
 }
 
-// Khởi chạy khi SpringBoard nạp tweak
 __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
     Class batteryItemClass = objc_getClass("_UIStatusBarBatteryItem");
     if (batteryItemClass) {
