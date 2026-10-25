@@ -39,26 +39,44 @@ static void loadPrefs(void) {
 
 // MARK: - Helper Functions (Network, RAM, Cellular, Wi-Fi)
 
+// MARK: - Forward Declarations for SpringBoard Classes
+@interface SBWiFiManager : NSObject
++ (instancetype)sharedInstance;
+- (NSString *)currentNetworkName;
+- (BOOL)isPowered;
+- (int)signalStrengthBars;
+@end
+
+@interface SBTelephonyManager : NSObject
++ (instancetype)sharedTelephonyManager;
+- (int)signalStrengthBars;
+@end
+
+@interface SBLockScreenManager : NSObject
++ (instancetype)sharedInstance;
+- (void)lockUIFromSource:(int)source withOptions:(id)options;
+@end
+
 // Custom if_data layout on Darwin to avoid missing <net/if_var.h> in iOS SDK
 struct if_data_compact {
-    u_char   ifi_type;
-    u_char   ifi_typelen;
-    u_char   ifi_physical;
-    u_char   ifi_addrlen;
-    u_char   ifi_hdrlen;
-    u_char   ifi_recvquota;
-    u_char   ifi_xmitquota;
-    u_char   ifi_unused1;
-    u_int32_t ifi_mtu;
-    u_int32_t ifi_metric;
-    u_int32_t ifi_baudrate;
-    u_int32_t ifi_ipackets;
-    u_int32_t ifi_ierrors;
-    u_int32_t ifi_opackets;
-    u_int32_t ifi_oerrors;
-    u_int32_t ifi_collisions;
-    u_int32_t ifi_ibytes;
-    u_int32_t ifi_obytes;
+    uint8_t   ifi_type;
+    uint8_t   ifi_typelen;
+    uint8_t   ifi_physical;
+    uint8_t   ifi_addrlen;
+    uint8_t   ifi_hdrlen;
+    uint8_t   ifi_recvquota;
+    uint8_t   ifi_xmitquota;
+    uint8_t   ifi_unused1;
+    uint32_t  ifi_mtu;
+    uint32_t  ifi_metric;
+    uint32_t  ifi_baudrate;
+    uint32_t  ifi_ipackets;
+    uint32_t  ifi_ierrors;
+    uint32_t  ifi_opackets;
+    uint32_t  ifi_oerrors;
+    uint32_t  ifi_collisions;
+    uint32_t  ifi_ibytes;
+    uint32_t  ifi_obytes;
 };
 
 static uint64_t getNetworkDownloadBytes(void) {
@@ -83,7 +101,7 @@ static uint64_t getNetworkDownloadBytes(void) {
 static BOOL isWifiActive(void) {
     Class wifiClass = objc_getClass("SBWiFiManager");
     if (wifiClass && [wifiClass respondsToSelector:@selector(sharedInstance)]) {
-        id wifiMgr = [wifiClass sharedInstance];
+        SBWiFiManager *wifiMgr = [SBWiFiManager sharedInstance];
         if ([wifiMgr respondsToSelector:@selector(currentNetworkName)]) {
             NSString *name = [wifiMgr currentNetworkName];
             if (name && name.length > 0) return YES;
@@ -98,9 +116,9 @@ static BOOL isWifiActive(void) {
 static int getCellularSignalBars(void) {
     Class teleClass = objc_getClass("SBTelephonyManager");
     if (teleClass && [teleClass respondsToSelector:@selector(sharedTelephonyManager)]) {
-        id teleMgr = [teleClass sharedTelephonyManager];
+        SBTelephonyManager *teleMgr = [SBTelephonyManager sharedTelephonyManager];
         if ([teleMgr respondsToSelector:@selector(signalStrengthBars)]) {
-            return (int)[teleMgr signalStrengthBars];
+            return [teleMgr signalStrengthBars];
         }
     }
     return 4;
@@ -394,7 +412,7 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 
         Class lmClass = objc_getClass("SBLockScreenManager");
         if (lmClass && [lmClass respondsToSelector:@selector(sharedInstance)]) {
-            id mgr = [lmClass sharedInstance];
+            SBLockScreenManager *mgr = [SBLockScreenManager sharedInstance];
             if ([mgr respondsToSelector:@selector(lockUIFromSource:withOptions:)]) {
                 [mgr lockUIFromSource:1 withOptions:nil];
             }
