@@ -54,10 +54,19 @@ struct if_data_compact {
 // MARK: - Global Preferences
 static BOOL p_enabled = YES;
 static BOOL p_dragModeEnabled = NO;
+
+// Main Status Bar Position Preferences
 static CGFloat p_iconScale = 1.0;
 static CGFloat p_iconOpacity = 1.0;
 static CGFloat p_offsetX = 0.0;
 static CGFloat p_offsetY = 0.0;
+
+// Control Center Separated Position Preferences
+static BOOL p_ccEnabled = YES;
+static BOOL p_ccHideStockBattery = YES;
+static CGFloat p_ccOffsetX = 0.0;
+static CGFloat p_ccOffsetY = 0.0;
+static CGFloat p_ccIconScale = 1.0;
 static int p_deviceModel = 0; // 0 = Auto, 1 = Island, 2 = Notch, 3 = Classic
 static int p_batteryPercentMode = 0; // 0 = Ẩn, 1 = Ở tâm, 2 = Bên cạnh
 static int p_speedThreshold = 2; // 0 = Tắt, 1 = >50K, 2 = >100K, 3 = Luôn hiện
@@ -196,6 +205,32 @@ static void loadPrefs(void) {
     if (ref) { p_iconOpacity = [(__bridge id)ref floatValue]; CFRelease(ref); }
     else if (prefs && prefs[@"iconOpacity"]) p_iconOpacity = [prefs[@"iconOpacity"] floatValue];
     else p_iconOpacity = 1.0;
+
+    // Control Center separated preferences
+    b = CFPreferencesGetAppBooleanValue(CFSTR("ccEnabled"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_ccEnabled = (BOOL)b;
+    else if (prefs && prefs[@"ccEnabled"]) p_ccEnabled = [prefs[@"ccEnabled"] boolValue];
+    else p_ccEnabled = YES;
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("ccHideStockBattery"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_ccHideStockBattery = (BOOL)b;
+    else if (prefs && prefs[@"ccHideStockBattery"]) p_ccHideStockBattery = [prefs[@"ccHideStockBattery"] boolValue];
+    else p_ccHideStockBattery = YES;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("ccOffsetX"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_ccOffsetX = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"ccOffsetX"]) p_ccOffsetX = [prefs[@"ccOffsetX"] floatValue];
+    else p_ccOffsetX = 0.0;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("ccOffsetY"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_ccOffsetY = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"ccOffsetY"]) p_ccOffsetY = [prefs[@"ccOffsetY"] floatValue];
+    else p_ccOffsetY = 0.0;
+
+    ref = CFPreferencesCopyAppValue(CFSTR("ccIconScale"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_ccIconScale = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"ccIconScale"]) p_ccIconScale = [prefs[@"ccIconScale"] floatValue];
+    else p_ccIconScale = 1.0;
 
     idx = CFPreferencesGetAppIntegerValue(CFSTR("deviceModel"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
     if (keyExists) p_deviceModel = (int)idx;
@@ -407,6 +442,7 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 
 @class CompactStatusView;
 static __weak CompactStatusView *g_activeStatusView = nil;
+static __weak CompactStatusView *g_activeCCStatusView = nil;
 static __weak UIView *g_activeDockView = nil;
 
 // MARK: - CompactStatusView: Vector 3-in-1 Gauge View
@@ -420,6 +456,7 @@ static __weak UIView *g_activeDockView = nil;
 @property (nonatomic, strong) UILabel *centerLabel;
 @property (nonatomic, strong) UILabel *sidePercentLabel;
 
+@property (nonatomic, assign) BOOL isControlCenter;
 @property (nonatomic, assign) BOOL showRAM;
 @property (nonatomic, assign) BOOL isBreathing;
 @property (nonatomic, strong) NSTimer *timer;
@@ -481,10 +518,12 @@ static __weak UIView *g_activeDockView = nil;
 }
 
 - (void)applyPreferences {
-    self.transform = CGAffineTransformMakeScale(p_iconScale, p_iconScale);
+    CGFloat scale = self.isControlCenter ? p_ccIconScale : p_iconScale;
+    if (scale < 0.3) scale = 1.0;
+    self.transform = CGAffineTransformMakeScale(scale, scale);
     self.alpha = p_iconOpacity;
     if (p_dragModeEnabled) {
-        self.layer.borderColor = [UIColor colorWithRed:0.2 green:0.9 blue:0.4 alpha:1.0].CGColor;
+        self.layer.borderColor = self.isControlCenter ? [UIColor colorWithRed:1.0 green:0.8 blue:0.2 alpha:1.0].CGColor : [UIColor colorWithRed:0.2 green:0.9 blue:0.4 alpha:1.0].CGColor;
         self.layer.borderWidth = 1.5;
         self.layer.cornerRadius = 6.0;
         if (!self.dragPanGesture) {
@@ -517,14 +556,24 @@ static __weak UIView *g_activeDockView = nil;
 
     CGFloat curX = self.center.x - self.anchorCenter.x;
     CGFloat curY = self.center.y - self.anchorCenter.y;
-    p_offsetX = curX;
-    p_offsetY = curY;
+    if (self.isControlCenter) {
+        p_ccOffsetX = curX;
+        p_ccOffsetY = curY;
+    } else {
+        p_offsetX = curX;
+        p_offsetY = curY;
+    }
 
     [self updateDragHUDWithX:curX y:curY finished:(pan.state == UIGestureRecognizerStateEnded || pan.state == UIGestureRecognizerStateCancelled)];
 
     if (pan.state == UIGestureRecognizerStateEnded || pan.state == UIGestureRecognizerStateCancelled) {
-        savePreferenceNumber(@"offsetX", @(curX));
-        savePreferenceNumber(@"offsetY", @(curY));
+        if (self.isControlCenter) {
+            savePreferenceNumber(@"ccOffsetX", @(curX));
+            savePreferenceNumber(@"ccOffsetY", @(curY));
+        } else {
+            savePreferenceNumber(@"offsetX", @(curX));
+            savePreferenceNumber(@"offsetY", @(curY));
+        }
         triggerHaptic(2);
     }
 }
@@ -543,9 +592,9 @@ static __weak UIView *g_activeDockView = nil;
 
     UILabel *hud = (UILabel *)[keyWindow viewWithTag:998833];
     if (!hud) {
-        hud = [[UILabel alloc] initWithFrame:CGRectMake((keyWindow.bounds.size.width - 220) / 2.0, 52.0, 220.0, 32.0)];
+        hud = [[UILabel alloc] initWithFrame:CGRectMake((keyWindow.bounds.size.width - 240) / 2.0, 52.0, 240.0, 32.0)];
         hud.tag = 998833;
-        hud.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.9];
+        hud.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.92];
         hud.textColor = [UIColor colorWithRed:0.2 green:0.9 blue:0.5 alpha:1.0];
         hud.font = [UIFont systemFontOfSize:11.5 weight:UIFontWeightBold];
         hud.textAlignment = NSTextAlignmentCenter;
@@ -557,11 +606,12 @@ static __weak UIView *g_activeDockView = nil;
     }
     [keyWindow bringSubviewToFront:hud];
 
+    NSString *area = self.isControlCenter ? @"🎛️ Control Center" : @"📱 Thanh trạng thái";
     if (!finished) {
-        hud.text = [NSString stringWithFormat:@"📍 X: %+.0f  |  Y: %+.0f", x, y];
+        hud.text = [NSString stringWithFormat:@"%@: X: %+.0f | Y: %+.0f", area, x, y];
         hud.alpha = 1.0;
     } else {
-        hud.text = [NSString stringWithFormat:@"✅ Đã lưu (X: %+.0f, Y: %+.0f)", x, y];
+        hud.text = [NSString stringWithFormat:@"✅ %@ (X: %+.0f, Y: %+.0f)", area, x, y];
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [UIView animateWithDuration:0.3 animations:^{
                 hud.alpha = 0.0;
@@ -1779,6 +1829,22 @@ static inline BOOL shouldHideStatusBarStringView(UIView *self, NSString *text) {
 
 // MARK: - Hooks for SpringBoard Status Bar Items
 
+static inline BOOL isControlCenterView(UIView *view) {
+    UIView *v = view;
+    while (v) {
+        NSString *cn = NSStringFromClass([v class]);
+        if ([cn containsString:@"CCUI"] || [cn containsString:@"ControlCenter"]) {
+            return YES;
+        }
+        if ([v isKindOfClass:[UIWindow class]]) {
+            if ([cn containsString:@"ControlCenter"]) return YES;
+            break;
+        }
+        v = v.superview;
+    }
+    return NO;
+}
+
 static void (*orig_battery_didMoveToWindow)(UIView *, SEL) = NULL;
 static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
     if (orig_battery_didMoveToWindow) {
@@ -1786,10 +1852,17 @@ static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
     }
     if (!self.window || !p_enabled) return;
 
-    if (p_hideStockBattery) {
+    BOOL isCC = isControlCenterView(self);
+    BOOL hideStock = isCC ? p_ccHideStockBattery : p_hideStockBattery;
+    if (hideStock) {
         self.hidden = YES;
         self.alpha = 0.0;
+    } else {
+        self.hidden = NO;
+        self.alpha = 1.0;
     }
+
+    if (isCC && !p_ccEnabled) return;
 
     dispatch_async(dispatch_get_main_queue(), ^{
         UIView *parent = self.superview;
@@ -1818,11 +1891,21 @@ static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
                 [container addSubview:custom];
             }
 
-            g_activeStatusView = custom;
+            custom.isControlCenter = isCC;
+            if (isCC) {
+                g_activeCCStatusView = custom;
+            } else {
+                g_activeStatusView = custom;
+            }
+
             CGPoint centerInContainer = [self.superview convertPoint:self.center toView:container];
             custom.anchorCenter = centerInContainer;
+
+            CGFloat offX = isCC ? p_ccOffsetX : p_offsetX;
+            CGFloat offY = isCC ? p_ccOffsetY : p_offsetY;
+
             if (!p_dragModeEnabled) {
-                custom.center = CGPointMake(centerInContainer.x + p_offsetX, centerInContainer.y + p_offsetY);
+                custom.center = CGPointMake(centerInContainer.x + offX, centerInContainer.y + offY);
             }
             [container bringSubviewToFront:custom];
             [custom applyPreferences];
@@ -1846,10 +1929,28 @@ static void hooked_battery_layoutSubviews(UIView *self, SEL _cmd) {
         orig_battery_layoutSubviews(self, _cmd);
     }
     if (p_enabled) {
-        if (p_hideStockBattery) {
+        BOOL isCC = isControlCenterView(self);
+        BOOL hideStock = isCC ? p_ccHideStockBattery : p_hideStockBattery;
+        if (hideStock) {
             self.hidden = YES;
             self.alpha = 0.0;
+        } else {
+            self.hidden = NO;
+            self.alpha = 1.0;
         }
+
+        if (isCC && !p_ccEnabled) {
+            UIView *parent = self.superview;
+            if (parent) {
+                CompactStatusView *custom = (CompactStatusView *)[parent viewWithTag:998811];
+                if (custom) {
+                    custom.hidden = YES;
+                    custom.alpha = 0.0;
+                }
+            }
+            return;
+        }
+
         UIView *parent = self.superview;
         if (parent) {
             UIView *container = parent;
@@ -1868,11 +1969,21 @@ static void hooked_battery_layoutSubviews(UIView *self, SEL _cmd) {
                 custom = (CompactStatusView *)[parent viewWithTag:998811];
             }
             if (custom) {
-                g_activeStatusView = custom;
+                custom.isControlCenter = isCC;
+                if (isCC) {
+                    g_activeCCStatusView = custom;
+                } else {
+                    g_activeStatusView = custom;
+                }
+
                 CGPoint centerInContainer = [self.superview convertPoint:self.center toView:container];
                 custom.anchorCenter = centerInContainer;
+
+                CGFloat offX = isCC ? p_ccOffsetX : p_offsetX;
+                CGFloat offY = isCC ? p_ccOffsetY : p_offsetY;
+
                 if (!p_dragModeEnabled) {
-                    custom.center = CGPointMake(centerInContainer.x + p_offsetX, centerInContainer.y + p_offsetY);
+                    custom.center = CGPointMake(centerInContainer.x + offX, centerInContainer.y + offY);
                 }
             }
         }
@@ -2406,6 +2517,17 @@ static void handleReloadNotification(CFNotificationCenterRef center, void *obser
             [g_activeStatusView rebuildCellularDots];
             [g_activeStatusView applyPreferences];
             [g_activeStatusView updateStats];
+            if (!p_dragModeEnabled) {
+                g_activeStatusView.center = CGPointMake(g_activeStatusView.anchorCenter.x + p_offsetX, g_activeStatusView.anchorCenter.y + p_offsetY);
+            }
+        }
+        if (g_activeCCStatusView) {
+            [g_activeCCStatusView rebuildCellularDots];
+            [g_activeCCStatusView applyPreferences];
+            [g_activeCCStatusView updateStats];
+            if (!p_dragModeEnabled) {
+                g_activeCCStatusView.center = CGPointMake(g_activeCCStatusView.anchorCenter.x + p_ccOffsetX, g_activeCCStatusView.anchorCenter.y + p_ccOffsetY);
+            }
         }
         if (g_activeDockView) {
             applyVerticalDockLayout(g_activeDockView);

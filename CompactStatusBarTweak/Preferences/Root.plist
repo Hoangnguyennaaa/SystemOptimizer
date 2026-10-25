@@ -401,14 +401,50 @@
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
 
-        <!-- 4. Tinh chỉnh thủ công -->
+        <!-- 4A. Vị trí trên Thanh trạng thái chính (Status Bar) -->
         <dict>
             <key>cell</key>
             <string>PSGroupCell</string>
             <key>label</key>
-            <string>TINH CHỈNH THỦ CÔNG (TỪNG PIXEL)</string>
+            <string>VỊ TRÍ TRÊN THANH TRẠNG THÁI (STATUS BAR)</string>
             <key>footerText</key>
-            <string>Điều chỉnh độ to nhỏ (0.7x - 1.5x), độ mờ (0.2 - 1.0) và toạ độ X (-280 đến +100), Y (-40 đến +50).</string>
+            <string>Căn chỉnh vị trí và kích thước đồng hồ CompactStatusBar trên thanh trạng thái chính (Màn hình chính, Màn hình khoá, trong Ứng dụng). Toạ độ X (-280 đến +100), Y (-40 đến +50).</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>0.0</real>
+            <key>min</key>
+            <real>-280.0</real>
+            <key>max</key>
+            <real>100.0</real>
+            <key>showValue</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>offsetX</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>0.0</real>
+            <key>min</key>
+            <real>-40.0</real>
+            <key>max</key>
+            <real>50.0</real>
+            <key>showValue</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>offsetY</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
         <dict>
             <key>cell</key>
@@ -446,6 +482,44 @@
             <key>PostNotification</key>
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
+
+        <!-- 4B. Vị trí trong Trung tâm điều khiển (Control Center) -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>VỊ TRÍ TRONG TRUNG TÂM ĐIỀU KHIỂN (CONTROL CENTER)</string>
+            <key>footerText</key>
+            <string>Căn chỉnh vị trí và kích thước hoàn toàn độc lập khi vuốt mở Control Center. Khi bật "Kéo thả trực tiếp", bạn có thể vuốt mở Control Center rồi kéo biểu tượng để lưu riêng toạ độ này.</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>ccEnabled</string>
+            <key>label</key>
+            <string>Hiện trên Control Center</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>ccHideStockBattery</string>
+            <key>label</key>
+            <string>Ẩn pin gốc trong Control Center</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
         <dict>
             <key>cell</key>
             <string>PSSliderCell</string>
@@ -460,7 +534,7 @@
             <key>defaults</key>
             <string>com.hoangnguyen.compactstatusbar</string>
             <key>key</key>
-            <string>offsetX</string>
+            <string>ccOffsetX</string>
             <key>PostNotification</key>
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
@@ -470,15 +544,33 @@
             <key>default</key>
             <real>0.0</real>
             <key>min</key>
-            <real>-40.0</real>
+            <real>-50.0</real>
             <key>max</key>
-            <real>50.0</real>
+            <real>60.0</real>
             <key>showValue</key>
             <true/>
             <key>defaults</key>
             <string>com.hoangnguyen.compactstatusbar</string>
             <key>key</key>
-            <string>offsetY</string>
+            <string>ccOffsetY</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>1.0</real>
+            <key>min</key>
+            <real>0.7</real>
+            <key>max</key>
+            <real>1.5</real>
+            <key>showValue</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>ccIconScale</string>
             <key>PostNotification</key>
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
