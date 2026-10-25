@@ -49,28 +49,14 @@
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
 
-        <!-- 2. Thanh Tác Vụ Dọc (Vertical Dock) -->
+        <!-- 2. Bố Cục Lưới Màn Hình Chính (Grid Layout) -->
         <dict>
             <key>cell</key>
             <string>PSGroupCell</string>
             <key>label</key>
-            <string>THANH TÁC VỤ DỌC (VERTICAL DOCK)</string>
+            <string>BỐ CỤC LƯỚI MÀN HÌNH CHÍNH</string>
             <key>footerText</key>
-            <string>Chuyển thanh Dock ở dưới thành thanh tác vụ dọc căn giữa ở cạnh phải hoặc trái. Hỗ trợ từ 1 đến 6 icon, tự động co giãn kích thước viên thuốc và dời lưới icon tránh bị đè.</string>
-        </dict>
-        <dict>
-            <key>cell</key>
-            <string>PSSwitchCell</string>
-            <key>default</key>
-            <false/>
-            <key>defaults</key>
-            <string>com.hoangnguyen.compactstatusbar</string>
-            <key>key</key>
-            <string>verticalDockEnabled</string>
-            <key>label</key>
-            <string>Bật Thanh tác vụ dọc</string>
-            <key>PostNotification</key>
-            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+            <string>Lưới 3x7 tinh gọn (3 cột x 7 hàng) tạo không gian thoáng đãng, cân đối hoàn hảo khi dùng Dock dọc hoặc chế độ Ẩn Dock. Các biểu tượng tự động giãn đều không bị đè hay tràn viền.</string>
         </dict>
         <dict>
             <key>cell</key>
@@ -80,33 +66,17 @@
             <key>defaults</key>
             <string>com.hoangnguyen.compactstatusbar</string>
             <key>key</key>
-            <string>dockPosition</string>
+            <string>gridMode</string>
             <key>validTitles</key>
             <array>
-                <string>Dưới (Gốc)</string>
-                <string>Dọc Bên Phải</string>
-                <string>Dọc Bên Trái</string>
+                <string>Lưới 3x7 Tinh Gọn</string>
+                <string>Lưới 4x6 Mặc Định</string>
             </array>
             <key>validValues</key>
             <array>
-                <integer>0</integer>
                 <integer>1</integer>
-                <integer>2</integer>
+                <integer>0</integer>
             </array>
-            <key>PostNotification</key>
-            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
-        </dict>
-        <dict>
-            <key>cell</key>
-            <string>PSSwitchCell</string>
-            <key>default</key>
-            <true/>
-            <key>defaults</key>
-            <string>com.hoangnguyen.compactstatusbar</string>
-            <key>key</key>
-            <string>adjustIconGridMargin</string>
-            <key>label</key>
-            <string>Tự co gọn icon màn hình chính</string>
             <key>PostNotification</key>
             <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
         </dict>
@@ -115,9 +85,72 @@
             <key>cell</key>
             <string>PSGroupCell</string>
             <key>label</key>
-            <string>VỊ TRÍ DỌC TRÊN MÀN HÌNH (Y: -200 ĐẾN +200)</string>
+            <string>ĐỘ TO ICON MÀN HÌNH CHÍNH (0.75 - 1.15)</string>
             <key>footerText</key>
-            <string>Bạn có thể kéo trực tiếp thanh Dock trên mô phỏng ở trên hoặc dùng thanh trượt này để căn chỉnh vị trí dọc.</string>
+            <string>Tỉ lệ phóng to/thu nhỏ icon màn hình chính (mặc định 0.92 giúp lưới 3x7 thanh thoát và cân đối nhất).</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>0.92</real>
+            <key>min</key>
+            <real>0.75</real>
+            <key>max</key>
+            <real>1.15</real>
+            <key>showValue</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>homeIconScale</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+
+        <!-- 3. Thanh Tác Vụ Dock (Floating hoặc Ẩn) -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>CHẾ ĐỘ THANH TÁC VỤ DOCK</string>
+            <key>footerText</key>
+            <string>Chọn chế độ Dock: Kết hợp Floating Dock dọc (Bên Phải hoặc Bên Trái) dạng viên thuốc capsule, hoặc Ẩn Dock hoàn toàn để hiển thị toàn màn hình 3x7 cực kỳ tối giản.</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSegmentCell</string>
+            <key>default</key>
+            <integer>0</integer>
+            <key>defaults</key>
+            <string>com.hoangnguyen.compactstatusbar</string>
+            <key>key</key>
+            <string>dockMode</string>
+            <key>validTitles</key>
+            <array>
+                <string>Dọc Phải</string>
+                <string>Dọc Trái</string>
+                <string>Ẩn Dock</string>
+                <string>Dock Đáy</string>
+            </array>
+            <key>validValues</key>
+            <array>
+                <integer>0</integer>
+                <integer>1</integer>
+                <integer>2</integer>
+                <integer>3</integer>
+            </array>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+        </dict>
+
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>VỊ TRÍ DỌC TRÊN MÀN HÌNH (Y: -180 ĐẾN +180)</string>
+            <key>footerText</key>
+            <string>Điều chỉnh vị trí dọc của viên thuốc Dock (0 = căn chính giữa chiều dọc màn hình).</string>
         </dict>
         <dict>
             <key>cell</key>
@@ -125,9 +158,9 @@
             <key>default</key>
             <real>0.0</real>
             <key>min</key>
-            <real>-200.0</real>
+            <real>-180.0</real>
             <key>max</key>
-            <real>200.0</real>
+            <real>180.0</real>
             <key>showValue</key>
             <true/>
             <key>defaults</key>
@@ -142,15 +175,15 @@
             <key>cell</key>
             <string>PSGroupCell</string>
             <key>label</key>
-            <string>ĐỘ TO ICON TRONG DOCK (38PT - 64PT)</string>
+            <string>ĐỘ TO BIỂU TƯỢNG TRONG DOCK (38PT - 64PT)</string>
             <key>footerText</key>
-            <string>Điều chỉnh độ to của icon trong Dock. Kích thước viên thuốc capsule sẽ tự động ôm vừa vặn theo icon.</string>
+            <string>Điều chỉnh độ to của biểu tượng trong Dock. Kích thước viên thuốc capsule sẽ tự động ôm khít vừa vặn theo icon.</string>
         </dict>
         <dict>
             <key>cell</key>
             <string>PSSliderCell</string>
             <key>default</key>
-            <real>54.0</real>
+            <real>52.0</real>
             <key>min</key>
             <real>38.0</real>
             <key>max</key>
@@ -175,7 +208,7 @@
             <key>cell</key>
             <string>PSSliderCell</string>
             <key>default</key>
-            <real>10.0</real>
+            <real>8.0</real>
             <key>min</key>
             <real>4.0</real>
             <key>max</key>

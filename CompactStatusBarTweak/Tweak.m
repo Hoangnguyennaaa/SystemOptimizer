@@ -66,13 +66,18 @@ static BOOL p_breathingGlow = YES;
 static BOOL p_showRAM = NO;
 static BOOL p_dotCount5 = NO;
 
-// Vertical Dock Preferences
-static BOOL p_verticalDockEnabled = NO;
+// Grid & Dock Mode Preferences
+static int p_gridMode = 1; // 0 = 4x6, 1 = 3x7 Tinh gọn (Default)
+static int p_dockMode = 0; // 0 = Vertical Right, 1 = Vertical Left, 2 = No Dock (Hidden), 3 = Bottom Dock
+static CGFloat p_homeIconScale = 0.92;
+
+// Vertical Dock Legacy & Geometry Preferences
+static BOOL p_verticalDockEnabled = YES;
 static int p_dockPosition = 1; // 0 = Bottom (Default), 1 = Vertical Right, 2 = Vertical Left
 static BOOL p_adjustIconGridMargin = YES;
 static CGFloat p_dockOffsetY = 0.0;
-static CGFloat p_dockIconSize = 54.0;
-static CGFloat p_dockMarginX = 10.0;
+static CGFloat p_dockIconSize = 52.0;
+static CGFloat p_dockMarginX = 8.0;
 
 // Stock Status Bar Item Hiding
 static BOOL p_hideStockBattery = YES;
@@ -112,22 +117,52 @@ static void loadPrefs(void) {
     else if (prefs && prefs[@"dragModeEnabled"]) p_dragModeEnabled = [prefs[@"dragModeEnabled"] boolValue];
     else p_dragModeEnabled = NO;
 
-    b = CFPreferencesGetAppBooleanValue(CFSTR("verticalDockEnabled"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
-    if (keyExists) p_verticalDockEnabled = (BOOL)b;
-    else if (prefs && prefs[@"verticalDockEnabled"]) p_verticalDockEnabled = [prefs[@"verticalDockEnabled"] boolValue];
-    else p_verticalDockEnabled = NO;
+    // 1. Grid Mode
+    CFIndex idx = CFPreferencesGetAppIntegerValue(CFSTR("gridMode"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_gridMode = (int)idx;
+    else if (prefs && prefs[@"gridMode"]) p_gridMode = [prefs[@"gridMode"] intValue];
+    else p_gridMode = 1;
+
+    // 2. Dock Mode: 0 = Dọc Phải, 1 = Dọc Trái, 2 = Ẩn Dock, 3 = Dock Đáy
+    idx = CFPreferencesGetAppIntegerValue(CFSTR("dockMode"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) {
+        p_dockMode = (int)idx;
+    } else if (prefs && prefs[@"dockMode"]) {
+        p_dockMode = [prefs[@"dockMode"] intValue];
+    } else {
+        b = CFPreferencesGetAppBooleanValue(CFSTR("verticalDockEnabled"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+        BOOL vDock = keyExists ? (BOOL)b : (prefs && prefs[@"verticalDockEnabled"] ? [prefs[@"verticalDockEnabled"] boolValue] : YES);
+        if (!vDock) {
+            p_dockMode = 3;
+        } else {
+            CFIndex pos = CFPreferencesGetAppIntegerValue(CFSTR("dockPosition"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+            int p = keyExists ? (int)pos : (prefs && prefs[@"dockPosition"] ? [prefs[@"dockPosition"] intValue] : 1);
+            p_dockMode = (p == 2) ? 1 : 0;
+        }
+    }
+
+    if (p_dockMode == 0) {
+        p_verticalDockEnabled = YES;
+        p_dockPosition = 1;
+    } else if (p_dockMode == 1) {
+        p_verticalDockEnabled = YES;
+        p_dockPosition = 2;
+    } else {
+        p_verticalDockEnabled = NO;
+        p_dockPosition = 0;
+    }
+
+    CFPropertyListRef ref = CFPreferencesCopyAppValue(CFSTR("homeIconScale"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    if (ref) { p_homeIconScale = [(__bridge id)ref floatValue]; CFRelease(ref); }
+    else if (prefs && prefs[@"homeIconScale"]) p_homeIconScale = [prefs[@"homeIconScale"] floatValue];
+    else p_homeIconScale = 0.92;
 
     b = CFPreferencesGetAppBooleanValue(CFSTR("adjustIconGridMargin"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
     if (keyExists) p_adjustIconGridMargin = (BOOL)b;
     else if (prefs && prefs[@"adjustIconGridMargin"]) p_adjustIconGridMargin = [prefs[@"adjustIconGridMargin"] boolValue];
     else p_adjustIconGridMargin = YES;
 
-    CFIndex idx = CFPreferencesGetAppIntegerValue(CFSTR("dockPosition"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
-    if (keyExists) p_dockPosition = (int)idx;
-    else if (prefs && prefs[@"dockPosition"]) p_dockPosition = [prefs[@"dockPosition"] intValue];
-    else p_dockPosition = 1;
-
-    CFPropertyListRef ref = CFPreferencesCopyAppValue(CFSTR("dockOffsetY"), CFSTR("com.hoangnguyen.compactstatusbar"));
+    ref = CFPreferencesCopyAppValue(CFSTR("dockOffsetY"), CFSTR("com.hoangnguyen.compactstatusbar"));
     if (ref) { p_dockOffsetY = [(__bridge id)ref floatValue]; CFRelease(ref); }
     else if (prefs && prefs[@"dockOffsetY"]) p_dockOffsetY = [prefs[@"dockOffsetY"] floatValue];
     else p_dockOffsetY = 0.0;
@@ -135,12 +170,12 @@ static void loadPrefs(void) {
     ref = CFPreferencesCopyAppValue(CFSTR("dockIconSize"), CFSTR("com.hoangnguyen.compactstatusbar"));
     if (ref) { p_dockIconSize = [(__bridge id)ref floatValue]; CFRelease(ref); }
     else if (prefs && prefs[@"dockIconSize"]) p_dockIconSize = [prefs[@"dockIconSize"] floatValue];
-    else p_dockIconSize = 54.0;
+    else p_dockIconSize = 52.0;
 
     ref = CFPreferencesCopyAppValue(CFSTR("dockMarginX"), CFSTR("com.hoangnguyen.compactstatusbar"));
     if (ref) { p_dockMarginX = [(__bridge id)ref floatValue]; CFRelease(ref); }
     else if (prefs && prefs[@"dockMarginX"]) p_dockMarginX = [prefs[@"dockMarginX"] floatValue];
-    else p_dockMarginX = 10.0;
+    else p_dockMarginX = 8.0;
 
     ref = CFPreferencesCopyAppValue(CFSTR("offsetX"), CFSTR("com.hoangnguyen.compactstatusbar"));
     if (ref) { p_offsetX = [(__bridge id)ref floatValue]; CFRelease(ref); }
@@ -1547,8 +1582,10 @@ static void handleDockPreviewReloadNotification(CFNotificationCenterRef center, 
         p_dockOffsetY += 50.0;
         if (p_dockOffsetY > 200.0) p_dockOffsetY = 200.0;
     } else if (btn.tag == 204) {
-        p_dockPosition = (p_dockPosition == 1) ? 2 : 1;
-        savePreferenceNumber(@"dockPosition", @(p_dockPosition));
+        if (p_dockMode == 0) p_dockMode = 1;
+        else if (p_dockMode == 1) p_dockMode = 2;
+        else p_dockMode = 0;
+        savePreferenceNumber(@"dockMode", @(p_dockMode));
     }
     savePreferenceNumber(@"dockOffsetY", @(p_dockOffsetY));
     triggerHaptic(1);
@@ -1574,30 +1611,33 @@ static void handleDockPreviewReloadNotification(CFNotificationCenterRef center, 
     _mockPhoneView.frame = CGRectMake(16, 13, phoneW, phoneH);
     _miniNotch.frame = CGRectMake((phoneW - 36) / 2.0, 5, 36, 7);
 
-    // Layout dummy grid dots:
-    CGFloat gridStartX = (p_dockPosition == 2) ? 38.0 : 8.0;
-    CGFloat gridSpacingX = (phoneW - 46.0 - 8.0) / 3.0;
+    // Layout dummy grid dots (3 or 4 columns):
+    int cols = (p_gridMode == 1) ? 3 : 4;
+    CGFloat gridStartX = (p_dockMode == 1) ? 36.0 : ((p_dockMode == 2) ? 14.0 : 8.0);
+    CGFloat availW = (p_dockMode == 2) ? (phoneW - 28.0) : (phoneW - 44.0 - 8.0);
+    CGFloat gridSpacingX = (cols > 1) ? (availW / (cols - 1)) : 0;
     CGFloat gridStartY = 24.0;
     CGFloat gridSpacingY = 22.0;
 
     for (int i = 0; i < (int)_miniGridDots.count; i++) {
-        int r = i / 4;
-        int c = i % 4;
+        int r = i / cols;
+        int c = i % cols;
         UIView *dot = _miniGridDots[i];
-        dot.frame = CGRectMake(gridStartX + (c * gridSpacingX), gridStartY + (r * gridSpacingY), 12, 12);
+        dot.frame = CGRectMake(gridStartX + (c * gridSpacingX), gridStartY + (r * gridSpacingY), 10, 10);
     }
 
     // Layout mini dock capsule:
     CGFloat scale = phoneH / 844.0;
-    CGFloat realIconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 54.0;
-    CGFloat miniDockW = (realIconSize + 20.0) * scale;
+    CGFloat realIconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 52.0;
+    CGFloat miniDockW = (realIconSize + 18.0) * scale;
     if (miniDockW < 18.0) miniDockW = 18.0;
     CGFloat miniDockH = 286.0 * scale; // ~76pt
-    CGFloat miniMarginX = (p_dockPosition == 2) ? 6.0 : (phoneW - miniDockW - 6.0);
+    CGFloat miniMarginX = (p_dockMode == 1) ? 6.0 : (phoneW - miniDockW - 6.0);
     CGFloat miniDockY = ((phoneH - miniDockH) / 2.0) + (p_dockOffsetY * scale);
     if (miniDockY < 16.0) miniDockY = 16.0;
     if (miniDockY + miniDockH > phoneH - 12.0) miniDockY = phoneH - miniDockH - 12.0;
 
+    _miniDock.hidden = (p_dockMode == 2);
     _miniDock.frame = CGRectMake(miniMarginX, miniDockY, miniDockW, miniDockH);
     _miniDock.layer.cornerRadius = miniDockW / 2.0;
 
@@ -1617,7 +1657,7 @@ static void handleDockPreviewReloadNotification(CFNotificationCenterRef center, 
     CGFloat rightW = w - rightX - 16.0;
     _titleLabel.frame = CGRectMake(rightX, 13, rightW, 18);
 
-    NSString *posStr = (p_dockPosition == 2) ? @"Bên Trái" : (p_dockPosition == 1 ? @"Bên Phải" : @"Dưới Gốc");
+    NSString *posStr = (p_dockMode == 2) ? @"Ẩn Dock" : (p_dockMode == 1 ? @"Dọc Trái" : (p_dockMode == 0 ? @"Dọc Phải" : @"Dock Đáy"));
     _dockCoordLabel.text = [NSString stringWithFormat:@"📍 Y: %+.0f pt\n📐 Icon: %.0f pt\n📲 Vị trí: %@", p_dockOffsetY, realIconSize, posStr];
     _dockCoordLabel.frame = CGRectMake(rightX, 33, rightW, 46);
 
@@ -1933,11 +1973,23 @@ static void getIconViewsRecursively(UIView *view, NSMutableArray<UIView *> *resu
     }
 }
 
+static inline BOOL isDockListView(UIView *view) {
+    if (!view) return NO;
+    NSString *cls = NSStringFromClass([view class]);
+    if ([cls containsString:@"Dock"]) return YES;
+    UIView *p = view.superview;
+    while (p && ![p isKindOfClass:[UIWindow class]]) {
+        if ([NSStringFromClass([p class]) containsString:@"Dock"]) return YES;
+        p = p.superview;
+    }
+    return NO;
+}
+
 static inline void getDockGeometry(NSUInteger iconCount, CGFloat *outW, CGFloat *outH, CGFloat *outIconSize, CGFloat *outSpacing, CGFloat *outPadY) {
-    CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 54.0;
+    CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 52.0;
     CGFloat padY = 16.0;
-    CGFloat spacing = 14.0;
-    CGFloat dockW = iconSize + 20.0;
+    CGFloat spacing = 12.0;
+    CGFloat dockW = iconSize + 18.0;
     NSUInteger count = (iconCount > 0) ? iconCount : 4;
     CGFloat dockH = (padY * 2.0) + (count * iconSize) + ((count - 1) * spacing);
     CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
@@ -1954,9 +2006,23 @@ static inline void getDockGeometry(NSUInteger iconCount, CGFloat *outW, CGFloat 
 }
 
 static void applyVerticalDockLayout(UIView *self) {
-    BOOL isVertical = p_enabled && (p_verticalDockEnabled || p_dockPosition != 0);
+    if (!p_enabled) return;
 
-    if (!isVertical) {
+    // Mode 2: Ẩn Dock hoàn toàn (No Dock mode)
+    if (p_dockMode == 2) {
+        self.hidden = YES;
+        self.alpha = 0.0;
+        self.userInteractionEnabled = NO;
+        UIView *glass = [self viewWithTag:998844];
+        if (glass) glass.hidden = YES;
+        return;
+    }
+
+    // Mode 3: Dock Đáy cổ điển
+    if (p_dockMode == 3) {
+        self.hidden = NO;
+        self.alpha = 1.0;
+        self.userInteractionEnabled = YES;
         UIView *glass = [self viewWithTag:998844];
         if (glass) glass.hidden = YES;
         for (UIView *sub in self.subviews) {
@@ -1969,6 +2035,7 @@ static void applyVerticalDockLayout(UIView *self) {
         return;
     }
 
+    // Mode 0 (Right) or Mode 1 (Left): Vertical Floating Dock
     CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
     CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
 
@@ -1978,10 +2045,13 @@ static void applyVerticalDockLayout(UIView *self) {
     CGFloat dockW, dockH, iconSize, spacing, padY;
     getDockGeometry(icons.count, &dockW, &dockH, &iconSize, &spacing, &padY);
 
-    CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
-    CGFloat dockX = (p_dockPosition == 2) ? marginX : (screenW - dockW - marginX);
+    CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 8.0;
+    CGFloat dockX = (p_dockMode == 1) ? marginX : (screenW - dockW - marginX);
     CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
 
+    self.hidden = NO;
+    self.alpha = 1.0;
+    self.userInteractionEnabled = YES;
     self.layer.zPosition = 999.0;
     self.clipsToBounds = NO;
 
@@ -2021,14 +2091,33 @@ static void applyVerticalDockLayout(UIView *self) {
             NSString *sName = NSStringFromClass([sub class]);
             if ([sName containsString:@"Background"] ||
                 [sName containsString:@"Material"] ||
-                [sName containsString:@"Platter"] ||
                 [sName containsString:@"Divider"] ||
                 sub.frame.size.width <= 3.0) {
                 sub.hidden = YES;
                 sub.alpha = 0.0;
-            } else if ([sName containsString:@"ListView"]) {
-                sub.frame = CGRectMake(0, 0, dockW, dockH);
+            } else if ([sName containsString:@"Platter"]) {
+                // DO NOT HIDE PLATTER! It holds _userIconListView
+                sub.hidden = NO;
+                sub.alpha = 1.0;
+                sub.backgroundColor = [UIColor clearColor];
                 sub.clipsToBounds = NO;
+                sub.frame = CGRectMake(0, 0, dockW, dockH);
+                for (UIView *pSub in sub.subviews) {
+                    NSString *pName = NSStringFromClass([pSub class]);
+                    if ([pName containsString:@"Material"] || [pName containsString:@"Background"] || [pName containsString:@"Shadow"]) {
+                        pSub.hidden = YES;
+                        pSub.alpha = 0.0;
+                    } else {
+                        pSub.hidden = NO;
+                        pSub.alpha = 1.0;
+                        pSub.clipsToBounds = NO;
+                    }
+                }
+            } else if ([sName containsString:@"ListView"]) {
+                sub.hidden = NO;
+                sub.alpha = 1.0;
+                sub.clipsToBounds = NO;
+                sub.frame = CGRectMake(0, 0, dockW, dockH);
             }
         }
     }
@@ -2044,6 +2133,10 @@ static void applyVerticalDockLayout(UIView *self) {
 
         for (NSUInteger i = 0; i < icons.count; i++) {
             UIView *icon = icons[i];
+            icon.hidden = NO;
+            icon.alpha = 1.0;
+            icon.transform = CGAffineTransformIdentity;
+
             CGFloat targetX = (dockW - iconSize) / 2.0;
             CGFloat targetY = padY + i * (iconSize + spacing);
 
@@ -2066,15 +2159,21 @@ static void applyVerticalDockLayout(UIView *self) {
 
 static void (*orig_dock_setFrame)(UIView *, SEL, CGRect) = NULL;
 static void hooked_dock_setFrame(UIView *self, SEL _cmd, CGRect frame) {
-    if (p_enabled && (p_verticalDockEnabled || p_dockPosition != 0)) {
-        CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
-        CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
-        CGFloat dockW, dockH;
-        getDockGeometry(4, &dockW, &dockH, NULL, NULL, NULL);
-        CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
-        CGFloat dockX = (p_dockPosition == 2) ? marginX : (screenW - dockW - marginX);
-        CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
-        frame = CGRectMake(dockX, dockY, dockW, dockH);
+    if (p_enabled) {
+        if (p_dockMode == 2) {
+            frame = CGRectZero;
+            self.hidden = YES;
+            self.alpha = 0.0;
+        } else if (p_dockMode == 0 || p_dockMode == 1) {
+            CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
+            CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
+            CGFloat dockW, dockH;
+            getDockGeometry(4, &dockW, &dockH, NULL, NULL, NULL);
+            CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 8.0;
+            CGFloat dockX = (p_dockMode == 1) ? marginX : (screenW - dockW - marginX);
+            CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
+            frame = CGRectMake(dockX, dockY, dockW, dockH);
+        }
     }
     if (orig_dock_setFrame) {
         orig_dock_setFrame(self, _cmd, frame);
@@ -2097,15 +2196,21 @@ static void hooked_dock_layoutSubviews(UIView *self, SEL _cmd) {
 
 static void (*orig_floatingdock_setFrame)(UIView *, SEL, CGRect) = NULL;
 static void hooked_floatingdock_setFrame(UIView *self, SEL _cmd, CGRect frame) {
-    if (p_enabled && (p_verticalDockEnabled || p_dockPosition != 0)) {
-        CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
-        CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
-        CGFloat dockW, dockH;
-        getDockGeometry(4, &dockW, &dockH, NULL, NULL, NULL);
-        CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
-        CGFloat dockX = (p_dockPosition == 2) ? marginX : (screenW - dockW - marginX);
-        CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
-        frame = CGRectMake(dockX, dockY, dockW, dockH);
+    if (p_enabled) {
+        if (p_dockMode == 2) {
+            frame = CGRectZero;
+            self.hidden = YES;
+            self.alpha = 0.0;
+        } else if (p_dockMode == 0 || p_dockMode == 1) {
+            CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
+            CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
+            CGFloat dockW, dockH;
+            getDockGeometry(4, &dockW, &dockH, NULL, NULL, NULL);
+            CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 8.0;
+            CGFloat dockX = (p_dockMode == 1) ? marginX : (screenW - dockW - marginX);
+            CGFloat dockY = (screenH - dockH) / 2.0 + p_dockOffsetY;
+            frame = CGRectMake(dockX, dockY, dockW, dockH);
+        }
     }
     if (orig_floatingdock_setFrame) {
         orig_floatingdock_setFrame(self, _cmd, frame);
@@ -2126,6 +2231,118 @@ static void hooked_floatingdock_layoutSubviews(UIView *self, SEL _cmd) {
     g_inFloatingDockLayout = NO;
 }
 
+// MARK: - SBIconListGridLayoutConfiguration Hooks (Native 3x7 Grid & Layout Insets)
+static NSUInteger (*orig_config_numberOfPortraitColumns)(id, SEL) = NULL;
+static NSUInteger hooked_config_numberOfPortraitColumns(id self, SEL _cmd) {
+    NSUInteger orig = orig_config_numberOfPortraitColumns ? orig_config_numberOfPortraitColumns(self, _cmd) : 4;
+    if (!p_enabled || p_gridMode == 0) return orig;
+
+    if (orig_config_numberOfPortraitRows) {
+        NSUInteger rows = orig_config_numberOfPortraitRows(self, @selector(numberOfPortraitRows));
+        if (rows <= 1) return orig; // Dock
+    }
+    return 3;
+}
+
+static NSUInteger (*orig_config_numberOfPortraitRows)(id, SEL) = NULL;
+static NSUInteger hooked_config_numberOfPortraitRows(id self, SEL _cmd) {
+    NSUInteger orig = orig_config_numberOfPortraitRows ? orig_config_numberOfPortraitRows(self, _cmd) : 6;
+    if (!p_enabled || p_gridMode == 0) return orig;
+    if (orig <= 1) return orig; // Dock has 1 row
+    return 7;
+}
+
+static UIEdgeInsets (*orig_config_portraitLayoutInsets)(id, SEL) = NULL;
+static UIEdgeInsets hooked_config_portraitLayoutInsets(id self, SEL _cmd) {
+    UIEdgeInsets orig = orig_config_portraitLayoutInsets ? orig_config_portraitLayoutInsets(self, _cmd) : UIEdgeInsetsZero;
+    if (!p_enabled) return orig;
+
+    if (orig_config_numberOfPortraitRows) {
+        NSUInteger rows = orig_config_numberOfPortraitRows(self, @selector(numberOfPortraitRows));
+        if (rows <= 1) return orig; // Dock
+    }
+
+    UIEdgeInsets insets = orig;
+    if (p_dockMode == 0) { // Vertical Right
+        CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 52.0;
+        CGFloat dockW = iconSize + 18.0;
+        CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 8.0;
+        CGFloat reserve = dockW + marginX + 8.0;
+        insets.right += reserve;
+        if (insets.left < 16.0) insets.left = 16.0;
+    } else if (p_dockMode == 1) { // Vertical Left
+        CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 52.0;
+        CGFloat dockW = iconSize + 18.0;
+        CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 8.0;
+        CGFloat reserve = dockW + marginX + 8.0;
+        insets.left += reserve;
+        if (insets.right < 16.0) insets.right = 16.0;
+    } else if (p_dockMode == 2) { // No Dock
+        CGFloat balance = MAX(insets.left, insets.right);
+        if (balance < 22.0) balance = 22.0;
+        insets.left = balance;
+        insets.right = balance;
+    }
+    return insets;
+}
+
+// MARK: - SBIconListView Hooks (Fallback Column/Row Counts & Scaling)
+static NSUInteger (*orig_iconlist_columns)(id, SEL) = NULL;
+static NSUInteger hooked_iconlist_columns(id self, SEL _cmd) {
+    NSUInteger orig = orig_iconlist_columns ? orig_iconlist_columns(self, _cmd) : 4;
+    if (!p_enabled || p_gridMode == 0) return orig;
+    if (isDockListView((UIView *)self)) return orig;
+    return 3;
+}
+
+static NSUInteger (*orig_iconlist_rows)(id, SEL) = NULL;
+static NSUInteger hooked_iconlist_rows(id self, SEL _cmd) {
+    NSUInteger orig = orig_iconlist_rows ? orig_iconlist_rows(self, _cmd) : 6;
+    if (!p_enabled || p_gridMode == 0) return orig;
+    if (isDockListView((UIView *)self)) return orig;
+    return 7;
+}
+
+static UIEdgeInsets (*orig_iconlist_layoutInsets)(id, SEL) = NULL;
+static UIEdgeInsets hooked_iconlist_layoutInsets(id self, SEL _cmd) {
+    UIEdgeInsets orig = orig_iconlist_layoutInsets ? orig_iconlist_layoutInsets(self, _cmd) : UIEdgeInsetsZero;
+    if (!p_enabled || isDockListView((UIView *)self)) return orig;
+
+    if (!orig_config_portraitLayoutInsets) {
+        UIEdgeInsets insets = orig;
+        if (p_dockMode == 0) {
+            CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 52.0;
+            CGFloat dockW = iconSize + 18.0;
+            CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 8.0;
+            insets.right += (dockW + marginX + 8.0);
+            if (insets.left < 16.0) insets.left = 16.0;
+            return insets;
+        } else if (p_dockMode == 1) {
+            CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 52.0;
+            CGFloat dockW = iconSize + 18.0;
+            CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 8.0;
+            insets.left += (dockW + marginX + 8.0);
+            if (insets.right < 16.0) insets.right = 16.0;
+            return insets;
+        } else if (p_dockMode == 2) {
+            CGFloat balance = MAX(insets.left, insets.right);
+            if (balance < 22.0) balance = 22.0;
+            insets.left = balance;
+            insets.right = balance;
+            return insets;
+        }
+    }
+    return orig;
+}
+
+static NSUInteger (*orig_listmodel_maxNumberOfIcons)(id, SEL) = NULL;
+static NSUInteger hooked_listmodel_maxNumberOfIcons(id self, SEL _cmd) {
+    NSUInteger orig = orig_listmodel_maxNumberOfIcons ? orig_listmodel_maxNumberOfIcons(self, _cmd) : 24;
+    if (!p_enabled || p_gridMode == 0) return orig;
+    if (orig <= 6) return orig; // Dock list model
+    return 21; // 3 x 7 = 21 icons per page
+}
+
 static BOOL g_inIconListLayout = NO;
 static void (*orig_iconlist_layoutSubviews)(UIView *, SEL) = NULL;
 static void hooked_iconlist_layoutSubviews(UIView *self, SEL _cmd) {
@@ -2134,24 +2351,10 @@ static void hooked_iconlist_layoutSubviews(UIView *self, SEL _cmd) {
     if (g_inIconListLayout) return;
     g_inIconListLayout = YES;
 
-    BOOL isVertical = (p_verticalDockEnabled || p_dockPosition != 0);
-
-    BOOL isDockList = NO;
-    if ([NSStringFromClass([self class]) containsString:@"Dock"]) {
-        isDockList = YES;
-    } else {
-        UIView *p = self.superview;
-        while (p && ![p isKindOfClass:[UIWindow class]]) {
-            if ([NSStringFromClass([p class]) containsString:@"Dock"]) {
-                isDockList = YES;
-                break;
-            }
-            p = p.superview;
-        }
-    }
+    BOOL isDockList = isDockListView(self);
 
     if (isDockList) {
-        if (isVertical) {
+        if (p_dockMode == 0 || p_dockMode == 1) {
             UIView *dock = self;
             while (dock && ![dock isKindOfClass:objc_getClass("SBDockView")] &&
                    ![dock isKindOfClass:objc_getClass("SBFloatingDockView")] &&
@@ -2166,16 +2369,23 @@ static void hooked_iconlist_layoutSubviews(UIView *self, SEL _cmd) {
         return;
     }
 
-    // Home Screen Icon List View: Shift grid away from vertical dock
-    if (isVertical && p_adjustIconGridMargin) {
-        CGFloat iconSize = (p_dockIconSize >= 36.0 && p_dockIconSize <= 66.0) ? p_dockIconSize : 54.0;
-        CGFloat dockW = iconSize + 20.0;
-        CGFloat marginX = (p_dockMarginX >= 2.0 && p_dockMarginX <= 40.0) ? p_dockMarginX : 10.0;
-        CGFloat dockReserve = dockW + marginX;
-        CGFloat shiftX = (p_dockPosition == 1) ? -(dockReserve / 2.0) : (dockReserve / 2.0);
-        self.transform = CGAffineTransformMakeTranslation(shiftX, 0);
-    } else {
+    // HOME SCREEN ICON LIST:
+    // Ensure translation transform is identity (layout insets handle padding natively)
+    if (!CGAffineTransformIsIdentity(self.transform)) {
         self.transform = CGAffineTransformIdentity;
+    }
+
+    // Apply Home Icon Scale if user adjusted it
+    CGFloat scale = (p_homeIconScale >= 0.65 && p_homeIconScale <= 1.25) ? p_homeIconScale : 0.92;
+    for (UIView *subview in self.subviews) {
+        NSString *cls = NSStringFromClass([subview class]);
+        if ([cls containsString:@"IconView"] && ![cls containsString:@"ListView"]) {
+            if (fabs(scale - 1.0) > 0.01) {
+                subview.transform = CGAffineTransformMakeScale(scale, scale);
+            } else if (!CGAffineTransformIsIdentity(subview.transform)) {
+                subview.transform = CGAffineTransformIdentity;
+            }
+        }
     }
 
     g_inIconListLayout = NO;
@@ -2308,9 +2518,26 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         SafeSwizzle(floatingDockClass, @selector(layoutSubviews), (IMP)hooked_floatingdock_layoutSubviews, (IMP *)&orig_floatingdock_layoutSubviews);
     }
 
-    // 8. Hook Icon Lists (SBIconListView covers both HomeScreen and Dock icon lists via inheritance)
+    // 8. Hook SBIconListGridLayoutConfiguration (Native 3x7 Grid & Safe Layout Insets)
+    Class configClass = objc_getClass("SBIconListGridLayoutConfiguration");
+    if (configClass) {
+        SafeSwizzle(configClass, sel_registerName("numberOfPortraitColumns"), (IMP)hooked_config_numberOfPortraitColumns, (IMP *)&orig_config_numberOfPortraitColumns);
+        SafeSwizzle(configClass, sel_registerName("numberOfPortraitRows"), (IMP)hooked_config_numberOfPortraitRows, (IMP *)&orig_config_numberOfPortraitRows);
+        SafeSwizzle(configClass, sel_registerName("portraitLayoutInsets"), (IMP)hooked_config_portraitLayoutInsets, (IMP *)&orig_config_portraitLayoutInsets);
+    }
+
+    // 9. Hook SBIconListView (Layout, Column/Row Counts & Fallback Insets)
     Class iconListClass = objc_getClass("SBIconListView");
     if (iconListClass) {
         SafeSwizzle(iconListClass, @selector(layoutSubviews), (IMP)hooked_iconlist_layoutSubviews, (IMP *)&orig_iconlist_layoutSubviews);
+        SafeSwizzle(iconListClass, sel_registerName("iconColumnsForCurrentOrientation"), (IMP)hooked_iconlist_columns, (IMP *)&orig_iconlist_columns);
+        SafeSwizzle(iconListClass, sel_registerName("iconRowsForCurrentOrientation"), (IMP)hooked_iconlist_rows, (IMP *)&orig_iconlist_rows);
+        SafeSwizzle(iconListClass, sel_registerName("layoutInsets"), (IMP)hooked_iconlist_layoutInsets, (IMP *)&orig_iconlist_layoutInsets);
+    }
+
+    // 10. Hook SBIconListModel (Limit to 21 icons per home screen page in 3x7 mode)
+    Class listModelClass = objc_getClass("SBIconListModel");
+    if (listModelClass) {
+        SafeSwizzle(listModelClass, sel_registerName("maxNumberOfIcons"), (IMP)hooked_listmodel_maxNumberOfIcons, (IMP *)&orig_listmodel_maxNumberOfIcons);
     }
 }
