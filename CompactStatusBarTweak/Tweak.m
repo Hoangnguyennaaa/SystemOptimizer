@@ -310,6 +310,8 @@ static void savePreferenceNumber(NSString *key, NSNumber *val) {
 }
 
 // MARK: - Helper Functions (Network, RAM, Cellular, Wi-Fi)
+static int getCellularSignalBars(void);
+static BOOL isWifiActive(void);
 
 static void getNetworkTrafficBytes(uint64_t *outDown, uint64_t *outUp) {
     struct ifaddrs *ifa_list = NULL;
