@@ -527,7 +527,7 @@ static __weak CompactStatusView *g_activeStatusView = nil;
 static __weak CompactStatusView *g_activeCCStatusView = nil;
 
 // MARK: - CompactStatusView: Vector 3-in-1 Gauge View
-@interface CompactStatusView : UIView
+@interface CompactStatusView : UIView <UIGestureRecognizerDelegate>
 @property (nonatomic, strong) UIView *pillContainerView;
 @property (nonatomic, strong) UIVisualEffectView *blurEffectView;
 @property (nonatomic, strong) UIView *gaugeContainerView;
@@ -561,6 +561,9 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
 
 @property (nonatomic, assign) CGPoint anchorCenter;
 @property (nonatomic, strong) UIPanGestureRecognizer *dragPanGesture;
+@property (nonatomic, strong) UITapGestureRecognizer *singleTapGesture;
+@property (nonatomic, strong) UITapGestureRecognizer *doubleTapGesture;
+@property (nonatomic, strong) UILongPressGestureRecognizer *longPressGesture;
 
 - (void)rebuildCellularDots;
 - (void)applyPreferences;
@@ -615,6 +618,22 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     return CGRectContainsPoint(touchBounds, point);
 }
 
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    if (!self.userInteractionEnabled || self.hidden || self.alpha < 0.01) return nil;
+    if ([self pointInside:point withEvent:event]) {
+        return self;
+    }
+    return nil;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+    return NO;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
+    return YES;
+}
+
 - (void)applyPreferences {
     CGFloat scale = self.isControlCenter ? p_ccIconScale : p_iconScale;
     if (scale < 0.3) scale = 1.0;
@@ -626,14 +645,26 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
         self.layer.cornerRadius = 6.0;
         if (!self.dragPanGesture) {
             self.dragPanGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleDragPan:)];
+            self.dragPanGesture.delegate = self;
+            self.dragPanGesture.cancelsTouchesInView = YES;
+            self.dragPanGesture.delaysTouchesBegan = NO;
+            self.dragPanGesture.delaysTouchesEnded = NO;
             [self addGestureRecognizer:self.dragPanGesture];
         }
         self.dragPanGesture.enabled = YES;
+
+        if (self.singleTapGesture) self.singleTapGesture.enabled = NO;
+        if (self.doubleTapGesture) self.doubleTapGesture.enabled = NO;
+        if (self.longPressGesture) self.longPressGesture.enabled = NO;
+
         UIView *p = self.superview;
         while (p) {
             p.userInteractionEnabled = YES;
             p.clipsToBounds = NO;
-            if ([p isKindOfClass:[UIWindow class]]) break;
+            if ([p isKindOfClass:[UIWindow class]]) {
+                p.clipsToBounds = NO;
+                break;
+            }
             p = p.superview;
         }
     } else {
@@ -641,6 +672,9 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
         if (self.dragPanGesture) {
             self.dragPanGesture.enabled = NO;
         }
+        if (self.singleTapGesture) self.singleTapGesture.enabled = YES;
+        if (self.doubleTapGesture) self.doubleTapGesture.enabled = YES;
+        if (self.longPressGesture) self.longPressGesture.enabled = YES;
     }
 }
 
@@ -648,11 +682,34 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     UIView *superview = self.superview;
     if (!superview) return;
 
+    if (pan.state == UIGestureRecognizerStateBegan) {
+        triggerHaptic(1);
+    }
+
     CGPoint translation = [pan translationInView:superview];
     self.center = CGPointMake(self.center.x + translation.x, self.center.y + translation.y);
     [pan setTranslation:CGPointZero inView:superview];
 
+    if (self.anchorCenter.x <= 0 || self.anchorCenter.y <= 0) {
+        for (UIView *sub in superview.subviews) {
+            NSString *cn = NSStringFromClass([sub class]);
+            if ([cn containsString:@"BatteryView"]) {
+                CGRect r = [sub convertRect:sub.bounds toView:superview];
+                self.anchorCenter = CGPointMake(CGRectGetMidX(r), CGRectGetMidY(r));
+                break;
+            }
+        }
+        if (self.anchorCenter.x <= 0) {
+            CGFloat offX = self.isControlCenter ? p_ccOffsetX : p_offsetX;
+            CGFloat offY = self.isControlCenter ? p_ccOffsetY : p_offsetY;
+            CGFloat totalW = self.pillContainerView.frame.size.width;
+            if (totalW < 22.0) totalW = 22.0;
+            self.anchorCenter = CGPointMake(self.center.x + (totalW - 22.0) / 2.0 - offX, self.center.y - offY);
+        }
+    }
+
     CGFloat totalW = self.pillContainerView.frame.size.width;
+    if (totalW < 22.0) totalW = 22.0;
     CGFloat curX = (self.center.x + (totalW - 22.0) / 2.0) - self.anchorCenter.x;
     CGFloat curY = self.center.y - self.anchorCenter.y;
     if (self.isControlCenter) {
@@ -701,6 +758,7 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
         hud.layer.masksToBounds = YES;
         hud.layer.borderColor = [UIColor colorWithWhite:0.35 alpha:1.0].CGColor;
         hud.layer.borderWidth = 1.0;
+        hud.userInteractionEnabled = NO;
         [keyWindow addSubview:hud];
     }
     [keyWindow bringSubviewToFront:hud];
@@ -726,17 +784,20 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     _pillContainerView = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 22.0, 22.0)];
     _pillContainerView.clipsToBounds = YES;
     _pillContainerView.backgroundColor = [UIColor clearColor];
+    _pillContainerView.userInteractionEnabled = NO;
     [self addSubview:_pillContainerView];
 
     _blurEffectView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterialDark]];
     _blurEffectView.frame = _pillContainerView.bounds;
     _blurEffectView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _blurEffectView.hidden = YES;
+    _blurEffectView.userInteractionEnabled = NO;
     [_pillContainerView addSubview:_blurEffectView];
 
     // 1. Gauge subview (22x22)
     _gaugeContainerView = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 22.0, 22.0)];
     _gaugeContainerView.backgroundColor = [UIColor clearColor];
+    _gaugeContainerView.userInteractionEnabled = NO;
     [_pillContainerView addSubview:_gaugeContainerView];
 
     CGPoint center = CGPointMake(11.0, 11.0);
@@ -801,6 +862,7 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     _centerLabel.textColor = [UIColor whiteColor];
     _centerLabel.textAlignment = NSTextAlignmentCenter;
     _centerLabel.hidden = YES;
+    _centerLabel.userInteractionEnabled = NO;
     [_gaugeContainerView addSubview:_centerLabel];
 
 
@@ -811,6 +873,7 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     _sidePercentLabel.textColor = [UIColor whiteColor];
     _sidePercentLabel.textAlignment = NSTextAlignmentRight;
     _sidePercentLabel.hidden = YES;
+    _sidePercentLabel.userInteractionEnabled = NO;
     [self addSubview:_sidePercentLabel];
 
     // 2. Extra Information Container
@@ -818,12 +881,14 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     _extraInfoContainer.backgroundColor = [UIColor clearColor];
     _extraInfoContainer.clipsToBounds = YES;
     _extraInfoContainer.hidden = YES;
+    _extraInfoContainer.userInteractionEnabled = NO;
     [_pillContainerView addSubview:_extraInfoContainer];
 
     _batteryPercentLabel = [[UILabel alloc] init];
     _batteryPercentLabel.font = [UIFont systemFontOfSize:8.0 weight:UIFontWeightBold];
     _batteryPercentLabel.textColor = [UIColor whiteColor];
     _batteryPercentLabel.textAlignment = NSTextAlignmentCenter;
+    _batteryPercentLabel.userInteractionEnabled = NO;
     [_extraInfoContainer addSubview:_batteryPercentLabel];
 
     _networkSpeedLabel = [[UILabel alloc] init];
@@ -833,24 +898,28 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
         [UIColor colorWithRed:0.25 green:0.95 blue:0.55 alpha:1.0];
     _networkSpeedLabel.textColor = accentCol;
     _networkSpeedLabel.textAlignment = NSTextAlignmentCenter;
+    _networkSpeedLabel.userInteractionEnabled = NO;
     [_extraInfoContainer addSubview:_networkSpeedLabel];
 
     _ssidLabel = [[UILabel alloc] init];
     _ssidLabel.font = [UIFont systemFontOfSize:7.5 weight:UIFontWeightMedium];
     _ssidLabel.textColor = [UIColor colorWithWhite:0.92 alpha:1.0];
     _ssidLabel.textAlignment = NSTextAlignmentCenter;
+    _ssidLabel.userInteractionEnabled = NO;
     [_extraInfoContainer addSubview:_ssidLabel];
 
     _thermalDotView = [[UIView alloc] init];
     _thermalDotView.layer.cornerRadius = 2.5;
     _thermalDotView.layer.masksToBounds = YES;
     _thermalDotView.backgroundColor = [UIColor colorWithRed:0.25 green:0.9 blue:0.4 alpha:1.0];
+    _thermalDotView.userInteractionEnabled = NO;
     [_extraInfoContainer addSubview:_thermalDotView];
 
     _ramLabel = [[UILabel alloc] init];
     _ramLabel.font = [UIFont systemFontOfSize:7.5 weight:UIFontWeightBold];
     _ramLabel.textColor = [UIColor colorWithRed:0.3 green:0.8 blue:1.0 alpha:1.0];
     _ramLabel.textAlignment = NSTextAlignmentCenter;
+    _ramLabel.userInteractionEnabled = NO;
     [_extraInfoContainer addSubview:_ramLabel];
 
     [self rebuildCellularDots];
@@ -884,18 +953,21 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
 }
 
 - (void)setupGestures {
-    UITapGestureRecognizer *doubleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTap)];
-    doubleTap.numberOfTapsRequired = 2;
-    [self addGestureRecognizer:doubleTap];
+    self.doubleTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTap)];
+    self.doubleTapGesture.numberOfTapsRequired = 2;
+    self.doubleTapGesture.delegate = self;
+    [self addGestureRecognizer:self.doubleTapGesture];
 
-    UITapGestureRecognizer *singleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleSingleTap)];
-    singleTap.numberOfTapsRequired = 1;
-    [singleTap requireGestureRecognizerToFail:doubleTap];
-    [self addGestureRecognizer:singleTap];
+    self.singleTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleSingleTap)];
+    self.singleTapGesture.numberOfTapsRequired = 1;
+    [self.singleTapGesture requireGestureRecognizerToFail:self.doubleTapGesture];
+    self.singleTapGesture.delegate = self;
+    [self addGestureRecognizer:self.singleTapGesture];
 
-    UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)];
-    longPress.minimumPressDuration = 0.55;
-    [self addGestureRecognizer:longPress];
+    self.longPressGesture = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)];
+    self.longPressGesture.minimumPressDuration = 0.55;
+    self.longPressGesture.delegate = self;
+    [self addGestureRecognizer:self.longPressGesture];
 }
 
 static void executeAction(int actionCode, CompactStatusView *view) {
@@ -1438,14 +1510,16 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     }
 
     // 10. Căn toạ độ neo (Anchor Position) với bộ lọc vi dao động (Micro-jitter filter)
-    if (!p_dragModeEnabled && self.superview) {
-        CGFloat offX = self.isControlCenter ? p_ccOffsetX : p_offsetX;
-        CGFloat offY = self.isControlCenter ? p_ccOffsetY : p_offsetY;
-        CGFloat totalW = _pillContainerView.frame.size.width;
-        if (totalW < 22.0) totalW = 22.0;
-        CGPoint targetCenter = CGPointMake(self.anchorCenter.x + offX - (totalW - 22.0) / 2.0, self.anchorCenter.y + offY);
-        if (fabs(self.center.x - targetCenter.x) > 0.5 || fabs(self.center.y - targetCenter.y) > 0.5) {
-            self.center = targetCenter;
+    if (!p_dragModeEnabled && self.superview && self.anchorCenter.x > 0 && self.anchorCenter.y > 0) {
+        if (!self.dragPanGesture || (self.dragPanGesture.state != UIGestureRecognizerStateBegan && self.dragPanGesture.state != UIGestureRecognizerStateChanged)) {
+            CGFloat offX = self.isControlCenter ? p_ccOffsetX : p_offsetX;
+            CGFloat offY = self.isControlCenter ? p_ccOffsetY : p_offsetY;
+            CGFloat totalW = _pillContainerView.frame.size.width;
+            if (totalW < 22.0) totalW = 22.0;
+            CGPoint targetCenter = CGPointMake(self.anchorCenter.x + offX - (totalW - 22.0) / 2.0, self.anchorCenter.y + offY);
+            if (fabs(self.center.x - targetCenter.x) > 0.5 || fabs(self.center.y - targetCenter.y) > 0.5) {
+                self.center = targetCenter;
+            }
         }
     }
 }
@@ -1951,20 +2025,34 @@ static inline BOOL isControlCenterView(UIView *view) {
 
 static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBattery, UIView *container, BOOL isCC) {
     if (!custom || !stockBattery || !container) return;
-    if (p_dragModeEnabled) return;
 
     CGRect rectInContainer = [stockBattery convertRect:stockBattery.bounds toView:container];
     CGPoint centerInContainer = CGPointMake(CGRectGetMidX(rectInContainer), CGRectGetMidY(rectInContainer));
-    if (centerInContainer.x <= 0 || centerInContainer.y <= 0) return;
+    if (centerInContainer.x > 0 && centerInContainer.y > 0) {
+        custom.anchorCenter = centerInContainer;
+    }
 
-    custom.anchorCenter = centerInContainer;
+    if (p_dragModeEnabled) {
+        if (custom.center.x <= 11.0 && custom.center.y <= 11.0 && custom.anchorCenter.x > 0) {
+            CGFloat offX = isCC ? p_ccOffsetX : p_offsetX;
+            CGFloat offY = isCC ? p_ccOffsetY : p_offsetY;
+            CGFloat totalW = custom.pillContainerView.frame.size.width;
+            if (totalW < 22.0) totalW = 22.0;
+            custom.center = CGPointMake(custom.anchorCenter.x + offX - (totalW - 22.0) / 2.0, custom.anchorCenter.y + offY);
+        }
+        return;
+    }
+
+    if (custom.dragPanGesture && (custom.dragPanGesture.state == UIGestureRecognizerStateBegan || custom.dragPanGesture.state == UIGestureRecognizerStateChanged)) {
+        return;
+    }
 
     CGFloat offX = isCC ? p_ccOffsetX : p_offsetX;
     CGFloat offY = isCC ? p_ccOffsetY : p_offsetY;
     CGFloat totalW = custom.pillContainerView.frame.size.width;
     if (totalW < 22.0) totalW = 22.0;
 
-    CGPoint targetCenter = CGPointMake(centerInContainer.x + offX - (totalW - 22.0) / 2.0, centerInContainer.y + offY);
+    CGPoint targetCenter = CGPointMake(custom.anchorCenter.x + offX - (totalW - 22.0) / 2.0, custom.anchorCenter.y + offY);
     if (fabs(custom.center.x - targetCenter.x) > 0.5 || fabs(custom.center.y - targetCenter.y) > 0.5) {
         custom.center = targetCenter;
     }
@@ -2032,7 +2120,10 @@ static void hooked_battery_didMoveToWindow(UIView *self, SEL _cmd) {
         while (p) {
             p.userInteractionEnabled = YES;
             p.clipsToBounds = NO;
-            if ([p isKindOfClass:[UIWindow class]]) break;
+            if ([p isKindOfClass:[UIWindow class]]) {
+                p.clipsToBounds = NO;
+                break;
+            }
             p = p.superview;
         }
     }
@@ -2187,19 +2278,74 @@ static void handleReloadNotification(CFNotificationCenterRef center, void *obser
             [g_activeStatusView rebuildCellularDots];
             [g_activeStatusView applyPreferences];
             [g_activeStatusView updateStats];
-            if (!p_dragModeEnabled) {
-                g_activeStatusView.center = CGPointMake(g_activeStatusView.anchorCenter.x + p_offsetX, g_activeStatusView.anchorCenter.y + p_offsetY);
+            if (!p_dragModeEnabled && g_activeStatusView.anchorCenter.x > 0) {
+                CGFloat totalW = g_activeStatusView.pillContainerView.frame.size.width;
+                if (totalW < 22.0) totalW = 22.0;
+                g_activeStatusView.center = CGPointMake(g_activeStatusView.anchorCenter.x + p_offsetX - (totalW - 22.0) / 2.0, g_activeStatusView.anchorCenter.y + p_offsetY);
             }
         }
         if (g_activeCCStatusView) {
             [g_activeCCStatusView rebuildCellularDots];
             [g_activeCCStatusView applyPreferences];
             [g_activeCCStatusView updateStats];
-            if (!p_dragModeEnabled) {
-                g_activeCCStatusView.center = CGPointMake(g_activeCCStatusView.anchorCenter.x + p_ccOffsetX, g_activeCCStatusView.anchorCenter.y + p_ccOffsetY);
+            if (!p_dragModeEnabled && g_activeCCStatusView.anchorCenter.x > 0) {
+                CGFloat totalW = g_activeCCStatusView.pillContainerView.frame.size.width;
+                if (totalW < 22.0) totalW = 22.0;
+                g_activeCCStatusView.center = CGPointMake(g_activeCCStatusView.anchorCenter.x + p_ccOffsetX - (totalW - 22.0) / 2.0, g_activeCCStatusView.anchorCenter.y + p_ccOffsetY);
             }
         }
     });
+}
+
+// MARK: - Hit-Testing Hooks for Status Bar and Window (Drag-and-Drop)
+static UIView *(*orig_uistatusbar_hitTest)(UIView *, SEL, CGPoint, UIEvent *) = NULL;
+static UIView *hooked_uistatusbar_hitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
+    UIView *custom = [self viewWithTag:998811];
+    if (custom && !custom.hidden && custom.alpha > 0.05 && custom.userInteractionEnabled) {
+        CGPoint ptInCustom = [self convertPoint:point toView:custom];
+        if ([custom pointInside:ptInCustom withEvent:event]) {
+            return custom;
+        }
+    }
+    return orig_uistatusbar_hitTest ? orig_uistatusbar_hitTest(self, _cmd, point, event) : [self hitTest:point withEvent:event];
+}
+
+static UIView *(*orig_statusbarwindow_hitTest)(UIWindow *, SEL, CGPoint, UIEvent *) = NULL;
+static UIView *hooked_statusbarwindow_hitTest(UIWindow *self, SEL _cmd, CGPoint point, UIEvent *event) {
+    UIView *custom = [self viewWithTag:998811];
+    if (!custom) {
+        for (UIView *sub in self.subviews) {
+            custom = [sub viewWithTag:998811];
+            if (custom) break;
+        }
+    }
+    if (custom && !custom.hidden && custom.alpha > 0.05 && custom.userInteractionEnabled) {
+        CGPoint ptInCustom = [self convertPoint:point toView:custom];
+        if ([custom pointInside:ptInCustom withEvent:event]) {
+            return custom;
+        }
+    }
+    return orig_statusbarwindow_hitTest ? orig_statusbarwindow_hitTest(self, _cmd, point, event) : [self hitTest:point withEvent:event];
+}
+
+static BOOL (*orig_statusbarwindow_pointInside)(UIWindow *, SEL, CGPoint, UIEvent *) = NULL;
+static BOOL hooked_statusbarwindow_pointInside(UIWindow *self, SEL _cmd, CGPoint point, UIEvent *event) {
+    if (p_dragModeEnabled) {
+        UIView *custom = [self viewWithTag:998811];
+        if (!custom) {
+            for (UIView *sub in self.subviews) {
+                custom = [sub viewWithTag:998811];
+                if (custom) break;
+            }
+        }
+        if (custom && !custom.hidden && custom.alpha > 0.05 && custom.userInteractionEnabled) {
+            CGPoint ptInCustom = [self convertPoint:point toView:custom];
+            if ([custom pointInside:ptInCustom withEvent:event]) {
+                return YES;
+            }
+        }
+    }
+    return orig_statusbarwindow_pointInside ? orig_statusbarwindow_pointInside(self, _cmd, point, event) : [self pointInside:point withEvent:event];
 }
 
 // MARK: - Constructor
@@ -2277,6 +2423,23 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         SafeSwizzle(imgViewClass, @selector(didMoveToWindow), (IMP)hooked_img_didMoveToWindow, (IMP *)&orig_img_didMoveToWindow);
         SafeSwizzle(imgViewClass, @selector(layoutSubviews), (IMP)hooked_img_layoutSubviews, (IMP *)&orig_img_layoutSubviews);
         SafeSwizzle(imgViewClass, @selector(setImage:), (IMP)hooked_img_setImage, (IMP *)&orig_img_setImage);
+    }
+
+    // 6. Hook Status Bar & Status Bar Window for touch hit-testing (drag-and-drop support)
+    Class sbViewClass = objc_getClass("_UIStatusBar");
+    if (sbViewClass) {
+        SafeSwizzle(sbViewClass, @selector(hitTest:withEvent:), (IMP)hooked_uistatusbar_hitTest, (IMP *)&orig_uistatusbar_hitTest);
+    }
+
+    Class winClass = objc_getClass("UIStatusBarWindow");
+    if (winClass) {
+        SafeSwizzle(winClass, @selector(hitTest:withEvent:), (IMP)hooked_statusbarwindow_hitTest, (IMP *)&orig_statusbarwindow_hitTest);
+        SafeSwizzle(winClass, @selector(pointInside:withEvent:), (IMP)hooked_statusbarwindow_pointInside, (IMP *)&orig_statusbarwindow_pointInside);
+    }
+    Class subWinClass = objc_getClass("_UIStatusBarWindow");
+    if (subWinClass && !winClass) {
+        SafeSwizzle(subWinClass, @selector(hitTest:withEvent:), (IMP)hooked_statusbarwindow_hitTest, (IMP *)&orig_statusbarwindow_hitTest);
+        SafeSwizzle(subWinClass, @selector(pointInside:withEvent:), (IMP)hooked_statusbarwindow_pointInside, (IMP *)&orig_statusbarwindow_pointInside);
     }
 
 }
