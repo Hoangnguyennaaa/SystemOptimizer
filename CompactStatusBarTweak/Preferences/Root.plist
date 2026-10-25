@@ -16,17 +16,9 @@
             <key>cell</key>
             <string>PSGroupCell</string>
             <key>label</key>
-            <string>MÔ PHỎNG &amp; CĂN CHỈNH TRỰC QUAN</string>
+            <string>TRẠNG THÁI &amp; DI CHUYỂN TRỰC TIẾP</string>
             <key>footerText</key>
-            <string>Chọn mẫu iPhone phía trên, sau đó chạm và kéo biểu tượng trong khung mô phỏng đến vị trí bạn muốn hoặc dùng các nút vị trí nhanh.</string>
-        </dict>
-        <dict>
-            <key>cell</key>
-            <string>PSControlTableCell</string>
-            <key>cellClass</key>
-            <string>CSBPreviewCell</string>
-            <key>height</key>
-            <real>210</real>
+            <string>Bật "Kéo thả trực tiếp" để chạm và kéo biểu tượng CompactStatusBar trực tiếp trên màn hình thật đến vị trí mong muốn. Tắt công tắc khi đã đặt xong vị trí.</string>
         </dict>
         <dict>
             <key>cell</key>
@@ -65,14 +57,6 @@
             <string>THANH TÁC VỤ DỌC (VERTICAL DOCK)</string>
             <key>footerText</key>
             <string>Chuyển thanh Dock ở dưới thành thanh tác vụ dọc căn giữa ở cạnh phải hoặc trái. Hỗ trợ từ 1 đến 6 icon, tự động co giãn kích thước viên thuốc và dời lưới icon tránh bị đè.</string>
-        </dict>
-        <dict>
-            <key>cell</key>
-            <string>PSControlTableCell</string>
-            <key>cellClass</key>
-            <string>CSBDockPreviewCell</string>
-            <key>height</key>
-            <real>250</real>
         </dict>
         <dict>
             <key>cell</key>

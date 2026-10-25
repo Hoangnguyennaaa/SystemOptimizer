@@ -22,12 +22,16 @@ ldid -S CompactStatusBar.dylib
 echo "[*] Step 3: Preparing Rootless package structure..."
 rm -rf pkg_root
 mkdir -p pkg_root/var/jb/usr/lib/TweakInject
+mkdir -p pkg_root/var/jb/Library/MobileSubstrate/DynamicLibraries
 mkdir -p pkg_root/var/jb/Library/PreferenceLoader/Preferences
 mkdir -p pkg_root/DEBIAN
 
-# Tweak dylib + plist filter (SpringBoard)
+# Tweak dylib + plist filter (SpringBoard & MobileSubstrate)
 cp CompactStatusBar.dylib pkg_root/var/jb/usr/lib/TweakInject/
 cp CompactStatusBarTweak.plist pkg_root/var/jb/usr/lib/TweakInject/CompactStatusBar.plist
+
+cp CompactStatusBar.dylib pkg_root/var/jb/Library/MobileSubstrate/DynamicLibraries/
+cp CompactStatusBarTweak.plist pkg_root/var/jb/Library/MobileSubstrate/DynamicLibraries/CompactStatusBar.plist
 
 # Direct native PreferenceLoader plist with all specifiers
 cp Preferences/CompactStatusBar.plist pkg_root/var/jb/Library/PreferenceLoader/Preferences/
