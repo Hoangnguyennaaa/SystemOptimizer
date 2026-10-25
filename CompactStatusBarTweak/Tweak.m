@@ -2233,6 +2233,9 @@ static void hooked_floatingdock_layoutSubviews(UIView *self, SEL _cmd) {
 
 // MARK: - SBIconListGridLayoutConfiguration Hooks (Native 3x7 Grid & Layout Insets)
 static NSUInteger (*orig_config_numberOfPortraitColumns)(id, SEL) = NULL;
+static NSUInteger (*orig_config_numberOfPortraitRows)(id, SEL) = NULL;
+static UIEdgeInsets (*orig_config_portraitLayoutInsets)(id, SEL) = NULL;
+
 static NSUInteger hooked_config_numberOfPortraitColumns(id self, SEL _cmd) {
     NSUInteger orig = orig_config_numberOfPortraitColumns ? orig_config_numberOfPortraitColumns(self, _cmd) : 4;
     if (!p_enabled || p_gridMode == 0) return orig;
@@ -2244,7 +2247,6 @@ static NSUInteger hooked_config_numberOfPortraitColumns(id self, SEL _cmd) {
     return 3;
 }
 
-static NSUInteger (*orig_config_numberOfPortraitRows)(id, SEL) = NULL;
 static NSUInteger hooked_config_numberOfPortraitRows(id self, SEL _cmd) {
     NSUInteger orig = orig_config_numberOfPortraitRows ? orig_config_numberOfPortraitRows(self, _cmd) : 6;
     if (!p_enabled || p_gridMode == 0) return orig;
