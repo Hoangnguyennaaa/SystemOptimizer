@@ -24,23 +24,15 @@ jobs:
           brew install ldid
 
       - name: Build DEB Package
-        id: build_deb
         run: |
           cd CompactStatusBarTweak
           sed -i '' 's/\r$//' build_deb.sh
           chmod +x build_deb.sh
-          bash -x build_deb.sh 2>&1 | tee build.log
-
-      - name: Publish Summary Log
-        if: always()
-        run: |
-          echo "### Build Log" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -n 100 CompactStatusBarTweak/build.log >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          ./build_deb.sh
 
       - name: Upload Tweak DEB Artifact
         uses: actions/upload-artifact@v4
         with:
           name: CompactStatusBar-rootless-deb
-          path: CompactStatusBarTweak/CompactStatusBar_rootless.deb
+          path: "**/*.deb"
+          if-no-files-found: error

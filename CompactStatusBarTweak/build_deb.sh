@@ -67,5 +67,7 @@ def make_deb():
 make_deb()
 EOF
 
+cp CompactStatusBar_rootless.deb ../CompactStatusBar_rootless.deb
+ls -lh CompactStatusBar_rootless.deb
 rm -rf pkg_root CompactStatusBar.dylib
 echo "[+] Hoàn tất! File CompactStatusBar_rootless.deb đã được tạo."
