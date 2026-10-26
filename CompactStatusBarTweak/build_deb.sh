@@ -31,6 +31,7 @@ cp CompactStatusBarTweak.plist pkg_root/var/jb/Library/MobileSubstrate/DynamicLi
 
 # Direct native PreferenceLoader plist with all specifiers
 cp Preferences/CompactStatusBar.plist pkg_root/var/jb/Library/PreferenceLoader/Preferences/
+cp Preferences/Root.plist pkg_root/var/jb/Library/PreferenceLoader/Preferences/
 
 # Debian control
 cp control pkg_root/DEBIAN/control

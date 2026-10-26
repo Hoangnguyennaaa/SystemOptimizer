@@ -86,6 +86,8 @@ static int  g_sbCellularBars = 0;
 static NSString *g_sbCellularType = nil;
 static BOOL g_sbAirplaneEnabled = NO;
 
+static void updateLiveDataFromStatusBar(UIView *container, id optData);
+
 static BOOL isVPNActive(void) {
     struct ifaddrs *interfaces = NULL;
     if (getifaddrs(&interfaces) == 0) {
@@ -205,6 +207,12 @@ static CGFloat p_customBorderAlpha = 0.20;
 static BOOL p_breathingGlow = YES;
 static BOOL p_showRAM = NO;
 static BOOL p_dotCount5 = NO;
+
+// Advanced Features (v1.3.9)
+static BOOL p_swipeGesturesEnabled = YES;
+static BOOL p_chargingBoltEnabled = YES;
+static BOOL p_oledBlackMode = YES;
+static BOOL p_springAnimations = YES;
 
 
 // Stock Status Bar Item Hiding
@@ -446,6 +454,26 @@ static void loadPrefs(void) {
     idx = CFPreferencesGetAppIntegerValue(CFSTR("hapticFeedback"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
     if (keyExists) p_hapticFeedback = (int)idx;
     else if (prefs && prefs[@"hapticFeedback"]) p_hapticFeedback = [prefs[@"hapticFeedback"] intValue];
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("swipeGesturesEnabled"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_swipeGesturesEnabled = (BOOL)b;
+    else if (prefs && prefs[@"swipeGesturesEnabled"]) p_swipeGesturesEnabled = [prefs[@"swipeGesturesEnabled"] boolValue];
+    else p_swipeGesturesEnabled = YES;
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("chargingBoltEnabled"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_chargingBoltEnabled = (BOOL)b;
+    else if (prefs && prefs[@"chargingBoltEnabled"]) p_chargingBoltEnabled = [prefs[@"chargingBoltEnabled"] boolValue];
+    else p_chargingBoltEnabled = YES;
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("oledBlackMode"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_oledBlackMode = (BOOL)b;
+    else if (prefs && prefs[@"oledBlackMode"]) p_oledBlackMode = [prefs[@"oledBlackMode"] boolValue];
+    else p_oledBlackMode = YES;
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("springAnimations"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_springAnimations = (BOOL)b;
+    else if (prefs && prefs[@"springAnimations"]) p_springAnimations = [prefs[@"springAnimations"] boolValue];
+    else p_springAnimations = YES;
 }
 
 static void savePreferenceNumber(NSString *key, NSNumber *val) {
@@ -508,6 +536,62 @@ static NSString *formatSpeedCompact(double bytesPerSec) {
     }
 }
 
+static void updateLiveDataFromStatusBar(UIView *container, id optData) {
+    if (!container && !optData) return;
+    UIView *hostBar = container;
+    while (hostBar) {
+        NSString *cn = NSStringFromClass([hostBar class]);
+        if ([cn isEqualToString:@"_UIStatusBar"] || [cn isEqualToString:@"UIStatusBar"]) {
+            break;
+        }
+        hostBar = hostBar.superview;
+    }
+    id cData = optData;
+    if (!cData && hostBar) {
+        if ([hostBar respondsToSelector:@selector(currentData)]) {
+            cData = [hostBar performSelector:@selector(currentData)];
+        }
+        if (!cData && [hostBar respondsToSelector:@selector(currentAggregatedData)]) {
+            cData = [hostBar performSelector:@selector(currentAggregatedData)];
+        }
+    }
+    if (cData) {
+        @try {
+            id wEntry = [cData valueForKey:@"wifiEntry"];
+            if (wEntry && [wEntry respondsToSelector:@selector(isEnabled)]) {
+                g_sbWifiEnabled = ((BOOL (*)(id, SEL))objc_msgSend)(wEntry, @selector(isEnabled));
+                if ([wEntry respondsToSelector:@selector(displayValue)]) {
+                    g_sbWifiBars = (int)((NSInteger (*)(id, SEL))objc_msgSend)(wEntry, @selector(displayValue));
+                }
+            } else {
+                g_sbWifiEnabled = NO;
+                g_sbWifiBars = 0;
+            }
+            id ceEntry = [cData valueForKey:@"cellularEntry"];
+            if (ceEntry && [ceEntry respondsToSelector:@selector(isEnabled)]) {
+                g_sbCellularEnabled = ((BOOL (*)(id, SEL))objc_msgSend)(ceEntry, @selector(isEnabled));
+                if ([ceEntry respondsToSelector:@selector(displayValue)]) {
+                    g_sbCellularBars = (int)((NSInteger (*)(id, SEL))objc_msgSend)(ceEntry, @selector(displayValue));
+                }
+                if ([ceEntry respondsToSelector:@selector(string)]) {
+                    g_sbCellularType = [ceEntry performSelector:@selector(string)];
+                }
+            } else {
+                g_sbCellularEnabled = NO;
+                g_sbCellularBars = 0;
+                g_sbCellularType = nil;
+            }
+            id apEntry = [cData valueForKey:@"airplaneModeEntry"];
+            if (apEntry && [apEntry respondsToSelector:@selector(isEnabled)]) {
+                g_sbAirplaneEnabled = ((BOOL (*)(id, SEL))objc_msgSend)(apEntry, @selector(isEnabled));
+            } else {
+                g_sbAirplaneEnabled = NO;
+            }
+            g_sbDataValid = YES;
+        } @catch (__unused id e) {}
+    }
+}
+
 static NSString *getConnectedSSID(void) {
     Class wifiClass = objc_getClass("SBWiFiManager");
     if (wifiClass && [wifiClass respondsToSelector:@selector(sharedInstance)]) {
@@ -521,6 +605,22 @@ static NSString *getConnectedSSID(void) {
 }
 
 static NSString *getRealCellularDataTech(void) {
+    Class teleClass = objc_getClass("SBTelephonyManager");
+    if (teleClass && [teleClass respondsToSelector:@selector(sharedTelephonyManager)]) {
+        id teleMgr = [teleClass performSelector:@selector(sharedTelephonyManager)];
+        if (teleMgr && [teleMgr respondsToSelector:@selector(cellularDataTechnology)]) {
+            id t = [teleMgr performSelector:@selector(cellularDataTechnology)];
+            if (t) {
+                NSString *s = [NSString stringWithFormat:@"%@", t];
+                if ([s containsString:@"5G"]) return @"5G";
+                if ([s containsString:@"LTE"]) return @"LTE";
+                if ([s containsString:@"4G"]) return @"4G";
+                if ([s containsString:@"3G"]) return @"3G";
+                if ([s containsString:@"Edge"] || [s containsString:@"E"]) return @"E";
+            }
+        }
+    }
+
     if (g_sbDataValid && g_sbCellularType && g_sbCellularType.length > 0) {
         return g_sbCellularType;
     }
@@ -548,29 +648,19 @@ static NSString *getRealCellularDataTech(void) {
         }
     }
 
-    Class teleClass = objc_getClass("SBTelephonyManager");
-    if (teleClass && [teleClass respondsToSelector:@selector(sharedTelephonyManager)]) {
-        id teleMgr = [teleClass performSelector:@selector(sharedTelephonyManager)];
-        if (teleMgr && [teleMgr respondsToSelector:@selector(cellularDataTechnology)]) {
-            id t = [teleMgr performSelector:@selector(cellularDataTechnology)];
-            if (t) return [NSString stringWithFormat:@"%@", t];
-        }
-    }
-
     return @"4G";
 }
 
 static BOOL isCellularDataActive(void) {
     if (isAirplaneModeActive() || isNoSIMPresent()) return NO;
 
-    if (g_sbDataValid) {
-        return g_sbCellularEnabled;
-    }
-
     Class teleClass = objc_getClass("SBTelephonyManager");
     if (teleClass && [teleClass respondsToSelector:@selector(sharedTelephonyManager)]) {
         id teleMgr = [teleClass performSelector:@selector(sharedTelephonyManager)];
         if (teleMgr) {
+            if ([teleMgr respondsToSelector:@selector(isCellularDataActive)]) {
+                return ((BOOL (*)(id, SEL))objc_msgSend)(teleMgr, @selector(isCellularDataActive));
+            }
             if ([teleMgr respondsToSelector:@selector(isCellularDataEnabled)]) {
                 BOOL enabled = ((BOOL (*)(id, SEL))objc_msgSend)(teleMgr, @selector(isCellularDataEnabled));
                 if (!enabled) return NO;
@@ -579,6 +669,19 @@ static BOOL isCellularDataActive(void) {
                 BOOL connected = ((BOOL (*)(id, SEL))objc_msgSend)(teleMgr, @selector(isDataConnected));
                 if (!connected) return NO;
             }
+        }
+    }
+
+    if (g_sbDataValid) {
+        return g_sbCellularEnabled;
+    }
+
+    Class ctClass = objc_getClass("CTTelephonyNetworkInfo");
+    if (ctClass) {
+        id ctInfo = [[ctClass alloc] init];
+        if (ctInfo && [ctInfo respondsToSelector:@selector(serviceCurrentRadioAccessTechnology)]) {
+            NSDictionary *dict = [ctInfo performSelector:@selector(serviceCurrentRadioAccessTechnology)];
+            if (dict && dict.count > 0) return YES;
         }
     }
     return (getCellularSignalBars() > 0);
@@ -657,35 +760,39 @@ static uint64_t getNetworkDownloadBytes(void) {
 }
 
 static BOOL isWifiActive(void) {
-    // Kiểm tra trực tiếp từ data model status bar hệ thống
-    if (g_sbDataValid) {
-        return g_sbWifiEnabled;
+    // 1. Kiểm tra trực tiếp SBWiFiManager trong SpringBoard
+    Class wifiClass = objc_getClass("SBWiFiManager");
+    if (wifiClass && [wifiClass respondsToSelector:@selector(sharedInstance)]) {
+        id wifiMgr = [wifiClass performSelector:@selector(sharedInstance)];
+        if (wifiMgr) {
+            if ([wifiMgr respondsToSelector:@selector(isPowered)]) {
+                BOOL powered = ((BOOL (*)(id, SEL))objc_msgSend)(wifiMgr, @selector(isPowered));
+                if (!powered) return NO; // Wi-Fi đã bị tắt nguồn hoàn toàn
+            }
+            if ([wifiMgr respondsToSelector:@selector(isAssociated)]) {
+                BOOL assoc = ((BOOL (*)(id, SEL))objc_msgSend)(wifiMgr, @selector(isAssociated));
+                if (assoc) return YES;
+            }
+            if ([wifiMgr respondsToSelector:@selector(isAssociatedToCurrentNetwork)]) {
+                BOOL assoc = ((BOOL (*)(id, SEL))objc_msgSend)(wifiMgr, @selector(isAssociatedToCurrentNetwork));
+                if (assoc) return YES;
+            }
+            if ([wifiMgr respondsToSelector:@selector(currentNetworkName)]) {
+                NSString *name = [wifiMgr currentNetworkName];
+                if (name && name.length > 0) return YES;
+            }
+        }
     }
 
-    // Kiểm tra tên SSID thực tế
+    // 2. Kiểm tra tên SSID thực tế
     NSString *ssid = getConnectedSSID();
     if (ssid && ssid.length > 0) {
         return YES;
     }
 
-    // Kiểm tra trạng thái liên kết (isAssociated) trong SBWiFiManager
-    Class wifiClass = objc_getClass("SBWiFiManager");
-    if (wifiClass && [wifiClass respondsToSelector:@selector(sharedInstance)]) {
-        id wifiMgr = [wifiClass performSelector:@selector(sharedInstance)];
-        if (wifiMgr) {
-            if ([wifiMgr respondsToSelector:@selector(isAssociated)]) {
-                BOOL assoc = ((BOOL (*)(id, SEL))objc_msgSend)(wifiMgr, @selector(isAssociated));
-                if (!assoc) return NO;
-            }
-            if ([wifiMgr respondsToSelector:@selector(isAssociatedToCurrentNetwork)]) {
-                BOOL assoc = ((BOOL (*)(id, SEL))objc_msgSend)(wifiMgr, @selector(isAssociatedToCurrentNetwork));
-                if (!assoc) return NO;
-            }
-            if ([wifiMgr respondsToSelector:@selector(currentNetworkName)]) {
-                NSString *name = [wifiMgr currentNetworkName];
-                return (name && name.length > 0);
-            }
-        }
+    // 3. Fallback vào data model status bar
+    if (g_sbDataValid) {
+        return g_sbWifiEnabled;
     }
     return NO;
 }
@@ -693,39 +800,38 @@ static BOOL isWifiActive(void) {
 static int getWiFiSignalBars(void) {
     if (!isWifiActive()) return 0;
 
-    if (g_sbDataValid && g_sbWifiEnabled) {
-        return g_sbWifiBars;
-    }
     Class wifiClass = objc_getClass("SBWiFiManager");
     if (wifiClass && [wifiClass respondsToSelector:@selector(sharedInstance)]) {
         id wifiMgr = [wifiClass performSelector:@selector(sharedInstance)];
         if (wifiMgr && [wifiMgr respondsToSelector:@selector(signalStrengthBars)]) {
-            return (int)((int (*)(id, SEL))objc_msgSend)(wifiMgr, @selector(signalStrengthBars));
+            int bars = (int)((int (*)(id, SEL))objc_msgSend)(wifiMgr, @selector(signalStrengthBars));
+            if (bars > 0) return bars;
         }
+    }
+    if (g_sbDataValid && g_sbWifiEnabled && g_sbWifiBars > 0) {
+        return g_sbWifiBars;
     }
     return 3;
 }
 
 static BOOL isAirplaneModeActive(void) {
-    if (g_sbDataValid && g_sbAirplaneEnabled) {
-        return YES;
-    }
-
-    Class teleClass = objc_getClass("SBTelephonyManager");
-    if (teleClass && [teleClass respondsToSelector:@selector(sharedTelephonyManager)]) {
-        id teleMgr = [teleClass performSelector:@selector(sharedTelephonyManager)];
-        if (teleMgr && [teleMgr respondsToSelector:@selector(isInAirplaneMode)]) {
-            BOOL inPlane = ((BOOL (*)(id, SEL))objc_msgSend)(teleMgr, @selector(isInAirplaneMode));
-            if (inPlane) return YES;
-        }
-    }
-
+    // 1. Kiểm tra live RadiosPreferences (Apple preferences system daemon)
     Class rpClass = objc_getClass("RadiosPreferences");
     if (rpClass) {
         id rp = [[rpClass alloc] init];
         if (rp && [rp respondsToSelector:@selector(airplaneMode)]) {
             BOOL inPlane = ((BOOL (*)(id, SEL))objc_msgSend)(rp, @selector(airplaneMode));
-            if (inPlane) return YES;
+            return inPlane;
+        }
+    }
+
+    // 2. Kiểm tra live SBTelephonyManager
+    Class teleClass = objc_getClass("SBTelephonyManager");
+    if (teleClass && [teleClass respondsToSelector:@selector(sharedTelephonyManager)]) {
+        id teleMgr = [teleClass performSelector:@selector(sharedTelephonyManager)];
+        if (teleMgr && [teleMgr respondsToSelector:@selector(isInAirplaneMode)]) {
+            BOOL inPlane = ((BOOL (*)(id, SEL))objc_msgSend)(teleMgr, @selector(isInAirplaneMode));
+            return inPlane;
         }
     }
 
@@ -734,10 +840,14 @@ static BOOL isAirplaneModeActive(void) {
         id ap = [apClass performSelector:@selector(sharedInstance)];
         if (ap && [ap respondsToSelector:@selector(isInAirplaneMode)]) {
             BOOL inPlane = ((BOOL (*)(id, SEL))objc_msgSend)(ap, @selector(isInAirplaneMode));
-            if (inPlane) return YES;
+            return inPlane;
         }
     }
 
+    // 3. Fallback vào data model status bar
+    if (g_sbDataValid) {
+        return g_sbAirplaneEnabled;
+    }
     return NO;
 }
 
@@ -811,16 +921,17 @@ static BOOL isNoSIMPresent(void) {
 static int getCellularSignalBars(void) {
     if (isAirplaneModeActive() || isNoSIMPresent()) return 0;
 
-    if (g_sbDataValid && g_sbCellularEnabled) {
-        return g_sbCellularBars;
-    }
-
     Class teleClass = objc_getClass("SBTelephonyManager");
     if (teleClass && [teleClass respondsToSelector:@selector(sharedTelephonyManager)]) {
         id teleMgr = [teleClass performSelector:@selector(sharedTelephonyManager)];
         if (teleMgr && [teleMgr respondsToSelector:@selector(signalStrengthBars)]) {
-            return (int)((int (*)(id, SEL))objc_msgSend)(teleMgr, @selector(signalStrengthBars));
+            int bars = (int)((int (*)(id, SEL))objc_msgSend)(teleMgr, @selector(signalStrengthBars));
+            if (bars >= 0) return bars;
         }
+    }
+
+    if (g_sbDataValid && g_sbCellularEnabled) {
+        return g_sbCellularBars;
     }
     return 0; // Trả về 0 khi mất sóng hoặc không xác định
 }
@@ -1064,6 +1175,8 @@ static void registerIOKitPowerNotification(void) {
         if (self.singleTapGesture) self.singleTapGesture.enabled = NO;
         if (self.doubleTapGesture) self.doubleTapGesture.enabled = NO;
         if (self.longPressGesture) self.longPressGesture.enabled = NO;
+        if (self.swipeLeftGesture) self.swipeLeftGesture.enabled = NO;
+        if (self.swipeRightGesture) self.swipeRightGesture.enabled = NO;
 
         UIView *p = self.superview;
         while (p) {
@@ -1083,6 +1196,8 @@ static void registerIOKitPowerNotification(void) {
         if (self.singleTapGesture) self.singleTapGesture.enabled = YES;
         if (self.doubleTapGesture) self.doubleTapGesture.enabled = YES;
         if (self.longPressGesture) self.longPressGesture.enabled = YES;
+        if (self.swipeLeftGesture) self.swipeLeftGesture.enabled = p_swipeGesturesEnabled;
+        if (self.swipeRightGesture) self.swipeRightGesture.enabled = p_swipeGesturesEnabled;
     }
 }
 
@@ -1525,22 +1640,24 @@ static void registerIOKitPowerNotification(void) {
     self.swipeLeftGesture = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(handleSwipeLeft)];
     self.swipeLeftGesture.direction = UISwipeGestureRecognizerDirectionLeft;
     self.swipeLeftGesture.delegate = self;
+    self.swipeLeftGesture.enabled = p_swipeGesturesEnabled;
     [self addGestureRecognizer:self.swipeLeftGesture];
 
     self.swipeRightGesture = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(handleSwipeRight)];
     self.swipeRightGesture.direction = UISwipeGestureRecognizerDirectionRight;
     self.swipeRightGesture.delegate = self;
+    self.swipeRightGesture.enabled = p_swipeGesturesEnabled;
     [self addGestureRecognizer:self.swipeRightGesture];
 }
 
 - (void)handleSwipeLeft {
-    if (p_dragModeEnabled) return;
+    if (!p_swipeGesturesEnabled || p_dragModeEnabled) return;
     triggerHaptic(1);
     executeAction(1, self); // Khóa màn hình
 }
 
 - (void)handleSwipeRight {
-    if (p_dragModeEnabled) return;
+    if (!p_swipeGesturesEnabled || p_dragModeEnabled) return;
     triggerHaptic(1);
     [self toggleRAMDisplay]; // Đổi nhanh Pin / RAM
 }
@@ -1823,6 +1940,15 @@ static void executeAction(int actionCode, CompactStatusView *view) {
 
 // MARK: - Update Statistics (1-second cycle)
 - (void)updateStats {
+    // Luôn chủ động trích xuất dữ liệu mới nhất từ _UIStatusBar cha
+    UIView *host = self.superview;
+    while (host && ![host isKindOfClass:objc_getClass("_UIStatusBar")] && ![host isKindOfClass:objc_getClass("UIStatusBar")]) {
+        host = host.superview;
+    }
+    if (host) {
+        updateLiveDataFromStatusBar(host, nil);
+    }
+
     // 0. IOKit Safe Hardware Battery & State (Fall back to UIDevice if unavailable)
     CGFloat bat = 1.0;
     BOOL charging = NO;
@@ -2043,7 +2169,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
                 _centerLabel.hidden = NO;
                 _centerLabel.text = @"SOS";
                 _centerLabel.textColor = [UIColor colorWithRed:1.0 green:0.35 blue:0.35 alpha:0.95];
-            } else if (charging && p_batteryPercentMode != 4) {
+            } else if (charging && p_batteryPercentMode != 4 && p_chargingBoltEnabled) {
                 // Đang cắm sạc: Hiện tia sét sạc ở tâm
                 _centerLabel.hidden = YES;
                 _chargingBoltLayer.hidden = NO;
@@ -2208,11 +2334,17 @@ static void executeAction(int actionCode, CompactStatusView *view) {
 
         // Hiệu ứng co giãn đàn hồi mượt mà (Spring animation)
         if (!CGSizeEqualToSize(self.bounds.size, targetBounds.size)) {
-            [UIView animateWithDuration:0.35 delay:0 usingSpringWithDamping:0.78 initialSpringVelocity:0.4 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction animations:^{
+            if (p_springAnimations) {
+                [UIView animateWithDuration:0.35 delay:0 usingSpringWithDamping:0.78 initialSpringVelocity:0.4 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction animations:^{
+                    self->_extraInfoContainer.frame = targetExtraFrame;
+                    self->_pillContainerView.frame = targetPillFrame;
+                    self.bounds = targetBounds;
+                } completion:nil];
+            } else {
                 self->_extraInfoContainer.frame = targetExtraFrame;
                 self->_pillContainerView.frame = targetPillFrame;
                 self.bounds = targetBounds;
-            } completion:nil];
+            }
         } else {
             _extraInfoContainer.frame = targetExtraFrame;
             _pillContainerView.frame = targetPillFrame;
@@ -2228,7 +2360,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
                 (isDark ? [UIColor colorWithWhite:0.0 alpha:0.18] : [UIColor colorWithWhite:1.0 alpha:0.20]);
 
             // Chế độ OLED Pure Black khi bật Tiết kiệm pin hoặc pin yếu
-            if (lowPower || pct <= 20) {
+            if (p_oledBlackMode && (lowPower || pct <= 20)) {
                 _pillContainerView.layer.borderColor = (lowPower ? [UIColor colorWithRed:1.0 green:0.80 blue:0.0 alpha:0.35] : [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:0.35]).CGColor;
                 _pillContainerView.backgroundColor = [UIColor blackColor];
             } else {
@@ -2782,35 +2914,7 @@ static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBat
         hostBar = hostBar.superview;
     }
     if (hostBar) {
-        id cData = nil;
-        if ([hostBar respondsToSelector:@selector(currentData)]) cData = [hostBar performSelector:@selector(currentData)];
-        if (!cData && [hostBar respondsToSelector:@selector(currentAggregatedData)]) cData = [hostBar performSelector:@selector(currentAggregatedData)];
-        if (cData) {
-            @try {
-                id wEntry = [cData valueForKey:@"wifiEntry"];
-                if (wEntry && [wEntry respondsToSelector:@selector(isEnabled)]) {
-                    g_sbWifiEnabled = ((BOOL (*)(id, SEL))objc_msgSend)(wEntry, @selector(isEnabled));
-                    if ([wEntry respondsToSelector:@selector(displayValue)]) {
-                        g_sbWifiBars = (int)((NSInteger (*)(id, SEL))objc_msgSend)(wEntry, @selector(displayValue));
-                    }
-                }
-                id ceEntry = [cData valueForKey:@"cellularEntry"];
-                if (ceEntry && [ceEntry respondsToSelector:@selector(isEnabled)]) {
-                    g_sbCellularEnabled = ((BOOL (*)(id, SEL))objc_msgSend)(ceEntry, @selector(isEnabled));
-                    if ([ceEntry respondsToSelector:@selector(displayValue)]) {
-                        g_sbCellularBars = (int)((NSInteger (*)(id, SEL))objc_msgSend)(ceEntry, @selector(displayValue));
-                    }
-                    if ([ceEntry respondsToSelector:@selector(string)]) {
-                        g_sbCellularType = [ceEntry performSelector:@selector(string)];
-                    }
-                }
-                id apEntry = [cData valueForKey:@"airplaneModeEntry"];
-                if (apEntry && [apEntry respondsToSelector:@selector(isEnabled)]) {
-                    g_sbAirplaneEnabled = ((BOOL (*)(id, SEL))objc_msgSend)(apEntry, @selector(isEnabled));
-                }
-                g_sbDataValid = YES;
-            } @catch (__unused id e) {}
-        }
+        updateLiveDataFromStatusBar(hostBar, nil);
     }
 
     // Tự động nhận diện màu chữ/màu icon thanh trạng thái hệ thống (STUIStatusBar foregroundColor / SignalView activeColor)
@@ -3071,6 +3175,47 @@ static void hooked_img_setImage(UIImageView *self, SEL _cmd, UIImage *image) {
     checkAndApplyImageVisibility(self);
 }
 
+static void (*orig_uistatusbar_layoutSubviews)(UIView *, SEL) = NULL;
+static void hooked_uistatusbar_layoutSubviews(UIView *self, SEL _cmd) {
+    if (orig_uistatusbar_layoutSubviews) {
+        orig_uistatusbar_layoutSubviews(self, _cmd);
+    }
+    updateLiveDataFromStatusBar(self, nil);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (g_activeStatusView) [g_activeStatusView updateStats];
+        if (g_activeCCStatusView) [g_activeCCStatusView updateStats];
+    });
+}
+
+static void (*orig_uistatusbar_updateWithData)(UIView *, SEL, id) = NULL;
+static void hooked_uistatusbar_updateWithData(UIView *self, SEL _cmd, id data) {
+    if (orig_uistatusbar_updateWithData) {
+        orig_uistatusbar_updateWithData(self, _cmd, data);
+    }
+    updateLiveDataFromStatusBar(self, data);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (g_activeStatusView) [g_activeStatusView updateStats];
+        if (g_activeCCStatusView) [g_activeCCStatusView updateStats];
+    });
+}
+
+static void handleSystemStateChangeNotification(void) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (g_activeStatusView) {
+            updateLiveDataFromStatusBar(g_activeStatusView.superview, nil);
+            [g_activeStatusView updateStats];
+        }
+        if (g_activeCCStatusView) {
+            updateLiveDataFromStatusBar(g_activeCCStatusView.superview, nil);
+            [g_activeCCStatusView updateStats];
+        }
+    });
+}
+
+static void handleSystemStateDarwinCallback(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    handleSystemStateChangeNotification();
+}
+
 // MARK: - Notifications
 static void handleRespringNotification(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -3196,41 +3341,46 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         CFNotificationSuspensionBehaviorCoalesce
     );
 
-    CFNotificationCenterAddObserver(
-        CFNotificationCenterGetDarwinNotifyCenter(),
-        NULL,
-        (CFNotificationCallback)handleReloadNotification,
-        CFSTR("com.apple.radios.airplaneModeChanged"),
-        NULL,
-        CFNotificationSuspensionBehaviorCoalesce
-    );
+    // Đăng ký Darwin notifications cho mọi thay đổi sóng, mạng, máy bay, SIM
+    NSArray *darwinStateNotifs = @[
+        @"com.apple.radios.airplaneModeChanged",
+        @"com.apple.radios.airplane-mode.changed",
+        @"kCTAirplaneModeDidChangeNotification",
+        @"kCTSIMSupportSIMStatusChangeNotification",
+        @"com.apple.telephony.simstatus",
+        @"com.apple.wifi.manager.powerStateChanged",
+        @"com.apple.wifi.linkChanged",
+        @"com.apple.springboard.networkStateChanged",
+        @"com.apple.springboard.statusBarStateChanged"
+    ];
+    for (NSString *dn in darwinStateNotifs) {
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            NULL,
+            (CFNotificationCallback)handleSystemStateDarwinCallback,
+            (__bridge CFStringRef)dn,
+            NULL,
+            CFNotificationSuspensionBehaviorCoalesce
+        );
+    }
 
-    CFNotificationCenterAddObserver(
-        CFNotificationCenterGetDarwinNotifyCenter(),
-        NULL,
-        (CFNotificationCallback)handleReloadNotification,
-        CFSTR("kCTAirplaneModeDidChangeNotification"),
-        NULL,
-        CFNotificationSuspensionBehaviorCoalesce
-    );
-
-    CFNotificationCenterAddObserver(
-        CFNotificationCenterGetDarwinNotifyCenter(),
-        NULL,
-        (CFNotificationCallback)handleReloadNotification,
-        CFSTR("kCTSIMSupportSIMStatusChangeNotification"),
-        NULL,
-        CFNotificationSuspensionBehaviorCoalesce
-    );
-
-    CFNotificationCenterAddObserver(
-        CFNotificationCenterGetDarwinNotifyCenter(),
-        NULL,
-        (CFNotificationCallback)handleReloadNotification,
-        CFSTR("com.apple.telephony.simstatus"),
-        NULL,
-        CFNotificationSuspensionBehaviorCoalesce
-    );
+    // Đăng ký SpringBoard NSNotificationCenter cho cập nhật trực tiếp tức thì 0 độ trễ
+    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+    NSArray *sbNotifs = @[
+        @"SBWiFiManagerLinkDidChangeNotification",
+        @"SBWiFiManagerPowerStateDidChangeNotification",
+        @"SBTelephonyManagerRegistrationStateChangedNotification",
+        @"SBTelephonyManagerDataStatusNotification",
+        @"SBTelephonyManagerCarrierBundleChangedNotification",
+        @"SBTelephonyManagerAirplaneModeDidChangeNotification",
+        @"SBAirplaneModeControllerAirplaneModeDidChangeNotification",
+        @"UIApplicationSignificantTimeChangeNotification"
+    ];
+    for (NSString *sbn in sbNotifs) {
+        [nc addObserverForName:sbn object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(__unused NSNotification *note) {
+            handleSystemStateChangeNotification();
+        }];
+    }
 
     // 1. Hook Battery View
     Class bClass = objc_getClass("_UIBatteryView");
@@ -3268,10 +3418,14 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         SafeSwizzle(imgViewClass, @selector(setImage:), (IMP)hooked_img_setImage, (IMP *)&orig_img_setImage);
     }
 
-    // 6. Hook Status Bar & Status Bar Window for touch hit-testing (drag-and-drop support)
+    // 6. Hook Status Bar & Status Bar Window for touch hit-testing and real-time live data sync
     Class sbViewClass = objc_getClass("_UIStatusBar");
     if (sbViewClass) {
         SafeSwizzle(sbViewClass, @selector(hitTest:withEvent:), (IMP)hooked_uistatusbar_hitTest, (IMP *)&orig_uistatusbar_hitTest);
+        SafeSwizzle(sbViewClass, @selector(layoutSubviews), (IMP)hooked_uistatusbar_layoutSubviews, (IMP *)&orig_uistatusbar_layoutSubviews);
+        if (class_getInstanceMethod(sbViewClass, @selector(updateWithData:))) {
+            SafeSwizzle(sbViewClass, @selector(updateWithData:), (IMP)hooked_uistatusbar_updateWithData, (IMP *)&orig_uistatusbar_updateWithData);
+        }
     }
 
     Class winClass = objc_getClass("UIStatusBarWindow");

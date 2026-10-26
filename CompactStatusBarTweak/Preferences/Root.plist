@@ -489,7 +489,7 @@
 		</dict>
 		<dict>
 			<key>cell</key>
-			<string>PSSegmentCell</string>
+			<string>PSLinkListCell</string>
 			<key>default</key>
 			<integer>2</integer>
 			<key>defaults</key>
@@ -498,11 +498,11 @@
 			<string>batteryPercentMode</string>
 			<key>validTitles</key>
 			<array>
-				<string>Ẩn</string>
-				<string>Ở tâm</string>
-				<string>Kế bên</string>
-				<string>Mép trái</string>
-				<string>Đỉnh vòm (Ảnh mới)</string>
+				<string>Ẩn (Không hiển thị)</string>
+				<string>Ở tâm (Chính giữa vòng đo)</string>
+				<string>Kế bên (Trên thanh Capsule)</string>
+				<string>Mép trái (Bên trái vòng đo)</string>
+				<string>Đỉnh vòm (Vương miện Top Crown)</string>
 			</array>
 			<key>validValues</key>
 			<array>
@@ -514,6 +514,10 @@
 			</array>
 			<key>PostNotification</key>
 			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+			<key>detail</key>
+			<string>PSListItemsController</string>
+			<key>label</key>
+			<string>Vị trí &amp; Kiểu % Pin</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -922,6 +926,73 @@
 				<integer>2</integer>
 				<integer>3</integer>
 			</array>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>TÍNH NĂNG NÂNG CAO (v1.3.9)</string>
+			<key>footerText</key>
+			<string>Cử chỉ vuốt trên Gauge: Vuốt sang trái để khóa máy nhanh, vuốt sang phải để đổi nhanh giữa RAM và Pin.
+Tia sét sạc pin: Tự động hiển thị biểu tượng tia sét vector ở tâm khi cắm sạc.
+OLED Pure Black: Tự chuyển nền Capsule sang màu đen sâu OLED khi bật Tiết kiệm pin hoặc pin ≤20%.
+Hiệu ứng đàn hồi (Spring): Sử dụng vật lý lò xo mượt mà khi mở rộng/thu nhỏ viên thuốc.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>swipeGesturesEnabled</string>
+			<key>label</key>
+			<string>Cử chỉ vuốt trên Gauge (Khóa / Đổi RAM)</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>chargingBoltEnabled</string>
+			<key>label</key>
+			<string>Tia sét sạc pin vector ở tâm</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>oledBlackMode</string>
+			<key>label</key>
+			<string>Chế độ OLED Pure Black khi pin yếu</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>springAnimations</string>
+			<key>label</key>
+			<string>Hiệu ứng co giãn đàn hồi (Spring)</string>
 			<key>PostNotification</key>
 			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
 		</dict>
