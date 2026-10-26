@@ -35,6 +35,33 @@
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
 
+		<!-- KÉO THẢ VÀ PHÓNG TO THU NHỎ TRỰC TIẾP -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>CHỈNH SỬA TRỰC TIẾP TRÊN MÀN HÌNH</string>
+			<key>footerText</key>
+			<string>BẬT tính năng này, sau đó ra màn hình chính:
+• Chạm và kéo Dock đến vị trí mong muốn trên màn hình.
+• Dùng 2 ngón tay chụm/mở (Pinch) để phóng to/thu nhỏ kích thước icon.
+TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<false/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>dragModeEnabled</string>
+			<key>label</key>
+			<string>Kéo thả &amp; Phóng to trực tiếp</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
+		</dict>
+
 		<!-- PHẦN CHẾ ĐỘ HOẠT ĐỘNG (TỰ ĐỘNG THÍCH ỨNG) -->
 		<dict>
 			<key>cell</key>
@@ -42,7 +69,7 @@
 			<key>label</key>
 			<string>CHẾ ĐỘ TƯƠNG THÍCH DOCK</string>
 			<key>footerText</key>
-			<string>• Tự động: Tự phát hiện xem máy có đang bật FloatingDockXVI hay không để điều chỉnh phù hợp, không bao giờ gây đơ.
+			<string>• Tự động: Tự phát hiện xem máy có đang bật FloatingDockXVI hay không để điều chỉnh phù hợp.
 • Độc lập: Luôn dùng Dock gốc iPhone.
 • FloatingDock: Luôn dùng FloatingDockXVI.</string>
 		</dict>
@@ -118,7 +145,7 @@
 			<key>label</key>
 			<string>TỶ LỆ THU PHÓNG ICON DOCK (0.6x - 1.2x)</string>
 			<key>footerText</key>
-			<string>Nên đặt 0.85x để icon nằm cân đối chính giữa viên thuốc.</string>
+			<string>Có thể dùng 2 ngón tay phóng to/thu nhỏ trực tiếp trên màn hình chính khi bật chế độ chỉnh sửa.</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -195,7 +222,7 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>KHOẢNG CÁCH LỀ PHẢI (MARGIN: 0 - 30 PT)</string>
+			<string>KHOẢNG CÁCH LỀ PHẢI (MARGIN: 0 - 50 PT)</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -209,7 +236,7 @@
 			<key>min</key>
 			<real>0.0</real>
 			<key>max</key>
-			<real>30.0</real>
+			<real>50.0</real>
 			<key>showValue</key>
 			<true/>
 			<key>PostNotification</key>
@@ -220,7 +247,7 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>VỊ TRÍ DỌC TRUNG TÂM (OFFSET Y: -150 - 150 PT)</string>
+			<string>VỊ TRÍ DỌC TRUNG TÂM (OFFSET Y: -200 - 200 PT)</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -232,37 +259,9 @@
 			<key>key</key>
 			<string>verticalOffset</string>
 			<key>min</key>
-			<real>-150.0</real>
+			<real>-200.0</real>
 			<key>max</key>
-			<real>150.0</real>
-			<key>showValue</key>
-			<true/>
-			<key>PostNotification</key>
-			<string>com.hoangnguyen.duodock/preferences.changed</string>
-		</dict>
-
-		<!-- ĐỘ BO GÓC VIÊN THUỐC -->
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
-			<string>ĐỘ BO GÓC DOCK (CORNER RADIUS: 10 - 48 PT)</string>
-			<key>footerText</key>
-			<string>Đặt 39pt tương đương dáng viên thuốc chuẩn (Capsule) cho chiều rộng 78pt.</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSliderCell</string>
-			<key>default</key>
-			<real>39.0</real>
-			<key>defaults</key>
-			<string>com.hoangnguyen.duodock</string>
-			<key>key</key>
-			<string>cornerRadius</string>
-			<key>min</key>
-			<real>10.0</real>
-			<key>max</key>
-			<real>48.0</real>
+			<real>200.0</real>
 			<key>showValue</key>
 			<true/>
 			<key>PostNotification</key>
@@ -334,8 +333,8 @@
 			<key>footerAlignment</key>
 			<integer>1</integer>
 			<key>footerText</key>
-			<string>DuoDock v1.2.0 (Tự động thích ứng &amp; Siêu mượt)
-Hỗ trợ cả Dock gốc và FloatingDockXVI / GhostBoard</string>
+			<string>DuoDock v1.4.0 (Interactive Drag &amp; Pinch-to-Scale)
+Kéo thả và phóng to thu nhỏ trực tiếp trên màn hình</string>
 		</dict>
 	</array>
 	<key>title</key>

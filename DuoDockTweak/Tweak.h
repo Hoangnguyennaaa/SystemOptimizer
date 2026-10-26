@@ -29,6 +29,8 @@
 @property (nonatomic, readonly) SBDockIconListView *dockIconListView;
 - (SBDockIconListView *)_iconListView;
 - (double)dockHeight;
+- (void)handleDuoDockPan:(UIPanGestureRecognizer *)pan;
+- (void)handleDuoDockPinch:(UIPinchGestureRecognizer *)pinch;
 @end
 
 @interface SBRootFolderView : UIView
@@ -43,6 +45,8 @@
 @property (nonatomic, retain) SBIconListView *recentIconListView;
 @property (nonatomic, retain) UIView *dividerView;
 - (void)layoutSubviews;
+- (void)handleDuoDockPan:(UIPanGestureRecognizer *)pan;
+- (void)handleDuoDockPinch:(UIPinchGestureRecognizer *)pinch;
 @end
 
 @interface SBIconController : NSObject
