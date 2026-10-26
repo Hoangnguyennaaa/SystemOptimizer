@@ -3,7 +3,7 @@
 // MARK: - Global Configurations
 static BOOL kEnabled = YES;
 static BOOL p_dragModeEnabled = NO;
-static NSInteger kDockMode = 0; // 0 = Auto-detect, 1 = Standalone, 2 = FloatingDock
+static NSInteger kDockSide = 1; // 0 = Trái (Left), 1 = Phải (Right - Default)
 static NSInteger kDockIconCount = 4;
 static CGFloat kDockIconScale = 0.85;
 static CGFloat kDockWidth = 78.0;
@@ -13,6 +13,12 @@ static CGFloat kVerticalOffset = 0.0;
 static CGFloat kCornerRadius = 39.0;
 static CGFloat kDockBlurAlpha = 0.82;
 static BOOL kDockBlurEnabled = YES;
+static NSInteger kDockBlurStyle = 0; // 0 = Tối (Dark), 1 = Sáng (Light), 2 = Siêu mỏng (Ultra Thin), 3 = Trong suốt
+static BOOL kDockBorderEnabled = NO;
+static CGFloat kDockBorderWidth = 1.0;
+static BOOL kDockShadowEnabled = YES;
+static BOOL kHideDockLabels = YES;
+
 static BOOL kHomeCompressGrid = YES;
 static CGFloat kHomeRightInset = 88.0;
 static BOOL kExpandBottomRows = YES;
@@ -22,21 +28,6 @@ static NSInteger kHomeColumns = 4;
 static CGFloat kHomeIconScale = 0.90;
 
 static BOOL isLayingOutDock = NO;
-
-// MARK: - FloatingDock Active Detection
-static BOOL isFloatingDockActive(void) {
-    Class fdc = objc_getClass("SBFloatingDockController");
-    if (fdc) {
-        @try {
-            id ctrl = [fdc performSelector:@selector(sharedInstance)];
-            if (ctrl && [ctrl respondsToSelector:@selector(isFloatingDockSupported)]) {
-                BOOL sup = ((BOOL (*)(id, SEL))objc_msgSend)(ctrl, @selector(isFloatingDockSupported));
-                if (sup) return YES;
-            }
-        } @catch (NSException *e) {}
-    }
-    return NO;
-}
 
 // MARK: - Preference Management
 static void loadPreferences() {
@@ -49,7 +40,7 @@ static void loadPreferences() {
     if (prefs) {
         kEnabled = prefs[@"enabled"] ? [prefs[@"enabled"] boolValue] : YES;
         p_dragModeEnabled = prefs[@"dragModeEnabled"] ? [prefs[@"dragModeEnabled"] boolValue] : NO;
-        kDockMode = prefs[@"dockMode"] ? [prefs[@"dockMode"] integerValue] : 0;
+        kDockSide = prefs[@"dockSide"] ? [prefs[@"dockSide"] integerValue] : 1;
         kDockIconCount = prefs[@"dockIconCount"] ? [prefs[@"dockIconCount"] integerValue] : 4;
         kDockIconScale = prefs[@"dockIconScale"] ? [prefs[@"dockIconScale"] doubleValue] : 0.85;
         kDockWidth = prefs[@"dockWidth"] ? [prefs[@"dockWidth"] doubleValue] : 78.0;
@@ -59,6 +50,12 @@ static void loadPreferences() {
         kCornerRadius = prefs[@"cornerRadius"] ? [prefs[@"cornerRadius"] doubleValue] : (kDockWidth / 2.0);
         kDockBlurAlpha = prefs[@"dockBlurAlpha"] ? [prefs[@"dockBlurAlpha"] doubleValue] : 0.82;
         kDockBlurEnabled = prefs[@"dockBlurEnabled"] ? [prefs[@"dockBlurEnabled"] boolValue] : YES;
+        kDockBlurStyle = prefs[@"dockBlurStyle"] ? [prefs[@"dockBlurStyle"] integerValue] : 0;
+        kDockBorderEnabled = prefs[@"dockBorderEnabled"] ? [prefs[@"dockBorderEnabled"] boolValue] : NO;
+        kDockBorderWidth = prefs[@"dockBorderWidth"] ? [prefs[@"dockBorderWidth"] doubleValue] : 1.0;
+        kDockShadowEnabled = prefs[@"dockShadowEnabled"] ? [prefs[@"dockShadowEnabled"] boolValue] : YES;
+        kHideDockLabels = prefs[@"hideDockLabels"] ? [prefs[@"hideDockLabels"] boolValue] : YES;
+        
         kHomeCompressGrid = prefs[@"homeCompressGrid"] ? [prefs[@"homeCompressGrid"] boolValue] : YES;
         kHomeRightInset = prefs[@"homeRightInset"] ? [prefs[@"homeRightInset"] doubleValue] : 88.0;
         kExpandBottomRows = prefs[@"expandBottomRows"] ? [prefs[@"expandBottomRows"] boolValue] : YES;
@@ -69,7 +66,7 @@ static void loadPreferences() {
     }
 }
 
-static void savePositionAndScale(CGFloat rightMargin, CGFloat verticalOffset, CGFloat iconScale) {
+static void savePositionAndScale(CGFloat rightMargin, CGFloat verticalOffset, CGFloat iconScale, NSInteger dockSide) {
     NSString *path = PREF_PATH_ROOTLESS;
     NSString *dir = [path stringByDeletingLastPathComponent];
     if (![[NSFileManager defaultManager] fileExistsAtPath:dir]) {
@@ -80,11 +77,13 @@ static void savePositionAndScale(CGFloat rightMargin, CGFloat verticalOffset, CG
     dict[@"rightMargin"] = @(rightMargin);
     dict[@"verticalOffset"] = @(verticalOffset);
     dict[@"dockIconScale"] = @(iconScale);
+    dict[@"dockSide"] = @(dockSide);
     [dict writeToFile:path atomically:YES];
     
     kRightMargin = rightMargin;
     kVerticalOffset = verticalOffset;
     kDockIconScale = iconScale;
+    kDockSide = dockSide;
 }
 
 static void triggerHapticFeedback() {
@@ -135,7 +134,12 @@ static CGRect calculateDuoDockFrame(void) {
     CGRect screenBounds = [UIScreen mainScreen].bounds;
     CGFloat w = kDockWidth;
     CGFloat h = kDockHeight;
-    CGFloat x = screenBounds.size.width - w - kRightMargin;
+    CGFloat x;
+    if (kDockSide == 0) {
+        x = kRightMargin;
+    } else {
+        x = screenBounds.size.width - w - kRightMargin;
+    }
     CGFloat y = ((screenBounds.size.height - h) / 2.0) + kVerticalOffset;
     return CGRectMake(x, y, w, h);
 }
@@ -143,7 +147,6 @@ static CGRect calculateDuoDockFrame(void) {
 static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloat dockH) {
     if (!containerView) return;
     
-    // Đảm bảo containerView bao trọn khung của Dock để icon không bị bóp nghẹt
     containerView.frame = CGRectMake(0, 0, dockW, dockH);
     containerView.clipsToBounds = NO;
     
@@ -157,22 +160,30 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
     NSUInteger count = icons.count;
     if (count == 0) return;
     
+    if (kDockIconCount > 0 && count > (NSUInteger)kDockIconCount) {
+        count = (NSUInteger)kDockIconCount;
+    }
+    
     CGFloat topPadding = 24.0;
     CGFloat bottomPadding = 24.0;
     CGFloat availableHeight = dockH - topPadding - bottomPadding;
     CGFloat slotHeight = availableHeight / (CGFloat)count;
     
-    for (NSUInteger i = 0; i < count; i++) {
+    for (NSUInteger i = 0; i < icons.count; i++) {
         SBIconView *iconView = icons[i];
-        CGFloat centerY = topPadding + (i * slotHeight) + (slotHeight / 2.0);
-        CGPoint targetCenter = CGPointMake(dockW / 2.0, centerY);
-        
-        // Không đụng vào iconView.bounds để tránh co lại thành chấm nhỏ!
-        iconView.center = targetCenter;
-        iconView.transform = CGAffineTransformMakeScale(kDockIconScale, kDockIconScale);
-        
-        if ([iconView respondsToSelector:@selector(setLabelHidden:)]) {
-            [iconView setLabelHidden:YES];
+        if (i < count) {
+            iconView.hidden = NO;
+            CGFloat centerY = topPadding + (i * slotHeight) + (slotHeight / 2.0);
+            CGPoint targetCenter = CGPointMake(dockW / 2.0, centerY);
+            
+            iconView.center = targetCenter;
+            iconView.transform = CGAffineTransformMakeScale(kDockIconScale, kDockIconScale);
+            
+            if ([iconView respondsToSelector:@selector(setLabelHidden:)]) {
+                [iconView setLabelHidden:kHideDockLabels];
+            }
+        } else {
+            iconView.hidden = YES;
         }
     }
 }
@@ -182,14 +193,31 @@ static void setupCapsuleBackground(UIView *dockView) {
     if (!dockView) return;
     
     UIVisualEffectView *pill = [dockView viewWithTag:887766];
+    
+    if (kDockBlurStyle == 3 || !kDockBlurEnabled) {
+        if (pill) pill.hidden = YES;
+        dockView.layer.shadowOpacity = 0.0;
+        return;
+    }
+    
+    UIBlurEffectStyle style = UIBlurEffectStyleSystemMaterialDark;
+    if (kDockBlurStyle == 1) {
+        style = UIBlurEffectStyleSystemMaterialLight;
+    } else if (kDockBlurStyle == 2) {
+        style = UIBlurEffectStyleSystemUltraThinMaterial;
+    }
+    
     if (!pill) {
-        UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterialDark];
+        UIBlurEffect *blur = [UIBlurEffect effectWithStyle:style];
         pill = [[UIVisualEffectView alloc] initWithEffect:blur];
         pill.tag = 887766;
         pill.userInteractionEnabled = NO;
         [dockView insertSubview:pill atIndex:0];
+    } else {
+        pill.effect = [UIBlurEffect effectWithStyle:style];
     }
     
+    pill.hidden = NO;
     pill.frame = dockView.bounds;
     CGFloat radius = (kCornerRadius > 0) ? kCornerRadius : (dockView.bounds.size.width / 2.0);
     pill.layer.cornerRadius = radius;
@@ -198,14 +226,25 @@ static void setupCapsuleBackground(UIView *dockView) {
     }
     pill.layer.masksToBounds = YES;
     pill.alpha = kDockBlurAlpha;
-    pill.hidden = !kDockBlurEnabled;
     
-    // Viền xanh lá hiển thị khi đang ở chế độ kéo thả căn chỉnh trực tiếp
     if (p_dragModeEnabled) {
         pill.layer.borderWidth = 2.0;
         pill.layer.borderColor = [UIColor systemGreenColor].CGColor;
+    } else if (kDockBorderEnabled) {
+        pill.layer.borderWidth = kDockBorderWidth;
+        pill.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
     } else {
         pill.layer.borderWidth = 0.0;
+    }
+    
+    if (kDockShadowEnabled && !p_dragModeEnabled) {
+        dockView.layer.shadowColor = [UIColor blackColor].CGColor;
+        dockView.layer.shadowOpacity = 0.35;
+        dockView.layer.shadowOffset = CGSizeMake((kDockSide == 0 ? 3.0 : -3.0), 4.0);
+        dockView.layer.shadowRadius = 12.0;
+        dockView.layer.masksToBounds = NO;
+    } else {
+        dockView.layer.shadowOpacity = 0.0;
     }
 }
 
@@ -217,10 +256,19 @@ static void handleDockPanGesture(UIView *dockView, UIPanGestureRecognizer *pan) 
         [pan setTranslation:CGPointZero inView:dockView.superview];
     } else if (pan.state == UIGestureRecognizerStateEnded) {
         CGRect screenBounds = [UIScreen mainScreen].bounds;
-        CGFloat newRightMargin = screenBounds.size.width - CGRectGetMaxX(dockView.frame);
+        CGFloat midX = dockView.center.x;
+        NSInteger newSide = (midX < screenBounds.size.width / 2.0) ? 0 : 1;
+        CGFloat newMargin;
+        if (newSide == 0) {
+            newMargin = CGRectGetMinX(dockView.frame);
+            if (newMargin < 0) newMargin = 0;
+        } else {
+            newMargin = screenBounds.size.width - CGRectGetMaxX(dockView.frame);
+            if (newMargin < 0) newMargin = 0;
+        }
         CGFloat newVerticalOffset = dockView.center.y - (screenBounds.size.height / 2.0);
         
-        savePositionAndScale(newRightMargin, newVerticalOffset, kDockIconScale);
+        savePositionAndScale(newMargin, newVerticalOffset, kDockIconScale, newSide);
         triggerHapticFeedback();
     }
 }
@@ -230,7 +278,6 @@ static void handleDockPinchGesture(UIView *dockView, UIPinchGestureRecognizer *p
         CGFloat newScale = kDockIconScale * pinch.scale;
         if (newScale >= 0.55 && newScale <= 1.25) {
             kDockIconScale = newScale;
-            // Áp dụng scale tức thì lên các icon
             UIView *iconList = nil;
             if ([dockView respondsToSelector:@selector(dockIconListView)]) {
                 iconList = [dockView valueForKey:@"dockIconListView"];
@@ -247,7 +294,7 @@ static void handleDockPinchGesture(UIView *dockView, UIPinchGestureRecognizer *p
         }
         pinch.scale = 1.0;
     } else if (pinch.state == UIGestureRecognizerStateEnded) {
-        savePositionAndScale(kRightMargin, kVerticalOffset, kDockIconScale);
+        savePositionAndScale(kRightMargin, kVerticalOffset, kDockIconScale, kDockSide);
         triggerHapticFeedback();
     }
 }
@@ -277,12 +324,8 @@ static void attachInteractiveGestures(UIView *dockView) {
 
 - (CGRect)_frameForDockView {
     if (kEnabled) {
-        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
-        if (useFloating) {
-            return %orig;
-        }
         // Cho dock độc lập: Đặt frame dock ảo ở mép dưới để SBRootFolderView giải phóng 90pt diện tích đáy
-        // và không ép pageControl lên giữa màn hình. SBDockView sẽ tự định vị sang cạnh phải.
+        // và không ép pageControl lên giữa màn hình. SBDockView sẽ tự định vị sang cạnh trái hoặc phải.
         CGRect screenBounds = [UIScreen mainScreen].bounds;
         return CGRectMake(0, screenBounds.size.height, screenBounds.size.width, 0);
     }
@@ -322,17 +365,19 @@ static void attachInteractiveGestures(UIView *dockView) {
     if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
         CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
         
-        // 1. Thu hẹp lề phải để nhường chỗ cho DuoDock, không bao giờ để Dock đè lên icon
+        // 1. Thu hẹp lề để nhường chỗ cho DuoDock, không bao giờ để Dock đè lên icon
         if (kHomeCompressGrid) {
             CGFloat dockOccupied = (kHomeRightInset > 0) ? kHomeRightInset : (kDockWidth + kRightMargin + 10.0);
-            CGFloat maxRight = screenWidth - insets.left - 240.0;
-            if (maxRight > 20.0 && dockOccupied > maxRight) {
-                dockOccupied = maxRight;
+            CGFloat maxInset = screenWidth - 240.0 - 14.0;
+            if (maxInset > 20.0 && dockOccupied > maxInset) {
+                dockOccupied = maxInset;
             }
-            insets.right = dockOccupied;
-            
-            if (insets.left > 14.0) {
-                insets.left = 12.0;
+            if (kDockSide == 0) {
+                insets.left = dockOccupied;
+                if (insets.right > 14.0) insets.right = 12.0;
+            } else {
+                insets.right = dockOccupied;
+                if (insets.left > 14.0) insets.left = 12.0;
             }
         }
         
@@ -422,13 +467,16 @@ static void attachInteractiveGestures(UIView *dockView) {
     if (kHomeCompressGrid && insets.bottom > 0) {
         CGFloat dockOccupied = (kHomeRightInset > 0) ? kHomeRightInset : (kDockWidth + kRightMargin + 10.0);
         CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-        CGFloat maxRight = screenWidth - insets.left - 240.0;
-        if (maxRight > 20.0 && dockOccupied > maxRight) {
-            dockOccupied = maxRight;
+        CGFloat maxInset = screenWidth - 240.0 - 14.0;
+        if (maxInset > 20.0 && dockOccupied > maxInset) {
+            dockOccupied = maxInset;
         }
-        insets.right = dockOccupied;
-        if (insets.left > 14.0) {
-            insets.left = 12.0;
+        if (kDockSide == 0) {
+            insets.left = dockOccupied;
+            if (insets.right > 14.0) insets.right = 12.0;
+        } else {
+            insets.right = dockOccupied;
+            if (insets.left > 14.0) insets.left = 12.0;
         }
     }
     return insets;
@@ -436,7 +484,7 @@ static void attachInteractiveGestures(UIView *dockView) {
 
 %end
 
-// MARK: - Hook SBDockView
+// MARK: - Hook SBDockView (Tối ưu 100% Native 120Hz mượt mà)
 %hook SBDockView
 
 %new
@@ -455,21 +503,12 @@ static void attachInteractiveGestures(UIView *dockView) {
     if (isLayingOutDock) return;
     
     @try {
-        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
-        if (useFloating) {
-            if (!self.hidden) {
-                self.hidden = YES;
-                self.alpha = 0.0;
-            }
-            return;
-        }
-        
         isLayingOutDock = YES;
         self.hidden = NO;
         self.alpha = 1.0;
         
         CGRect dockFrame = calculateDuoDockFrame();
-        if (!CGRectEqualToRect(self.frame, dockFrame)) {
+        if (!p_dragModeEnabled && !CGRectEqualToRect(self.frame, dockFrame)) {
             self.frame = dockFrame;
         }
         
@@ -494,67 +533,31 @@ static void attachInteractiveGestures(UIView *dockView) {
 
 %end
 
-// MARK: - Hook SBFloatingDockView
+// MARK: - Suppress FloatingDock (Vô hiệu hóa triệt để FloatingDockXVI để loại bỏ 100% giật lag)
+%hook SBFloatingDockController
+
++ (BOOL)isFloatingDockSupported {
+    if (kEnabled) return NO;
+    return %orig;
+}
+
+- (BOOL)isFloatingDockSupported {
+    if (kEnabled) return NO;
+    return %orig;
+}
+
+%end
+
+// MARK: - Suppress SBFloatingDockView
 %hook SBFloatingDockView
 
-%new
-- (void)handleDuoDockPan:(UIPanGestureRecognizer *)pan {
-    handleDockPanGesture(self, pan);
-}
-
-%new
-- (void)handleDuoDockPinch:(UIPinchGestureRecognizer *)pinch {
-    handleDockPinchGesture(self, pinch);
-}
-
 - (void)layoutSubviews {
-    %orig;
-    if (!kEnabled) return;
-    if (isLayingOutDock) return;
-    
-    @try {
-        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
-        if (!useFloating) {
-            if (!self.hidden) {
-                self.hidden = YES;
-                self.alpha = 0.0;
-            }
-            return;
-        }
-        
-        isLayingOutDock = YES;
-        self.hidden = NO;
-        self.alpha = 1.0;
-        
-        CGRect dockFrame = calculateDuoDockFrame();
-        if (!CGRectEqualToRect(self.frame, dockFrame)) {
-            self.frame = dockFrame;
-        }
-        
-        setupCapsuleBackground(self);
-        attachInteractiveGestures(self);
-        
-        UIView *platter = [self valueForKey:@"_mainPlatterView"];
-        if (platter) {
-            platter.hidden = YES; // Dùng pill riêng để không bị FloatingDockXVI ghi đè
-        }
-        
-        UIView *divider = nil;
-        @try { divider = [self valueForKey:@"_dividerView"]; } @catch (NSException *e) {}
-        if (divider) {
-            divider.hidden = YES;
-            divider.alpha = 0.0;
-        }
-        
-        UIView *userIcons = nil;
-        @try { userIcons = [self valueForKey:@"_userIconListView"]; } @catch (NSException *e) {}
-        if (userIcons) {
-            applyVerticalIconLayout(userIcons, dockFrame.size.width, dockFrame.size.height);
-        }
-        isLayingOutDock = NO;
-    } @catch (NSException *e) {
-        isLayingOutDock = NO;
+    if (kEnabled) {
+        self.hidden = YES;
+        self.alpha = 0.0;
+        return;
     }
+    %orig;
 }
 
 %end

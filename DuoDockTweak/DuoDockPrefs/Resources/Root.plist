@@ -11,7 +11,7 @@
 			<key>label</key>
 			<string>TRẠNG THÁI TWEAK</string>
 			<key>footerText</key>
-			<string>Biến đổi thanh Dock ngang truyền thống thành thanh Dock dọc dạng viên thuốc kiểu iPhone Foldable/Duo bám cạnh phải màn hình.</string>
+			<string>Biến đổi thanh Dock ngang truyền thống thành thanh Dock dọc dạng viên thuốc độc lập siêu mượt 120Hz, vô hiệu hóa FloatingDockXVI chống xung đột.</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -36,7 +36,7 @@
 			<string>CHỈNH SỬA TRỰC TIẾP TRÊN MÀN HÌNH</string>
 			<key>footerText</key>
 			<string>BẬT tính năng này, sau đó ra màn hình chính:
-• Chạm và kéo Dock đến vị trí mong muốn trên màn hình.
+• Chạm và kéo Dock đến vị trí mong muốn (dock sẽ tự đổi sang mép trái/phải tương ứng).
 • Dùng 2 ngón tay chụm/mở (Pinch) để phóng to/thu nhỏ kích thước icon.
 TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.</string>
 		</dict>
@@ -55,37 +55,33 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
 
-		<!-- PHẦN CHẾ ĐỘ HOẠT ĐỘNG (TỰ ĐỘNG THÍCH ỨNG) -->
+		<!-- VỊ TRÍ BÁM MÉP DOCK -->
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>CHẾ ĐỘ TƯƠNG THÍCH DOCK</string>
+			<string>VỊ TRÍ BÁM MÉP DOCK</string>
 			<key>footerText</key>
-			<string>• Tự động: Tự phát hiện xem máy có đang bật FloatingDockXVI hay không để điều chỉnh phù hợp.
-• Độc lập: Luôn dùng Dock gốc iPhone.
-• FloatingDock: Luôn dùng FloatingDockXVI.</string>
+			<string>Chọn cạnh màn hình mà thanh Dock dọc sẽ bám vào.</string>
 		</dict>
 		<dict>
 			<key>cell</key>
 			<string>PSSegmentCell</string>
 			<key>default</key>
-			<integer>0</integer>
+			<integer>1</integer>
 			<key>defaults</key>
 			<string>com.hoangnguyen.duodock</string>
 			<key>key</key>
-			<string>dockMode</string>
+			<string>dockSide</string>
 			<key>validValues</key>
 			<array>
 				<integer>0</integer>
 				<integer>1</integer>
-				<integer>2</integer>
 			</array>
 			<key>validTitles</key>
 			<array>
-				<string>Tự động</string>
-				<string>Độc lập</string>
-				<string>FloatingDock</string>
+				<string>Cạnh Trái</string>
+				<string>Cạnh Phải</string>
 			</array>
 			<key>PostNotification</key>
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
@@ -127,6 +123,28 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 				<string>7</string>
 				<string>8</string>
 			</array>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
+		</dict>
+
+		<!-- ẨN TÊN ỨNG DỤNG TRÊN DOCK -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>NHÃN TÊN ICON DOCK</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>hideDockLabels</string>
+			<key>label</key>
+			<string>Ẩn tên ứng dụng trên Dock</string>
 			<key>PostNotification</key>
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
@@ -210,12 +228,12 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
 
-		<!-- VỊ TRÍ & LỀ CẠNH PHẢI -->
+		<!-- VỊ TRÍ & LỀ CẠNH -->
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>KHOẢNG CÁCH LỀ PHẢI (MARGIN: 0 - 50 PT)</string>
+			<string>KHOẢNG CÁCH LỀ MÉP MÀN HÌNH (MARGIN: 0 - 50 PT)</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -261,12 +279,38 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
 
-		<!-- NỀN VIÊN THUỐC & HIỆU ỨNG MỜ (BLUR & ALPHA) -->
+		<!-- NỀN VIÊN THUỐC & HIỆU ỨNG MỜ CHUYÊN SÂU -->
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>HIỆU ỨNG LÀM MỜ NỀN (BLUR &amp; ALPHA)</string>
+			<string>TÙY CHỈNH NỀN VIÊN THUỐC (BLUR &amp; PHONG CÁCH)</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSegmentCell</string>
+			<key>default</key>
+			<integer>0</integer>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>dockBlurStyle</string>
+			<key>validValues</key>
+			<array>
+				<integer>0</integer>
+				<integer>1</integer>
+				<integer>2</integer>
+				<integer>3</integer>
+			</array>
+			<key>validTitles</key>
+			<array>
+				<string>Kính Tối</string>
+				<string>Kính Sáng</string>
+				<string>Siêu Mỏng</string>
+				<string>Trong Suốt</string>
+			</array>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -301,6 +345,60 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
 
+		<!-- ĐỔ BÓNG NỔI KHỐI 3D & ĐƯỜNG VIỀN -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>ĐỔ BÓNG NỔI KHỐI 3D &amp; VIỀN SÁNG</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>dockShadowEnabled</string>
+			<key>label</key>
+			<string>Đổ bóng 3D nổi khối</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<false/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>dockBorderEnabled</string>
+			<key>label</key>
+			<string>Bật viền sáng viên thuốc</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>1.0</real>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>dockBorderWidth</string>
+			<key>min</key>
+			<real>0.5</real>
+			<key>max</key>
+			<real>3.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
+		</dict>
+
 		<!-- BỐ TRÍ MÀN HÌNH CHÍNH & TRÁNH ĐÈ DOCK -->
 		<dict>
 			<key>cell</key>
@@ -308,7 +406,7 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<key>label</key>
 			<string>BỐ TRÍ MÀN HÌNH CHÍNH (TRÁNH ĐÈ DOCK)</string>
 			<key>footerText</key>
-			<string>Tự động lùi lề phải của lưới icon để thanh Dock dọc không bao giờ đè lên các icon bên phải màn hình.</string>
+			<string>Tự động lùi lề của lưới icon để thanh Dock dọc không bao giờ đè lên các icon trên màn hình chính.</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -320,7 +418,7 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<key>key</key>
 			<string>homeCompressGrid</string>
 			<key>label</key>
-			<string>Thu hẹp lề phải tránh Dock</string>
+			<string>Thu hẹp lề lưới icon tránh Dock</string>
 			<key>PostNotification</key>
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
@@ -506,8 +604,8 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<key>footerAlignment</key>
 			<integer>1</integer>
 			<key>footerText</key>
-			<string>DuoDock v1.6.0 (Tùy chỉnh Hàng &amp; Cột Màn hình chính)
-Kéo thả và phóng to thu nhỏ trực tiếp trên màn hình</string>
+			<string>DuoDock v1.7.0 (Tối ưu 120Hz mượt mà, Tùy biến Dock chuyên sâu)
+Vô hiệu hóa FloatingDockXVI triệt để</string>
 		</dict>
 	</array>
 	<key>title</key>

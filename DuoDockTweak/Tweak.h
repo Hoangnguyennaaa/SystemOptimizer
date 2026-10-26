@@ -66,6 +66,11 @@ typedef struct SBIconImageInfo SBIconImageInfo;
 - (void)handleDuoDockPinch:(UIPinchGestureRecognizer *)pinch;
 @end
 
+@interface SBFloatingDockController : NSObject
++ (BOOL)isFloatingDockSupported;
+- (BOOL)isFloatingDockSupported;
+@end
+
 @interface SBIconController : NSObject
 + (id)sharedInstance;
 - (void)relayout;

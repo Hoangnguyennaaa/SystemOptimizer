@@ -71,14 +71,22 @@ jobs:
         if: success()
         with:
           tag_name: duodock-latest
-          name: "DuoDock v1.5.0 Rootless DEB"
+          name: "DuoDock v1.7.0 Rootless DEB"
           body: |
-            ### DuoDock v1.5.0 (Rootless iOS 15.0 - 15.8.x)
-            - Chuyển đổi Dock thành thanh Dock dọc dạng viên thuốc bên cạnh phải màn hình (iPhone Foldable / Duo style).
-            - Chống đè icon màn hình chính: Tự động thu hẹp lề phải của lưới icon để nhường chỗ cho Dock.
-            - Tràn icon xuống đáy (Dock cũ): Giải phóng 90pt diện tích đáy, cho phép icon tràn xuống hết cỡ và thêm hàng icon mới.
-            - Kéo thả trực tiếp & phóng to thu nhỏ icon (Pinch-to-scale) ngay trên màn hình chính.
-            - Tích hợp PreferenceBundle trong Cài đặt với nút Respring nhanh.
-            - Tương thích Dopamine, Sileo, Zebra, arm64/arm64e.
+            ### DuoDock v1.7.0 (Rootless iOS 15.0 - 15.8.x)
+            - **Vô hiệu hóa triệt để FloatingDockXVI**: Loại bỏ hoàn toàn hiện tượng giật lag, đơ màn hình chính khi vuốt trang do xung đột gesture và layout engine.
+            - **Tối ưu 100% Native 120Hz mượt mà**: Chuyển đổi và vận hành hoàn toàn trên thanh Dock gốc (`SBDockView`), giữ nguyên tốc độ phản hồi ProMotion.
+            - **Tùy biến thanh Dock chuyên sâu**:
+              + Tùy chọn vị trí bám mép màn hình: **Cạnh Trái** hoặc **Cạnh Phải**.
+              + 4 phong cách nền kính: **Kính Tối**, **Kính Sáng**, **Siêu Mỏng**, **Trong Suốt**.
+              + Đổ bóng nổi khối 3D (`shadowRadius`, `shadowOpacity`, `shadowOffset`).
+              + Viền sáng viên thuốc với thanh trượt chỉnh độ dày viền (`borderWidth`).
+              + Tùy chọn ẩn nhãn tên ứng dụng trên Dock.
+              + Kéo thả trực tiếp và chụm 2 ngón tay phóng to/thu nhỏ icon (Pinch-to-scale) ngay trên màn hình chính.
+            - **Bố trí lưới màn hình chính nâng cao**:
+              + Chống đè icon màn hình chính (lưới icon tự động lùi lề tương ứng theo vị trí Dock trái/phải).
+              + Tràn icon xuống đáy: Giải phóng 90pt diện tích đáy của Dock cũ để icon và widget tràn xuống sát viền.
+              + Tự do tùy chỉnh số hàng (4 - 8 hàng) và số cột (3 - 5 cột) icon trên màn hình chính.
+            - Tương thích Dopamine, Sileo, Zebra, kiến trúc `iphoneos-arm64`.
           files: "DuoDock_rootless.deb"
 
