@@ -712,27 +712,6 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 static __weak CompactStatusView *g_activeStatusView = nil;
 static __weak CompactStatusView *g_activeCCStatusView = nil;
 
-static void CompactStatusBarPowerChanged(void *ctx) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (g_activeStatusView) [g_activeStatusView updateStats];
-        if (g_activeCCStatusView) [g_activeCCStatusView updateStats];
-    });
-}
-
-static void registerIOKitPowerNotification(void) {
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        initIOKitSymbols();
-        if (g_IOPSNotificationCreateRunLoopSource) {
-            CFRunLoopSourceRef src = g_IOPSNotificationCreateRunLoopSource(CompactStatusBarPowerChanged, NULL);
-            if (src) {
-                CFRunLoopAddSource(CFRunLoopGetMain(), src, kCFRunLoopDefaultMode);
-                CFRelease(src);
-            }
-        }
-    });
-}
-
 // MARK: - CompactStatusView: Vector 3-in-1 Gauge View
 @interface CompactStatusView : UIView <UIGestureRecognizerDelegate>
 @property (nonatomic, strong) UIView *pillContainerView;
@@ -791,6 +770,27 @@ static void registerIOKitPowerNotification(void) {
 - (void)hudActionButtonClicked:(UIButton *)sender;
 - (void)dismissHUD:(UITapGestureRecognizer *)tap;
 @end
+
+static void CompactStatusBarPowerChanged(void *ctx) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (g_activeStatusView) [g_activeStatusView updateStats];
+        if (g_activeCCStatusView) [g_activeCCStatusView updateStats];
+    });
+}
+
+static void registerIOKitPowerNotification(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        initIOKitSymbols();
+        if (g_IOPSNotificationCreateRunLoopSource) {
+            CFRunLoopSourceRef src = g_IOPSNotificationCreateRunLoopSource(CompactStatusBarPowerChanged, NULL);
+            if (src) {
+                CFRunLoopAddSource(CFRunLoopGetMain(), src, kCFRunLoopDefaultMode);
+                CFRelease(src);
+            }
+        }
+    });
+}
 
 @implementation CompactStatusView
 
