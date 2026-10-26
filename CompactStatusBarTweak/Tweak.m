@@ -657,8 +657,6 @@ static uint64_t getNetworkDownloadBytes(void) {
 }
 
 static BOOL isWifiActive(void) {
-    if (isAirplaneModeActive()) return NO;
-
     // Kiểm tra trực tiếp từ data model status bar hệ thống
     if (g_sbDataValid) {
         return g_sbWifiEnabled;
