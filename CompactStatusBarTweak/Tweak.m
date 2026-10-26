@@ -469,6 +469,8 @@ static void savePreferenceNumber(NSString *key, NSNumber *val) {
 
 // MARK: - Helper Functions (Network, RAM, Cellular, Wi-Fi)
 static int getCellularSignalBars(void);
+static BOOL isCellularDataActive(void);
+static NSString *getRealCellularDataTech(void);
 static int getWiFiSignalBars(void);
 static BOOL isWifiActive(void);
 static BOOL isAirplaneModeActive(void);
@@ -518,6 +520,70 @@ static NSString *getConnectedSSID(void) {
     return nil;
 }
 
+static NSString *getRealCellularDataTech(void) {
+    if (g_sbDataValid && g_sbCellularType && g_sbCellularType.length > 0) {
+        return g_sbCellularType;
+    }
+
+    Class ctClass = objc_getClass("CTTelephonyNetworkInfo");
+    if (ctClass) {
+        id ctInfo = [[ctClass alloc] init];
+        if (ctInfo) {
+            NSString *tech = nil;
+            if ([ctInfo respondsToSelector:@selector(serviceCurrentRadioAccessTechnology)]) {
+                NSDictionary *dict = [ctInfo performSelector:@selector(serviceCurrentRadioAccessTechnology)];
+                if (dict && dict.count > 0) {
+                    tech = [dict.allValues firstObject];
+                }
+            } else if ([ctInfo respondsToSelector:@selector(currentRadioAccessTechnology)]) {
+                tech = [ctInfo performSelector:@selector(currentRadioAccessTechnology)];
+            }
+            if (tech) {
+                if ([tech containsString:@"NR"]) return @"5G";
+                if ([tech containsString:@"LTE"]) return @"LTE";
+                if ([tech containsString:@"HSDPA"] || [tech containsString:@"WCDMA"] || [tech containsString:@"HSUPA"]) return @"3G";
+                if ([tech containsString:@"Edge"]) return @"E";
+                if ([tech containsString:@"GPRS"]) return @"GPRS";
+            }
+        }
+    }
+
+    Class teleClass = objc_getClass("SBTelephonyManager");
+    if (teleClass && [teleClass respondsToSelector:@selector(sharedTelephonyManager)]) {
+        id teleMgr = [teleClass performSelector:@selector(sharedTelephonyManager)];
+        if (teleMgr && [teleMgr respondsToSelector:@selector(cellularDataTechnology)]) {
+            id t = [teleMgr performSelector:@selector(cellularDataTechnology)];
+            if (t) return [NSString stringWithFormat:@"%@", t];
+        }
+    }
+
+    return @"4G";
+}
+
+static BOOL isCellularDataActive(void) {
+    if (isAirplaneModeActive() || isNoSIMPresent()) return NO;
+
+    if (g_sbDataValid) {
+        return g_sbCellularEnabled;
+    }
+
+    Class teleClass = objc_getClass("SBTelephonyManager");
+    if (teleClass && [teleClass respondsToSelector:@selector(sharedTelephonyManager)]) {
+        id teleMgr = [teleClass performSelector:@selector(sharedTelephonyManager)];
+        if (teleMgr) {
+            if ([teleMgr respondsToSelector:@selector(isCellularDataEnabled)]) {
+                BOOL enabled = ((BOOL (*)(id, SEL))objc_msgSend)(teleMgr, @selector(isCellularDataEnabled));
+                if (!enabled) return NO;
+            }
+            if ([teleMgr respondsToSelector:@selector(isDataConnected)]) {
+                BOOL connected = ((BOOL (*)(id, SEL))objc_msgSend)(teleMgr, @selector(isDataConnected));
+                if (!connected) return NO;
+            }
+        }
+    }
+    return (getCellularSignalBars() > 0);
+}
+
 static NSString *getNetworkTypeString(void) {
     if (isAirplaneModeActive()) {
         return @"Máy bay";
@@ -538,11 +604,19 @@ static NSString *getNetworkTypeString(void) {
     if (isNoSIMPresent()) {
         return isVPNActive() ? @"No SIM [VPN]" : @"No SIM";
     }
+
+    // Kiểm tra dữ liệu di động thực tế (Data connected)
+    if (isCellularDataActive()) {
+        NSString *tech = getRealCellularDataTech();
+        return isVPNActive() ? [NSString stringWithFormat:@"%@ [VPN]", tech] : tech;
+    }
+
     int bars = getCellularSignalBars();
     if (bars > 0) {
-        NSString *ctype = (g_sbCellularType && g_sbCellularType.length > 0) ? g_sbCellularType : @"LTE";
-        return isVPNActive() ? [NSString stringWithFormat:@"%@ [VPN]", ctype] : ctype;
+        // Có sóng nghe gọi nhưng tắt dữ liệu di động
+        return isVPNActive() ? @"Chỉ thoại [VPN]" : @"Chỉ thoại";
     }
+
     return isVPNActive() ? @"SOS [VPN]" : @"SOS";
 }
 
@@ -1951,7 +2025,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         _wifiDotLayer.fillColor = activeColor.CGColor;
         _wifiWave1Layer.strokeColor = (wifiBars >= 1 ? activeColor : inactiveColor).CGColor;
         _wifiWave2Layer.strokeColor = (wifiBars >= 2 ? activeColor : inactiveColor).CGColor;
-    } else { // Không có Wi-Fi
+    } else { // Không có Wi-Fi (Sử dụng mạng di động hoặc ngoại tuyến)
         _wifiDotLayer.hidden = YES;
         _wifiWave1Layer.hidden = YES;
         _wifiWave2Layer.hidden = YES;
@@ -1962,24 +2036,25 @@ static void executeAction(int actionCode, CompactStatusView *view) {
             _airplaneCenterLayer.hidden = NO;
             _airplaneCenterLayer.fillColor = activeColor.CGColor;
         } else if (isNoSim) {
-            _centerLabel.hidden = NO;
-            _centerLabel.text = @"SOS";
-            _centerLabel.textColor = [UIColor colorWithRed:1.0 green:0.35 blue:0.35 alpha:0.95];
+            // Không có SIM: Tâm Gauge tinh gọn, khe đáy hiển thị icon thẻ SIM gạch chéo
+            _centerLabel.hidden = YES;
         } else {
             int cBars = getCellularSignalBars();
             if (cBars <= 0) {
+                // Mất sóng hoàn toàn (No Service): Hiện SOS
                 _centerLabel.hidden = NO;
                 _centerLabel.text = @"SOS";
                 _centerLabel.textColor = [UIColor colorWithRed:1.0 green:0.35 blue:0.35 alpha:0.95];
             } else if (charging && p_batteryPercentMode != 4) {
+                // Đang cắm sạc: Hiện tia sét sạc ở tâm
                 _centerLabel.hidden = YES;
                 _chargingBoltLayer.hidden = NO;
                 _chargingBoltLayer.fillColor = batteryArcColor.CGColor;
             } else {
-                _centerLabel.hidden = NO;
-                NSString *ctype = (g_sbCellularType && g_sbCellularType.length > 0) ? g_sbCellularType : @"4G";
-                _centerLabel.text = ctype;
-                _centerLabel.textColor = activeColor;
+                // Đang dùng mạng di động bình thường:
+                // Tâm Gauge hoàn toàn TRỐNG và TINH GỌN (chuẩn thiết kế iPhone Duo / DuoBar gốc).
+                // Sóng di động đã được hiển thị bằng 4 chấm ở đáy; Loại mạng (4G/5G/LTE) hiển thị ở thanh Pill.
+                _centerLabel.hidden = YES;
             }
         }
     }
