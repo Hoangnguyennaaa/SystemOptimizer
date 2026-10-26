@@ -69,7 +69,7 @@ static CGFloat p_ccOffsetX = 0.0;
 static CGFloat p_ccOffsetY = 0.0;
 static CGFloat p_ccIconScale = 1.0;
 static int p_deviceModel = 0; // 0 = Auto, 1 = Island, 2 = Notch, 3 = Classic
-static int p_batteryPercentMode = 2; // 0 = Ẩn, 1 = Ở tâm, 2 = Trên Capsule / Kế bên, 3 = Mép ngoài
+static int p_batteryPercentMode = 2; // 0 = An, 1 = O tam, 2 = Ke ben, 3 = Mep trai, 4 = Dinh vom (Top Crown)
 
 // Badge Style & Additional Information Preferences
 static int p_badgeStyle = 0; // 0 = Capsule Kính Mờ, 1 = Minimalist Phẳng, 2 = Thu Gọn + Thẻ Chạm
@@ -354,6 +354,8 @@ static void savePreferenceNumber(NSString *key, NSNumber *val) {
 // MARK: - Helper Functions (Network, RAM, Cellular, Wi-Fi)
 static int getCellularSignalBars(void);
 static BOOL isWifiActive(void);
+static BOOL isAirplaneModeActive(void);
+static BOOL isNoSIMPresent(void);
 
 static void getNetworkTrafficBytes(uint64_t *outDown, uint64_t *outUp) {
     struct ifaddrs *ifa_list = NULL;
@@ -400,12 +402,18 @@ static NSString *getConnectedSSID(void) {
 }
 
 static NSString *getNetworkTypeString(void) {
+    if (isAirplaneModeActive()) {
+        return @"Máy bay";
+    }
     NSString *ssid = getConnectedSSID();
     if (ssid) {
         if (ssid.length > 7) {
             return [NSString stringWithFormat:@"%@..", [ssid substringToIndex:6]];
         }
         return ssid;
+    }
+    if (isNoSIMPresent()) {
+        return @"No SIM";
     }
     int bars = getCellularSignalBars();
     if (bars > 0) return @"LTE";
@@ -463,7 +471,107 @@ static BOOL isWifiActive(void) {
     return YES;
 }
 
+static BOOL isAirplaneModeActive(void) {
+    Class teleClass = objc_getClass("SBTelephonyManager");
+    if (teleClass && [teleClass respondsToSelector:@selector(sharedTelephonyManager)]) {
+        id teleMgr = [teleClass performSelector:@selector(sharedTelephonyManager)];
+        if (teleMgr && [teleMgr respondsToSelector:@selector(isInAirplaneMode)]) {
+            BOOL inPlane = ((BOOL (*)(id, SEL))objc_msgSend)(teleMgr, @selector(isInAirplaneMode));
+            if (inPlane) return YES;
+        }
+    }
+
+    Class rpClass = objc_getClass("RadiosPreferences");
+    if (rpClass) {
+        id rp = [[rpClass alloc] init];
+        if (rp && [rp respondsToSelector:@selector(airplaneMode)]) {
+            BOOL inPlane = ((BOOL (*)(id, SEL))objc_msgSend)(rp, @selector(airplaneMode));
+            if (inPlane) return YES;
+        }
+    }
+
+    Class apClass = objc_getClass("SBAirplaneModeController");
+    if (apClass && [apClass respondsToSelector:@selector(sharedInstance)]) {
+        id ap = [apClass performSelector:@selector(sharedInstance)];
+        if (ap && [ap respondsToSelector:@selector(isInAirplaneMode)]) {
+            BOOL inPlane = ((BOOL (*)(id, SEL))objc_msgSend)(ap, @selector(isInAirplaneMode));
+            if (inPlane) return YES;
+        }
+    }
+
+    return NO;
+}
+
+static BOOL isNoSIMPresent(void) {
+    if (isAirplaneModeActive()) return NO;
+
+    Class teleClass = objc_getClass("SBTelephonyManager");
+    if (teleClass && [teleClass respondsToSelector:@selector(sharedTelephonyManager)]) {
+        id teleMgr = [teleClass performSelector:@selector(sharedTelephonyManager)];
+        if (teleMgr) {
+            if ([teleMgr respondsToSelector:@selector(SIMStatus)]) {
+                id simStatus = [teleMgr performSelector:@selector(SIMStatus)];
+                if (simStatus) {
+                    NSString *statusStr = [NSString stringWithFormat:@"%@", simStatus];
+                    if ([statusStr containsString:@"NotInserted"] || [statusStr containsString:@"Empty"] || [statusStr containsString:@"NoSIM"]) {
+                        return YES;
+                    }
+                } else {
+                    return YES;
+                }
+            }
+
+            if ([teleMgr respondsToSelector:@selector(needsSIM)]) {
+                BOOL needs = ((BOOL (*)(id, SEL))objc_msgSend)(teleMgr, @selector(needsSIM));
+                if (needs) return YES;
+            }
+            if ([teleMgr respondsToSelector:@selector(hasSIMCard)]) {
+                BOOL has = ((BOOL (*)(id, SEL))objc_msgSend)(teleMgr, @selector(hasSIMCard));
+                if (!has) return YES;
+            }
+            if ([teleMgr respondsToSelector:@selector(containsSIM)]) {
+                BOOL has = ((BOOL (*)(id, SEL))objc_msgSend)(teleMgr, @selector(containsSIM));
+                if (!has) return YES;
+            }
+        }
+    }
+
+    Class ctClass = objc_getClass("CTTelephonyNetworkInfo");
+    if (ctClass) {
+        id ctInfo = [[ctClass alloc] init];
+        if (ctInfo && [ctInfo respondsToSelector:@selector(serviceSubscriberCellularProviders)]) {
+            NSDictionary *providers = [ctInfo performSelector:@selector(serviceSubscriberCellularProviders)];
+            if (!providers || providers.count == 0) {
+                return YES;
+            }
+            BOOL anyValid = NO;
+            for (NSString *key in providers) {
+                id carrier = providers[key];
+                if ([carrier respondsToSelector:@selector(isoCountryCode)]) {
+                    NSString *iso = [carrier performSelector:@selector(isoCountryCode)];
+                    if (iso && iso.length > 0) {
+                        anyValid = YES;
+                        break;
+                    }
+                }
+                if ([carrier respondsToSelector:@selector(mobileNetworkCode)]) {
+                    NSString *mnc = [carrier performSelector:@selector(mobileNetworkCode)];
+                    if (mnc && mnc.length > 0) {
+                        anyValid = YES;
+                        break;
+                    }
+                }
+            }
+            if (!anyValid) return YES;
+        }
+    }
+
+    return NO;
+}
+
 static int getCellularSignalBars(void) {
+    if (isAirplaneModeActive() || isNoSIMPresent()) return 0;
+
     Class teleClass = objc_getClass("SBTelephonyManager");
     if (teleClass && [teleClass respondsToSelector:@selector(sharedTelephonyManager)]) {
         id<SBTelephonyManagerProtocol> teleMgr = (id<SBTelephonyManagerProtocol>)[teleClass performSelector:@selector(sharedTelephonyManager)];
@@ -565,6 +673,13 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
 @property (nonatomic, strong) UITapGestureRecognizer *doubleTapGesture;
 @property (nonatomic, strong) UILongPressGestureRecognizer *longPressGesture;
 
+@property (nonatomic, strong) UILabel *topPercentLabel;
+@property (nonatomic, strong) UIImageView *airplaneView;
+@property (nonatomic, strong) CAShapeLayer *airplaneVectorLayer;
+@property (nonatomic, strong) CAShapeLayer *noSimCardLayer;
+@property (nonatomic, strong) CAShapeLayer *noSimSlashLayer;
+
+- (void)rebuildGaugePaths;
 - (void)rebuildCellularDots;
 - (void)applyPreferences;
 - (void)updateStats;
@@ -634,7 +749,34 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     return YES;
 }
 
+- (void)rebuildGaugePaths {
+    CGPoint center = CGPointMake(11.0, 11.0);
+    CGFloat radius = 9.2;
+
+    if (p_batteryPercentMode == 4) {
+        // Top Crown arc: 101-degree symmetric left and right arcs with 68-degree top opening
+        UIBezierPath *crownPath = [UIBezierPath bezierPath];
+        [crownPath addArcWithCenter:center radius:radius startAngle:135.0 * M_PI / 180.0 endAngle:236.0 * M_PI / 180.0 clockwise:YES];
+        UIBezierPath *sub2 = [UIBezierPath bezierPathWithArcCenter:center radius:radius startAngle:304.0 * M_PI / 180.0 endAngle:45.0 * M_PI / 180.0 clockwise:YES];
+        [crownPath appendPath:sub2];
+
+        _trackLayer.path = crownPath.CGPath;
+        _progressLayer.path = crownPath.CGPath;
+    } else {
+        CGFloat startAngle = 135.0 * M_PI / 180.0;
+        CGFloat endAngle = 45.0 * M_PI / 180.0;
+        UIBezierPath *arcPath = [UIBezierPath bezierPathWithArcCenter:center
+                                                               radius:radius
+                                                           startAngle:startAngle
+                                                             endAngle:endAngle
+                                                            clockwise:YES];
+        _trackLayer.path = arcPath.CGPath;
+        _progressLayer.path = arcPath.CGPath;
+    }
+}
+
 - (void)applyPreferences {
+    [self rebuildGaugePaths];
     CGFloat scale = self.isControlCenter ? p_ccIconScale : p_iconScale;
     if (scale < 0.3) scale = 1.0;
     self.transform = CGAffineTransformMakeScale(scale, scale);
@@ -875,6 +1017,74 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     _sidePercentLabel.hidden = YES;
     _sidePercentLabel.userInteractionEnabled = NO;
     [self addSubview:_sidePercentLabel];
+
+    // Top percent label (Mode 4: Top Crown)
+    _topPercentLabel = [[UILabel alloc] initWithFrame:CGRectMake(0.0, -1.5, 22.0, 9.0)];
+    _topPercentLabel.font = [UIFont systemFontOfSize:7.2 weight:UIFontWeightBold];
+    _topPercentLabel.textColor = [UIColor whiteColor];
+    _topPercentLabel.textAlignment = NSTextAlignmentCenter;
+    _topPercentLabel.hidden = YES;
+    _topPercentLabel.userInteractionEnabled = NO;
+    [_gaugeContainerView addSubview:_topPercentLabel];
+
+    // Airplane Symbol for Cellular Slot
+    _airplaneView = [[UIImageView alloc] initWithFrame:CGRectMake(6.0, 15.4, 10.0, 5.8)];
+    _airplaneView.contentMode = UIViewContentModeScaleAspectFit;
+    if (@available(iOS 13.0, *)) {
+        _airplaneView.image = [UIImage systemImageNamed:@"airplane"];
+    }
+    _airplaneView.tintColor = [UIColor whiteColor];
+    _airplaneView.hidden = YES;
+    _airplaneView.userInteractionEnabled = NO;
+    [_gaugeContainerView addSubview:_airplaneView];
+
+    // Fallback Vector Airplane
+    UIBezierPath *apPath = [UIBezierPath bezierPath];
+    [apPath moveToPoint:CGPointMake(11.0, 15.6)];
+    [apPath addLineToPoint:CGPointMake(11.0, 21.0)];
+    [apPath moveToPoint:CGPointMake(6.8, 18.2)];
+    [apPath addLineToPoint:CGPointMake(15.2, 18.2)];
+    [apPath moveToPoint:CGPointMake(8.8, 20.4)];
+    [apPath addLineToPoint:CGPointMake(13.2, 20.4)];
+
+    _airplaneVectorLayer = [CAShapeLayer layer];
+    _airplaneVectorLayer.path = apPath.CGPath;
+    _airplaneVectorLayer.strokeColor = [UIColor whiteColor].CGColor;
+    _airplaneVectorLayer.lineWidth = 1.0;
+    _airplaneVectorLayer.lineCap = kCALineCapRound;
+    _airplaneVectorLayer.hidden = YES;
+    [_gaugeContainerView.layer addSublayer:_airplaneVectorLayer];
+
+    // No-SIM card outline
+    UIBezierPath *simPath = [UIBezierPath bezierPath];
+    [simPath moveToPoint:CGPointMake(7.5, 16.0)];
+    [simPath addLineToPoint:CGPointMake(13.0, 16.0)];
+    [simPath addLineToPoint:CGPointMake(14.5, 17.5)];
+    [simPath addLineToPoint:CGPointMake(14.5, 21.0)];
+    [simPath addLineToPoint:CGPointMake(7.5, 21.0)];
+    [simPath closePath];
+
+    _noSimCardLayer = [CAShapeLayer layer];
+    _noSimCardLayer.path = simPath.CGPath;
+    _noSimCardLayer.strokeColor = [UIColor colorWithWhite:1.0 alpha:0.9].CGColor;
+    _noSimCardLayer.fillColor = [UIColor clearColor].CGColor;
+    _noSimCardLayer.lineWidth = 0.9;
+    _noSimCardLayer.lineJoin = kCALineJoinRound;
+    _noSimCardLayer.hidden = YES;
+    [_gaugeContainerView.layer addSublayer:_noSimCardLayer];
+
+    // Diagonal red slash across SIM
+    UIBezierPath *slashPath = [UIBezierPath bezierPath];
+    [slashPath moveToPoint:CGPointMake(6.5, 21.6)];
+    [slashPath addLineToPoint:CGPointMake(15.5, 15.4)];
+
+    _noSimSlashLayer = [CAShapeLayer layer];
+    _noSimSlashLayer.path = slashPath.CGPath;
+    _noSimSlashLayer.strokeColor = [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0].CGColor;
+    _noSimSlashLayer.lineWidth = 1.1;
+    _noSimSlashLayer.lineCap = kCALineCapRound;
+    _noSimSlashLayer.hidden = YES;
+    [_gaugeContainerView.layer addSublayer:_noSimSlashLayer];
 
     // 2. Extra Information Container
     _extraInfoContainer = [[UIView alloc] initWithFrame:CGRectMake(22.0, 0.0, 0.0, 22.0)];
@@ -1346,7 +1556,18 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     else if (p_speedThreshold == 2 && (downSpeed > 102400.0 || upSpeed > 102400.0)) hasSpeed = YES;
     else if (p_speedThreshold == 3) hasSpeed = YES;
 
-    // 6. Hiển thị ở tâm Gauge 22x22
+    // 6. Hiển thị ở tâm Gauge 22x22 hoặc trên Đỉnh vòm (Mode 4)
+    BOOL isAirplane = isAirplaneModeActive();
+    BOOL isNoSim = isNoSIMPresent();
+
+    if (p_batteryPercentMode == 4) {
+        _topPercentLabel.hidden = NO;
+        _topPercentLabel.text = [NSString stringWithFormat:@"%d", pct];
+        _topPercentLabel.textColor = (pct <= 20 && !charging) ? [UIColor colorWithRed:1.0 green:0.35 blue:0.35 alpha:1.0] : [UIColor whiteColor];
+    } else {
+        _topPercentLabel.hidden = YES;
+    }
+
     if (p_batteryPercentMode == 1) {
         _wifiDotLayer.hidden = YES;
         _wifiWave1Layer.hidden = YES;
@@ -1374,8 +1595,16 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         _wifiWave1Layer.hidden = YES;
         _wifiWave2Layer.hidden = YES;
         _centerLabel.hidden = NO;
-        _centerLabel.text = @"4G";
-        _centerLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.90];
+        if (isAirplane) {
+            _centerLabel.text = @"✈️";
+            _centerLabel.textColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.2 alpha:0.95];
+        } else if (isNoSim) {
+            _centerLabel.text = @"SOS";
+            _centerLabel.textColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.4 alpha:0.95];
+        } else {
+            _centerLabel.text = @"4G";
+            _centerLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.90];
+        }
     }
 
     // 7. Chế độ hiện % pin mép ngoài (Mode 3)
@@ -1387,24 +1616,49 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         _sidePercentLabel.hidden = YES;
     }
 
-    // 8. Chấm sóng di động
-    int cellBars = getCellularSignalBars();
-    int totalDots = (int)_dotLayers.count;
-    int litCount = 0;
-    if (totalDots == 4) {
-        litCount = MIN(MAX(cellBars, 0), 4);
+    // 8. Chấm sóng di động, Chế độ máy bay & Không có SIM
+    if (isAirplane) {
+        if (_airplaneView.image) {
+            _airplaneView.hidden = NO;
+            if (_airplaneVectorLayer) _airplaneVectorLayer.hidden = YES;
+        } else if (_airplaneVectorLayer) {
+            _airplaneVectorLayer.hidden = NO;
+            _airplaneView.hidden = YES;
+        }
+        _noSimCardLayer.hidden = YES;
+        _noSimSlashLayer.hidden = YES;
+        for (CAShapeLayer *dl in _dotLayers) dl.hidden = YES;
+    } else if (isNoSim) {
+        _airplaneView.hidden = YES;
+        if (_airplaneVectorLayer) _airplaneVectorLayer.hidden = YES;
+        _noSimCardLayer.hidden = NO;
+        _noSimSlashLayer.hidden = NO;
+        for (CAShapeLayer *dl in _dotLayers) dl.hidden = YES;
     } else {
-        if (cellBars >= 4) litCount = 5;
-        else if (cellBars == 3) litCount = 4;
-        else if (cellBars == 2) litCount = 2;
-        else if (cellBars == 1) litCount = 1;
-        else litCount = 0;
-    }
-    for (int i = 0; i < totalDots; i++) {
-        CAShapeLayer *dot = _dotLayers[i];
-        BOOL isLit = (i < litCount);
-        dot.fillColor = isLit ? [UIColor colorWithWhite:1.0 alpha:0.95].CGColor
-                              : [UIColor colorWithWhite:1.0 alpha:0.25].CGColor;
+        _airplaneView.hidden = YES;
+        if (_airplaneVectorLayer) _airplaneVectorLayer.hidden = YES;
+        _noSimCardLayer.hidden = YES;
+        _noSimSlashLayer.hidden = YES;
+
+        int cellBars = getCellularSignalBars();
+        int totalDots = (int)_dotLayers.count;
+        int litCount = 0;
+        if (totalDots == 4) {
+            litCount = MIN(MAX(cellBars, 0), 4);
+        } else {
+            if (cellBars >= 4) litCount = 5;
+            else if (cellBars == 3) litCount = 4;
+            else if (cellBars == 2) litCount = 2;
+            else if (cellBars == 1) litCount = 1;
+            else litCount = 0;
+        }
+        for (int i = 0; i < totalDots; i++) {
+            CAShapeLayer *dot = _dotLayers[i];
+            dot.hidden = NO;
+            BOOL isLit = (i < litCount);
+            dot.fillColor = isLit ? [UIColor colorWithWhite:1.0 alpha:0.95].CGColor
+                                  : [UIColor colorWithWhite:1.0 alpha:0.25].CGColor;
+        }
     }
 
     // 9. Bố cục Pill đa thông tin (Mode 0 & Mode 1)
@@ -2385,6 +2639,42 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         NULL,
         (CFNotificationCallback)handleRespringNotification,
         CFSTR("com.hoangnguyen.compactstatusbar/Respring"),
+        NULL,
+        CFNotificationSuspensionBehaviorCoalesce
+    );
+
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        NULL,
+        (CFNotificationCallback)handleReloadNotification,
+        CFSTR("com.apple.radios.airplaneModeChanged"),
+        NULL,
+        CFNotificationSuspensionBehaviorCoalesce
+    );
+
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        NULL,
+        (CFNotificationCallback)handleReloadNotification,
+        CFSTR("kCTAirplaneModeDidChangeNotification"),
+        NULL,
+        CFNotificationSuspensionBehaviorCoalesce
+    );
+
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        NULL,
+        (CFNotificationCallback)handleReloadNotification,
+        CFSTR("kCTSIMSupportSIMStatusChangeNotification"),
+        NULL,
+        CFNotificationSuspensionBehaviorCoalesce
+    );
+
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        NULL,
+        (CFNotificationCallback)handleReloadNotification,
+        CFSTR("com.apple.telephony.simstatus"),
         NULL,
         CFNotificationSuspensionBehaviorCoalesce
     );

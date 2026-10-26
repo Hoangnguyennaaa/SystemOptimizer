@@ -499,9 +499,10 @@
 			<key>validTitles</key>
 			<array>
 				<string>Ẩn</string>
-				<string>Ở tâm vòng tròn</string>
-				<string>Kế bên / Trên Capsule (Khuyên dùng)</string>
-				<string>Mép ngoài bên trái</string>
+				<string>Ở tâm</string>
+				<string>Kế bên</string>
+				<string>Mép trái</string>
+				<string>Đỉnh vòm (Ảnh mới)</string>
 			</array>
 			<key>validValues</key>
 			<array>
@@ -509,6 +510,7 @@
 				<integer>1</integer>
 				<integer>2</integer>
 				<integer>3</integer>
+				<integer>4</integer>
 			</array>
 			<key>PostNotification</key>
 			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
