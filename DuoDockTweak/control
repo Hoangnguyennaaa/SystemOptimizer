@@ -1,9 +1,9 @@
 Package: com.hoangnguyen.duodock
 Name: DuoDock
 Depends: mobilesubstrate (>= 0.9.5000), preferenceloader
-Version: 1.5.0
+Version: 1.6.0
 Architecture: iphoneos-arm64
-Description: Vertical right-edge pill dock for iOS 15 Rootless (Anti-Overlap Icon Grid, Expand Bottom Rows, Direct Drag & Pinch-to-Scale)
+Description: Vertical right-edge pill dock for iOS 15 Rootless (Custom Rows & Columns, Anti-Overlap Icon Grid, Direct Drag & Pinch-to-Scale)
 Maintainer: Hoangnguyen
 Author: Hoangnguyen
 Section: Tweaks

@@ -16,6 +16,10 @@ static BOOL kDockBlurEnabled = YES;
 static BOOL kHomeCompressGrid = YES;
 static CGFloat kHomeRightInset = 88.0;
 static BOOL kExpandBottomRows = YES;
+static BOOL kCustomGridEnabled = NO;
+static NSInteger kHomeRows = 7;
+static NSInteger kHomeColumns = 4;
+static CGFloat kHomeIconScale = 0.90;
 
 static BOOL isLayingOutDock = NO;
 
@@ -58,6 +62,10 @@ static void loadPreferences(void) {
         kHomeCompressGrid = prefs[@"homeCompressGrid"] ? [prefs[@"homeCompressGrid"] boolValue] : YES;
         kHomeRightInset = prefs[@"homeRightInset"] ? [prefs[@"homeRightInset"] doubleValue] : 88.0;
         kExpandBottomRows = prefs[@"expandBottomRows"] ? [prefs[@"expandBottomRows"] boolValue] : YES;
+        kCustomGridEnabled = prefs[@"customGridEnabled"] ? [prefs[@"customGridEnabled"] boolValue] : NO;
+        kHomeRows = prefs[@"homeRows"] ? [prefs[@"homeRows"] integerValue] : 7;
+        kHomeColumns = prefs[@"homeColumns"] ? [prefs[@"homeColumns"] integerValue] : 4;
+        kHomeIconScale = prefs[@"homeIconScale"] ? [prefs[@"homeIconScale"] doubleValue] : 0.90;
     }
 }
 
@@ -325,7 +333,7 @@ static CGRect custom_SBRootFolderView_frameForIconListViewAtIndex(id self, SEL _
     return orig;
 }
 
-// MARK: - SBIconListView Hooks (Anti-Overlap & Expand Bottom)
+// MARK: - SBIconListView Hooks (Anti-Overlap & Expand Bottom & Custom Grid)
 static UIEdgeInsets (*orig_SBIconListView_layoutInsetsForOrientation)(id, SEL, NSInteger);
 static UIEdgeInsets custom_SBIconListView_layoutInsetsForOrientation(UIView *self, SEL _cmd, NSInteger orientation) {
     UIEdgeInsets insets = UIEdgeInsetsZero;
@@ -362,28 +370,126 @@ static UIEdgeInsets custom_SBIconListView_layoutInsetsForOrientation(UIView *sel
         }
         
         // 2. Tràn xuống đáy màn hình (chiếm chỗ của Dock cũ)
-        if (kExpandBottomRows) {
+        if (kExpandBottomRows || kCustomGridEnabled) {
             insets.bottom = 12.0;
         }
     }
     return insets;
 }
 
-// MARK: - SBIconListGridLayoutConfiguration Hooks (Expand Rows & Insets)
+static NSUInteger (*orig_SBIconListView_maximumIconCount)(UIView *, SEL);
+static NSUInteger custom_SBIconListView_maximumIconCount(UIView *self, SEL _cmd) {
+    if (kEnabled && kCustomGridEnabled) {
+        NSString *loc = nil;
+        if ([self respondsToSelector:@selector(iconLocation)]) {
+            loc = [self performSelector:@selector(iconLocation)];
+        }
+        BOOL isDock = NO;
+        if ([self respondsToSelector:@selector(isDock)]) {
+            isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
+        }
+        if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
+            return (NSUInteger)(kHomeRows * kHomeColumns);
+        }
+    }
+    if (orig_SBIconListView_maximumIconCount) {
+        return orig_SBIconListView_maximumIconCount(self, _cmd);
+    }
+    return 24;
+}
+
+static NSUInteger (*orig_SBIconListView_iconRowsForCurrentOrientation)(UIView *, SEL);
+static NSUInteger custom_SBIconListView_iconRowsForCurrentOrientation(UIView *self, SEL _cmd) {
+    if (kEnabled && kCustomGridEnabled) {
+        NSString *loc = nil;
+        if ([self respondsToSelector:@selector(iconLocation)]) {
+            loc = [self performSelector:@selector(iconLocation)];
+        }
+        BOOL isDock = NO;
+        if ([self respondsToSelector:@selector(isDock)]) {
+            isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
+        }
+        if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
+            return (NSUInteger)kHomeRows;
+        }
+    }
+    if (orig_SBIconListView_iconRowsForCurrentOrientation) {
+        return orig_SBIconListView_iconRowsForCurrentOrientation(self, _cmd);
+    }
+    return 6;
+}
+
+static NSUInteger (*orig_SBIconListView_iconColumnsForCurrentOrientation)(UIView *, SEL);
+static NSUInteger custom_SBIconListView_iconColumnsForCurrentOrientation(UIView *self, SEL _cmd) {
+    if (kEnabled && kCustomGridEnabled) {
+        NSString *loc = nil;
+        if ([self respondsToSelector:@selector(iconLocation)]) {
+            loc = [self performSelector:@selector(iconLocation)];
+        }
+        BOOL isDock = NO;
+        if ([self respondsToSelector:@selector(isDock)]) {
+            isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
+        }
+        if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
+            return (NSUInteger)kHomeColumns;
+        }
+    }
+    if (orig_SBIconListView_iconColumnsForCurrentOrientation) {
+        return orig_SBIconListView_iconColumnsForCurrentOrientation(self, _cmd);
+    }
+    return 4;
+}
+
+// MARK: - SBIconListGridLayoutConfiguration Hooks (Rows, Columns, Insets, Icon Sizing)
 static NSUInteger (*orig_SBIconListGridLayoutConfiguration_numberOfPortraitRows)(id, SEL);
 static NSUInteger custom_SBIconListGridLayoutConfiguration_numberOfPortraitRows(id self, SEL _cmd) {
     NSUInteger orig = 6;
     if (orig_SBIconListGridLayoutConfiguration_numberOfPortraitRows) {
         orig = orig_SBIconListGridLayoutConfiguration_numberOfPortraitRows(self, _cmd);
     }
-    if (kEnabled && kExpandBottomRows) {
-        // Mở rộng thêm 1 hàng trên màn hình chính (mặc định iPhone là 5 hoặc 6 hàng)
-        // Dock luôn là 1 hàng, Thư mục (folder) luôn là 3-4 hàng
+    if (kEnabled) {
         if (orig >= 5) {
-            return orig + 1;
+            if (kCustomGridEnabled && kHomeRows >= 4 && kHomeRows <= 9) {
+                return (NSUInteger)kHomeRows;
+            }
+            if (kExpandBottomRows) {
+                return orig + 1;
+            }
         }
     }
     return orig;
+}
+
+static NSUInteger (*orig_SBIconListGridLayoutConfiguration_numberOfPortraitColumns)(id, SEL);
+static NSUInteger custom_SBIconListGridLayoutConfiguration_numberOfPortraitColumns(id self, SEL _cmd) {
+    NSUInteger orig = 4;
+    if (orig_SBIconListGridLayoutConfiguration_numberOfPortraitColumns) {
+        orig = orig_SBIconListGridLayoutConfiguration_numberOfPortraitColumns(self, _cmd);
+    }
+    if (kEnabled && kCustomGridEnabled) {
+        if (orig == 4 && kHomeColumns >= 3 && kHomeColumns <= 6) {
+            return (NSUInteger)kHomeColumns;
+        }
+    }
+    return orig;
+}
+
+static SBIconImageInfo (*orig_SBIconListGridLayoutConfiguration_iconImageInfo)(id, SEL);
+static SBIconImageInfo custom_SBIconListGridLayoutConfiguration_iconImageInfo(id self, SEL _cmd) {
+    SBIconImageInfo info;
+    if (orig_SBIconListGridLayoutConfiguration_iconImageInfo) {
+        info = orig_SBIconListGridLayoutConfiguration_iconImageInfo(self, _cmd);
+    } else {
+        info.size = CGSizeMake(60.0, 60.0);
+        info.scale = 3.0;
+        info.continuousCornerRadius = 13.5;
+    }
+    if (kEnabled && kCustomGridEnabled && kHomeIconScale >= 0.65 && kHomeIconScale <= 1.25) {
+        info.size.width = round(info.size.width * kHomeIconScale);
+        info.size.height = round(info.size.height * kHomeIconScale);
+        info.continuousCornerRadius = round(info.continuousCornerRadius * kHomeIconScale);
+    }
+    return info;
 }
 
 static UIEdgeInsets (*orig_SBIconListGridLayoutConfiguration_portraitLayoutInsets)(id, SEL);
@@ -394,7 +500,7 @@ static UIEdgeInsets custom_SBIconListGridLayoutConfiguration_portraitLayoutInset
     }
     if (!kEnabled) return insets;
     
-    if (kExpandBottomRows && insets.bottom > 40.0) {
+    if ((kExpandBottomRows || kCustomGridEnabled) && insets.bottom > 40.0) {
         insets.bottom = 14.0;
     }
     
@@ -552,17 +658,22 @@ __attribute__((constructor)) static void DuoDockInit(void) {
             SafeSwizzle(rootFolderClass, @selector(_frameForIconListViewAtIndex:), (IMP)custom_SBRootFolderView_frameForIconListViewAtIndex, (IMP *)&orig_SBRootFolderView_frameForIconListViewAtIndex);
         }
         
-        // Swizzle SBIconListView (Anti-Overlap & Expand Bottom)
+        // Swizzle SBIconListView (Anti-Overlap & Expand Bottom & Custom Grid)
         Class iconListViewClass = objc_getClass("SBIconListView");
         if (iconListViewClass) {
             SafeSwizzle(iconListViewClass, @selector(layoutInsetsForOrientation:), (IMP)custom_SBIconListView_layoutInsetsForOrientation, (IMP *)&orig_SBIconListView_layoutInsetsForOrientation);
+            SafeSwizzle(iconListViewClass, @selector(maximumIconCount), (IMP)custom_SBIconListView_maximumIconCount, (IMP *)&orig_SBIconListView_maximumIconCount);
+            SafeSwizzle(iconListViewClass, @selector(iconRowsForCurrentOrientation), (IMP)custom_SBIconListView_iconRowsForCurrentOrientation, (IMP *)&orig_SBIconListView_iconRowsForCurrentOrientation);
+            SafeSwizzle(iconListViewClass, @selector(iconColumnsForCurrentOrientation), (IMP)custom_SBIconListView_iconColumnsForCurrentOrientation, (IMP *)&orig_SBIconListView_iconColumnsForCurrentOrientation);
         }
         
-        // Swizzle SBIconListGridLayoutConfiguration (Expand Rows & Insets)
+        // Swizzle SBIconListGridLayoutConfiguration (Rows, Columns, Insets, Icon Sizing)
         Class gridConfigClass = objc_getClass("SBIconListGridLayoutConfiguration");
         if (gridConfigClass) {
             SafeSwizzle(gridConfigClass, @selector(numberOfPortraitRows), (IMP)custom_SBIconListGridLayoutConfiguration_numberOfPortraitRows, (IMP *)&orig_SBIconListGridLayoutConfiguration_numberOfPortraitRows);
+            SafeSwizzle(gridConfigClass, @selector(numberOfPortraitColumns), (IMP)custom_SBIconListGridLayoutConfiguration_numberOfPortraitColumns, (IMP *)&orig_SBIconListGridLayoutConfiguration_numberOfPortraitColumns);
             SafeSwizzle(gridConfigClass, @selector(portraitLayoutInsets), (IMP)custom_SBIconListGridLayoutConfiguration_portraitLayoutInsets, (IMP *)&orig_SBIconListGridLayoutConfiguration_portraitLayoutInsets);
+            SafeSwizzle(gridConfigClass, @selector(iconImageInfo), (IMP)custom_SBIconListGridLayoutConfiguration_iconImageInfo, (IMP *)&orig_SBIconListGridLayoutConfiguration_iconImageInfo);
         }
         
         // Swizzle SBFloatingDockView

@@ -14,18 +14,28 @@
 - (void)setLabelHidden:(BOOL)hidden;
 @end
 
+struct SBIconImageInfo {
+    CGSize size;
+    CGFloat scale;
+    CGFloat continuousCornerRadius;
+};
+typedef struct SBIconImageInfo SBIconImageInfo;
+
 @interface SBIconListView : UIView
 @property (nonatomic, copy) NSString *iconLocation;
 @property (nonatomic, readonly) BOOL isDock;
 - (NSArray<SBIconView *> *)displayedIconViews;
 - (NSUInteger)maximumIconCount;
 - (UIEdgeInsets)layoutInsetsForOrientation:(NSInteger)orientation;
+- (NSUInteger)iconRowsForCurrentOrientation;
+- (NSUInteger)iconColumnsForCurrentOrientation;
 @end
 
 @interface SBIconListGridLayoutConfiguration : NSObject
 @property (nonatomic, assign) NSUInteger numberOfPortraitRows;
 @property (nonatomic, assign) NSUInteger numberOfPortraitColumns;
 @property (nonatomic, assign) UIEdgeInsets portraitLayoutInsets;
+@property (nonatomic, assign) SBIconImageInfo iconImageInfo;
 @end
 
 @interface SBDockIconListView : SBIconListView

@@ -16,6 +16,10 @@ static BOOL kDockBlurEnabled = YES;
 static BOOL kHomeCompressGrid = YES;
 static CGFloat kHomeRightInset = 88.0;
 static BOOL kExpandBottomRows = YES;
+static BOOL kCustomGridEnabled = NO;
+static NSInteger kHomeRows = 7;
+static NSInteger kHomeColumns = 4;
+static CGFloat kHomeIconScale = 0.90;
 
 static BOOL isLayingOutDock = NO;
 
@@ -58,6 +62,10 @@ static void loadPreferences() {
         kHomeCompressGrid = prefs[@"homeCompressGrid"] ? [prefs[@"homeCompressGrid"] boolValue] : YES;
         kHomeRightInset = prefs[@"homeRightInset"] ? [prefs[@"homeRightInset"] doubleValue] : 88.0;
         kExpandBottomRows = prefs[@"expandBottomRows"] ? [prefs[@"expandBottomRows"] boolValue] : YES;
+        kCustomGridEnabled = prefs[@"customGridEnabled"] ? [prefs[@"customGridEnabled"] boolValue] : NO;
+        kHomeRows = prefs[@"homeRows"] ? [prefs[@"homeRows"] integerValue] : 7;
+        kHomeColumns = prefs[@"homeColumns"] ? [prefs[@"homeColumns"] integerValue] : 4;
+        kHomeIconScale = prefs[@"homeIconScale"] ? [prefs[@"homeIconScale"] doubleValue] : 0.90;
     }
 }
 
@@ -295,7 +303,7 @@ static void attachInteractiveGestures(UIView *dockView) {
 
 %end
 
-// MARK: - Hook SBIconListView (Anti-Overlap & Expand Bottom)
+// MARK: - Hook SBIconListView (Anti-Overlap & Expand Bottom & Custom Grid)
 %hook SBIconListView
 
 - (UIEdgeInsets)layoutInsetsForOrientation:(NSInteger)orientation {
@@ -329,33 +337,85 @@ static void attachInteractiveGestures(UIView *dockView) {
         }
         
         // 2. Tràn xuống đáy màn hình (chiếm chỗ của Dock cũ)
-        if (kExpandBottomRows) {
+        if (kExpandBottomRows || kCustomGridEnabled) {
             insets.bottom = 12.0;
         }
     }
     return insets;
 }
 
+- (NSUInteger)maximumIconCount {
+    if (kEnabled && kCustomGridEnabled) {
+        if (!self.isDock && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
+            return (NSUInteger)(kHomeRows * kHomeColumns);
+        }
+    }
+    return %orig;
+}
+
+- (NSUInteger)iconRowsForCurrentOrientation {
+    if (kEnabled && kCustomGridEnabled) {
+        if (!self.isDock && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
+            return (NSUInteger)kHomeRows;
+        }
+    }
+    return %orig;
+}
+
+- (NSUInteger)iconColumnsForCurrentOrientation {
+    if (kEnabled && kCustomGridEnabled) {
+        if (!self.isDock && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
+            return (NSUInteger)kHomeColumns;
+        }
+    }
+    return %orig;
+}
+
 %end
 
-// MARK: - Hook SBIconListGridLayoutConfiguration (Expand Rows & Insets)
+// MARK: - Hook SBIconListGridLayoutConfiguration (Rows, Columns, Insets, Icon Sizing)
 %hook SBIconListGridLayoutConfiguration
 
 - (NSUInteger)numberOfPortraitRows {
     NSUInteger orig = %orig;
-    if (kEnabled && kExpandBottomRows) {
+    if (kEnabled) {
         if (orig >= 5) {
-            return orig + 1;
+            if (kCustomGridEnabled && kHomeRows >= 4 && kHomeRows <= 9) {
+                return (NSUInteger)kHomeRows;
+            }
+            if (kExpandBottomRows) {
+                return orig + 1;
+            }
         }
     }
     return orig;
+}
+
+- (NSUInteger)numberOfPortraitColumns {
+    NSUInteger orig = %orig;
+    if (kEnabled && kCustomGridEnabled) {
+        if (orig == 4 && kHomeColumns >= 3 && kHomeColumns <= 6) {
+            return (NSUInteger)kHomeColumns;
+        }
+    }
+    return orig;
+}
+
+- (SBIconImageInfo)iconImageInfo {
+    SBIconImageInfo info = %orig;
+    if (kEnabled && kCustomGridEnabled && kHomeIconScale >= 0.65 && kHomeIconScale <= 1.25) {
+        info.size.width = round(info.size.width * kHomeIconScale);
+        info.size.height = round(info.size.height * kHomeIconScale);
+        info.continuousCornerRadius = round(info.continuousCornerRadius * kHomeIconScale);
+    }
+    return info;
 }
 
 - (UIEdgeInsets)portraitLayoutInsets {
     UIEdgeInsets insets = %orig;
     if (!kEnabled) return insets;
     
-    if (kExpandBottomRows && insets.bottom > 40.0) {
+    if ((kExpandBottomRows || kCustomGridEnabled) && insets.bottom > 40.0) {
         insets.bottom = 14.0;
     }
     
