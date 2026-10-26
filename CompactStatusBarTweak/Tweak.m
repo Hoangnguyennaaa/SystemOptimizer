@@ -10,6 +10,72 @@
 #import <sys/socket.h>
 #import <ifaddrs.h>
 #import <net/if.h>
+#import <dlfcn.h>
+
+// MARK: - IOKit Dynamic Power Sources (Zero-recursion Hardware Battery Monitoring)
+typedef void (*IOPowerSourceCallbackType)(void *context);
+typedef CFTypeRef (*fn_IOPSCopyPowerSourcesInfo_t)(void);
+typedef CFArrayRef (*fn_IOPSCopyPowerSourcesList_t)(CFTypeRef);
+typedef CFDictionaryRef (*fn_IOPSGetPowerSourceDescription_t)(CFTypeRef, CFTypeRef);
+typedef CFRunLoopSourceRef (*fn_IOPSNotificationCreateRunLoopSource_t)(IOPowerSourceCallbackType, void *);
+
+static fn_IOPSCopyPowerSourcesInfo_t g_IOPSCopyPowerSourcesInfo = NULL;
+static fn_IOPSCopyPowerSourcesList_t g_IOPSCopyPowerSourcesList = NULL;
+static fn_IOPSGetPowerSourceDescription_t g_IOPSGetPowerSourceDescription = NULL;
+static fn_IOPSNotificationCreateRunLoopSource_t g_IOPSNotificationCreateRunLoopSource = NULL;
+
+static void initIOKitSymbols(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        void *h = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_LAZY | RTLD_GLOBAL);
+        if (!h) h = dlopen(NULL, RTLD_LAZY);
+        if (h) {
+            g_IOPSCopyPowerSourcesInfo = (fn_IOPSCopyPowerSourcesInfo_t)dlsym(h, "IOPSCopyPowerSourcesInfo");
+            g_IOPSCopyPowerSourcesList = (fn_IOPSCopyPowerSourcesList_t)dlsym(h, "IOPSCopyPowerSourcesList");
+            g_IOPSGetPowerSourceDescription = (fn_IOPSGetPowerSourceDescription_t)dlsym(h, "IOPSGetPowerSourceDescription");
+            g_IOPSNotificationCreateRunLoopSource = (fn_IOPSNotificationCreateRunLoopSource_t)dlsym(h, "IOPSNotificationCreateRunLoopSource");
+        }
+    });
+}
+
+static BOOL getIOKitBattery(CGFloat *outLevel, BOOL *outCharging) {
+    initIOKitSymbols();
+    if (!g_IOPSCopyPowerSourcesInfo || !g_IOPSCopyPowerSourcesList || !g_IOPSGetPowerSourceDescription) {
+        return NO;
+    }
+    CFTypeRef blob = g_IOPSCopyPowerSourcesInfo();
+    if (!blob) return NO;
+    CFArrayRef list = g_IOPSCopyPowerSourcesList(blob);
+    if (!list) {
+        CFRelease(blob);
+        return NO;
+    }
+    BOOL found = NO;
+    CFIndex cnt = CFArrayGetCount(list);
+    for (CFIndex i = 0; i < cnt; i++) {
+        CFDictionaryRef d = g_IOPSGetPowerSourceDescription(blob, CFArrayGetValueAtIndex(list, i));
+        if (!d) continue;
+        int cur = 100, mx = 100;
+        CFNumberRef c = (CFNumberRef)CFDictionaryGetValue(d, CFSTR("Current Capacity"));
+        CFNumberRef m = (CFNumberRef)CFDictionaryGetValue(d, CFSTR("Max Capacity"));
+        if (c) CFNumberGetValue(c, kCFNumberIntType, &cur);
+        if (m) CFNumberGetValue(m, kCFNumberIntType, &mx);
+        if (mx > 0 && outLevel) {
+            *outLevel = (CGFloat)cur / (CGFloat)mx;
+        }
+        CFBooleanRef chg = (CFBooleanRef)CFDictionaryGetValue(d, CFSTR("Is Charging"));
+        CFStringRef pss = (CFStringRef)CFDictionaryGetValue(d, CFSTR("Power Source State"));
+        BOOL onAC = (pss && CFEqual(pss, CFSTR("AC Power")));
+        if (outCharging) {
+            *outCharging = onAC || (chg && CFBooleanGetValue(chg));
+        }
+        found = YES;
+        break;
+    }
+    CFRelease(list);
+    CFRelease(blob);
+    return found;
+}
 
 // MARK: - Protocols for Runtime SpringBoard Classes (No linker dependency)
 @protocol SBWiFiManagerProtocol <NSObject>
@@ -353,6 +419,7 @@ static void savePreferenceNumber(NSString *key, NSNumber *val) {
 
 // MARK: - Helper Functions (Network, RAM, Cellular, Wi-Fi)
 static int getCellularSignalBars(void);
+static int getWiFiSignalBars(void);
 static BOOL isWifiActive(void);
 static BOOL isAirplaneModeActive(void);
 static BOOL isNoSIMPresent(void);
@@ -469,6 +536,17 @@ static BOOL isWifiActive(void) {
         }
     }
     return YES;
+}
+
+static int getWiFiSignalBars(void) {
+    Class wifiClass = objc_getClass("SBWiFiManager");
+    if (wifiClass && [wifiClass respondsToSelector:@selector(sharedInstance)]) {
+        id<SBWiFiManagerProtocol> wifiMgr = (id<SBWiFiManagerProtocol>)[wifiClass performSelector:@selector(sharedInstance)];
+        if ([wifiMgr respondsToSelector:@selector(signalStrengthBars)]) {
+            return [wifiMgr signalStrengthBars];
+        }
+    }
+    return 3;
 }
 
 static BOOL isAirplaneModeActive(void) {
@@ -634,6 +712,27 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 static __weak CompactStatusView *g_activeStatusView = nil;
 static __weak CompactStatusView *g_activeCCStatusView = nil;
 
+static void CompactStatusBarPowerChanged(void *ctx) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (g_activeStatusView) [g_activeStatusView updateStats];
+        if (g_activeCCStatusView) [g_activeCCStatusView updateStats];
+    });
+}
+
+static void registerIOKitPowerNotification(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        initIOKitSymbols();
+        if (g_IOPSNotificationCreateRunLoopSource) {
+            CFRunLoopSourceRef src = g_IOPSNotificationCreateRunLoopSource(CompactStatusBarPowerChanged, NULL);
+            if (src) {
+                CFRunLoopAddSource(CFRunLoopGetMain(), src, kCFRunLoopDefaultMode);
+                CFRelease(src);
+            }
+        }
+    });
+}
+
 // MARK: - CompactStatusView: Vector 3-in-1 Gauge View
 @interface CompactStatusView : UIView <UIGestureRecognizerDelegate>
 @property (nonatomic, strong) UIView *pillContainerView;
@@ -678,6 +777,8 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
 @property (nonatomic, strong) CAShapeLayer *airplaneVectorLayer;
 @property (nonatomic, strong) CAShapeLayer *noSimCardLayer;
 @property (nonatomic, strong) CAShapeLayer *noSimSlashLayer;
+@property (nonatomic, strong) CAShapeLayer *airplaneCenterLayer;
+@property (nonatomic, strong) UIColor *adaptiveTintColor;
 
 - (void)rebuildGaugePaths;
 - (void)rebuildCellularDots;
@@ -713,16 +814,13 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
         [self setupGestures];
         [self applyPreferences];
 
-        [UIDevice currentDevice].batteryMonitoringEnabled = YES;
+        registerIOKitPowerNotification();
         getNetworkTrafficBytes(&_lastDownloadBytes, &_lastUploadBytes);
         self.lastSampleTime = [NSDate timeIntervalSinceReferenceDate];
 
         [self updateStats];
 
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStats) name:UIDeviceBatteryLevelDidChangeNotification object:nil];
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStats) name:UIDeviceBatteryStateDidChangeNotification object:nil];
-
-        _timer = [NSTimer scheduledTimerWithTimeInterval:1.0 target:self selector:@selector(updateStats) userInfo:nil repeats:YES];
+        _timer = [NSTimer scheduledTimerWithTimeInterval:1.5 target:self selector:@selector(updateStats) userInfo:nil repeats:YES];
     }
     return self;
 }
@@ -751,20 +849,20 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
 
 - (void)rebuildGaugePaths {
     CGPoint center = CGPointMake(11.0, 11.0);
-    CGFloat radius = 9.2;
+    CGFloat radius = 9.0;
 
     if (p_batteryPercentMode == 4) {
-        // Top Crown arc: 101-degree symmetric left and right arcs with 68-degree top opening
+        // Top Crown arc: 151.5 to 236.0 (left), 304.0 to 388.5 (right)
         UIBezierPath *crownPath = [UIBezierPath bezierPath];
-        [crownPath addArcWithCenter:center radius:radius startAngle:135.0 * M_PI / 180.0 endAngle:236.0 * M_PI / 180.0 clockwise:YES];
-        UIBezierPath *sub2 = [UIBezierPath bezierPathWithArcCenter:center radius:radius startAngle:304.0 * M_PI / 180.0 endAngle:45.0 * M_PI / 180.0 clockwise:YES];
+        [crownPath addArcWithCenter:center radius:radius startAngle:151.5 * M_PI / 180.0 endAngle:236.0 * M_PI / 180.0 clockwise:YES];
+        UIBezierPath *sub2 = [UIBezierPath bezierPathWithArcCenter:center radius:radius startAngle:304.0 * M_PI / 180.0 endAngle:388.5 * M_PI / 180.0 clockwise:YES];
         [crownPath appendPath:sub2];
 
         _trackLayer.path = crownPath.CGPath;
         _progressLayer.path = crownPath.CGPath;
     } else {
-        CGFloat startAngle = 135.0 * M_PI / 180.0;
-        CGFloat endAngle = 45.0 * M_PI / 180.0;
+        CGFloat startAngle = 151.5 * M_PI / 180.0;
+        CGFloat endAngle = 388.5 * M_PI / 180.0;
         UIBezierPath *arcPath = [UIBezierPath bezierPathWithArcCenter:center
                                                                radius:radius
                                                            startAngle:startAngle
@@ -970,34 +1068,77 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     _progressLayer.strokeEnd = 1.0;
     [_gaugeContainerView.layer addSublayer:_progressLayer];
 
-    CGPoint wifiOrigin = CGPointMake(11.0, 13.5);
+    // Wi-Fi fan: Exact cubic Bezier curves ported from 436-unit Android Duo geometry
+    UIBezierPath *tp = [UIBezierPath bezierPath];
+    [tp moveToPoint:CGPointMake(11.0, 12.36)];
+    [tp addCurveToPoint:CGPointMake(9.89, 13.22) controlPoint1:CGPointMake(10.29, 12.36) controlPoint2:CGPointMake(9.89, 12.82)];
+    [tp addCurveToPoint:CGPointMake(10.80, 14.43) controlPoint1:CGPointMake(9.89, 13.57) controlPoint2:CGPointMake(10.44, 14.13)];
+    [tp addCurveToPoint:CGPointMake(11.25, 14.43) controlPoint1:CGPointMake(10.95, 14.58) controlPoint2:CGPointMake(11.10, 14.58)];
+    [tp addCurveToPoint:CGPointMake(12.16, 13.22) controlPoint1:CGPointMake(11.61, 14.13) controlPoint2:CGPointMake(12.16, 13.57)];
+    [tp addCurveToPoint:CGPointMake(11.0, 12.36) controlPoint1:CGPointMake(12.16, 12.82) controlPoint2:CGPointMake(11.71, 12.36)];
+    [tp closePath];
 
-    UIBezierPath *baseDotPath = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(11.0 - 0.9, 13.0 - 0.9, 1.8, 1.8)];
     _wifiDotLayer = [CAShapeLayer layer];
     _wifiDotLayer.fillColor = [UIColor colorWithWhite:1.0 alpha:0.95].CGColor;
-    _wifiDotLayer.path = baseDotPath.CGPath;
+    _wifiDotLayer.path = tp.CGPath;
     [_gaugeContainerView.layer addSublayer:_wifiDotLayer];
 
-    CGFloat startWifi = 225.0 * M_PI / 180.0;
-    CGFloat endWifi = 315.0 * M_PI / 180.0;
+    UIBezierPath *w1 = [UIBezierPath bezierPath];
+    [w1 moveToPoint:CGPointMake(9.08, 11.66)];
+    [w1 addCurveToPoint:CGPointMake(13.02, 11.66) controlPoint1:CGPointMake(10.14, 10.60) controlPoint2:CGPointMake(11.96, 10.60)];
 
-    UIBezierPath *w1 = [UIBezierPath bezierPathWithArcCenter:wifiOrigin radius:3.2 startAngle:startWifi endAngle:endWifi clockwise:YES];
     _wifiWave1Layer = [CAShapeLayer layer];
     _wifiWave1Layer.fillColor = [UIColor clearColor].CGColor;
     _wifiWave1Layer.strokeColor = [UIColor colorWithWhite:1.0 alpha:0.95].CGColor;
-    _wifiWave1Layer.lineWidth = 1.1;
+    _wifiWave1Layer.lineWidth = 1.15;
     _wifiWave1Layer.lineCap = kCALineCapRound;
     _wifiWave1Layer.path = w1.CGPath;
     [_gaugeContainerView.layer addSublayer:_wifiWave1Layer];
 
-    UIBezierPath *w2 = [UIBezierPath bezierPathWithArcCenter:wifiOrigin radius:5.6 startAngle:startWifi endAngle:endWifi clockwise:YES];
+    UIBezierPath *w2 = [UIBezierPath bezierPath];
+    [w2 moveToPoint:CGPointMake(7.67, 10.14)];
+    [w2 addCurveToPoint:CGPointMake(14.38, 10.14) controlPoint1:CGPointMake(9.39, 8.43) controlPoint2:CGPointMake(12.61, 8.43)];
+
     _wifiWave2Layer = [CAShapeLayer layer];
     _wifiWave2Layer.fillColor = [UIColor clearColor].CGColor;
     _wifiWave2Layer.strokeColor = [UIColor colorWithWhite:1.0 alpha:0.95].CGColor;
-    _wifiWave2Layer.lineWidth = 1.1;
+    _wifiWave2Layer.lineWidth = 1.15;
     _wifiWave2Layer.lineCap = kCALineCapRound;
     _wifiWave2Layer.path = w2.CGPath;
     [_gaugeContainerView.layer addSublayer:_wifiWave2Layer];
+
+    // Nose-up vector airplane silhouette in center
+    UIBezierPath *apCenter = [UIBezierPath bezierPath];
+    [apCenter moveToPoint:CGPointMake(11.0, 6.66)];
+    [apCenter addCurveToPoint:CGPointMake(10.39, 7.67) controlPoint1:CGPointMake(10.65, 6.66) controlPoint2:CGPointMake(10.44, 7.06)];
+    [apCenter addLineToPoint:CGPointMake(10.19, 9.79)];
+    [apCenter addLineToPoint:CGPointMake(7.37, 11.50)];
+    [apCenter addCurveToPoint:CGPointMake(6.91, 12.41) controlPoint1:CGPointMake(6.96, 11.76) controlPoint2:CGPointMake(6.81, 12.11)];
+    [apCenter addCurveToPoint:CGPointMake(7.82, 12.61) controlPoint1:CGPointMake(7.01, 12.72) controlPoint2:CGPointMake(7.42, 12.77)];
+    [apCenter addLineToPoint:CGPointMake(10.19, 11.76)];
+    [apCenter addLineToPoint:CGPointMake(10.14, 13.47)];
+    [apCenter addLineToPoint:CGPointMake(8.93, 14.43)];
+    [apCenter addCurveToPoint:CGPointMake(8.78, 15.14) controlPoint1:CGPointMake(8.68, 14.63) controlPoint2:CGPointMake(8.63, 14.94)];
+    [apCenter addCurveToPoint:CGPointMake(9.49, 15.19) controlPoint1:CGPointMake(8.93, 15.34) controlPoint2:CGPointMake(9.23, 15.29)];
+    [apCenter addLineToPoint:CGPointMake(11.0, 14.58)];
+    [apCenter addLineToPoint:CGPointMake(12.51, 15.19)];
+    [apCenter addCurveToPoint:CGPointMake(13.22, 15.14) controlPoint1:CGPointMake(12.77, 15.29) controlPoint2:CGPointMake(13.07, 15.34)];
+    [apCenter addCurveToPoint:CGPointMake(13.07, 14.43) controlPoint1:CGPointMake(13.37, 14.94) controlPoint2:CGPointMake(13.32, 14.63)];
+    [apCenter addLineToPoint:CGPointMake(11.86, 13.47)];
+    [apCenter addLineToPoint:CGPointMake(11.81, 11.76)];
+    [apCenter addLineToPoint:CGPointMake(14.18, 12.61)];
+    [apCenter addCurveToPoint:CGPointMake(15.09, 12.41) controlPoint1:CGPointMake(14.58, 12.77) controlPoint2:CGPointMake(14.99, 12.72)];
+    [apCenter addCurveToPoint:CGPointMake(14.63, 11.50) controlPoint1:CGPointMake(15.19, 12.11) controlPoint2:CGPointMake(15.04, 11.76)];
+    [apCenter addLineToPoint:CGPointMake(11.81, 9.79)];
+    [apCenter addLineToPoint:CGPointMake(11.61, 7.67)];
+    [apCenter addCurveToPoint:CGPointMake(11.0, 6.66) controlPoint1:CGPointMake(11.56, 7.06) controlPoint2:CGPointMake(11.35, 6.66)];
+    [apCenter closePath];
+
+    _airplaneCenterLayer = [CAShapeLayer layer];
+    _airplaneCenterLayer.path = apCenter.CGPath;
+    _airplaneCenterLayer.fillColor = [UIColor whiteColor].CGColor;
+    _airplaneCenterLayer.hidden = YES;
+    [_gaugeContainerView.layer addSublayer:_airplaneCenterLayer];
 
     _centerLabel = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 6.0, 22.0, 10.0)];
     _centerLabel.font = [UIFont systemFontOfSize:6.5 weight:UIFontWeightBold];
@@ -1141,24 +1282,42 @@ static __weak CompactStatusView *g_activeCCStatusView = nil;
     }
     _dotLayers = [NSMutableArray array];
 
-    CGPoint center = CGPointMake(11.0, 11.0);
-    CGFloat radius = 9.2;
     BOOL is5 = p_dotCount5;
-    NSArray *angles = is5 ? @[@(122.0), @(106.0), @(90.0), @(74.0), @(58.0)]
-                          : @[@(122.0), @(101.0), @(79.0), @(58.0)];
-    CGFloat dr = is5 ? 0.75 : 0.85;
-
-    for (NSNumber *degNum in angles) {
-        CGFloat deg = [degNum doubleValue];
-        CGFloat rad = deg * M_PI / 180.0;
-        CGFloat dx = center.x + radius * cos(rad);
-        CGFloat dy = center.y + radius * sin(rad);
-        UIBezierPath *dp = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(dx - dr, dy - dr, dr * 2.0, dr * 2.0)];
-        CAShapeLayer *dl = [CAShapeLayer layer];
-        dl.path = dp.CGPath;
-        dl.fillColor = [UIColor colorWithWhite:1.0 alpha:0.95].CGColor;
-        [_gaugeContainerView.layer addSublayer:dl];
-        [_dotLayers addObject:dl];
+    if (is5) {
+        CGPoint center = CGPointMake(11.0, 11.0);
+        CGFloat radius = 9.0;
+        NSArray *angles = @[@(122.0), @(106.0), @(90.0), @(74.0), @(58.0)];
+        CGFloat dr = 0.75;
+        for (NSNumber *degNum in angles) {
+            CGFloat deg = [degNum doubleValue];
+            CGFloat rad = deg * M_PI / 180.0;
+            CGFloat dx = center.x + radius * cos(rad);
+            CGFloat dy = center.y + radius * sin(rad);
+            UIBezierPath *dp = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(dx - dr, dy - dr, dr * 2.0, dr * 2.0)];
+            CAShapeLayer *dl = [CAShapeLayer layer];
+            dl.path = dp.CGPath;
+            dl.fillColor = [UIColor colorWithWhite:1.0 alpha:0.95].CGColor;
+            [_gaugeContainerView.layer addSublayer:dl];
+            [_dotLayers addObject:dl];
+        }
+    } else {
+        // Exact 436-unit Android Duo geometry (cradled arc)
+        const CGPoint duoDots[4] = {
+            {6.26, 17.61},
+            {9.23, 19.12},
+            {12.77, 19.12},
+            {15.74, 17.61}
+        };
+        CGFloat dr = 0.91;
+        for (int i = 0; i < 4; i++) {
+            CGPoint pt = duoDots[i];
+            UIBezierPath *dp = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(pt.x - dr, pt.y - dr, dr * 2.0, dr * 2.0)];
+            CAShapeLayer *dl = [CAShapeLayer layer];
+            dl.path = dp.CGPath;
+            dl.fillColor = [UIColor colorWithWhite:1.0 alpha:0.95].CGColor;
+            [_gaugeContainerView.layer addSublayer:dl];
+            [_dotLayers addObject:dl];
+        }
     }
 }
 
@@ -1458,60 +1617,113 @@ static void executeAction(int actionCode, CompactStatusView *view) {
 
 // MARK: - Update Statistics (1-second cycle)
 - (void)updateStats {
-    float rawLevel = [UIDevice currentDevice].batteryLevel;
-    CGFloat bat = rawLevel < 0 ? 1.0 : (CGFloat)rawLevel;
-    UIDeviceBatteryState bState = [UIDevice currentDevice].batteryState;
-    BOOL charging = (bState == UIDeviceBatteryStateCharging || bState == UIDeviceBatteryStateFull);
+    // 0. IOKit Safe Hardware Battery & State (Fall back to UIDevice if unavailable)
+    CGFloat bat = 1.0;
+    BOOL charging = NO;
+    if (!getIOKitBattery(&bat, &charging)) {
+        float rawLevel = [UIDevice currentDevice].batteryLevel;
+        bat = rawLevel < 0 ? 1.0 : (CGFloat)rawLevel;
+        UIDeviceBatteryState bState = [UIDevice currentDevice].batteryState;
+        charging = (bState == UIDeviceBatteryStateCharging || bState == UIDeviceBatteryStateFull);
+    }
     BOOL lowPower = [NSProcessInfo processInfo].isLowPowerModeEnabled;
-
     CGFloat ramRatio = getRAMUsedRatio(NULL, NULL);
-    int pct = self.showRAM ? (int)(ramRatio * 100) : (int)(bat * 100);
+    int pct = self.showRAM ? (int)(ramRatio * 100) : (int)lroundf(bat * 100.0f);
 
-    // 1. Tiến trình vòng cung ngoài
-    CGFloat progressVal = self.showRAM ? MIN(MAX(ramRatio, 0.0), 1.0) : bat;
-    _progressLayer.strokeEnd = progressVal;
-
-    // 2. Màu sắc vòng cung
-    UIColor *col = [UIColor colorWithWhite:1.0 alpha:0.95];
-    if (p_colorMode == 1) { // Đơn sắc trắng
-        col = [UIColor colorWithWhite:1.0 alpha:0.95];
-    } else if (p_colorMode == 2) { // Neon Cyan
-        col = [UIColor colorWithRed:0.0 green:0.96 blue:1.0 alpha:1.0];
-    } else if (p_colorMode == 3) { // Neon Tím
-        col = [UIColor colorWithRed:0.75 green:0.33 blue:0.93 alpha:1.0];
-    } else if (p_colorMode == 4) { // Neon Hồng
-        col = [UIColor colorWithRed:1.0 green:0.08 blue:0.58 alpha:1.0];
-    } else if (p_colorMode == 5) { // Neon Xanh Lá
-        col = [UIColor colorWithRed:0.22 green:1.0 blue:0.08 alpha:1.0];
-    } else if (p_colorMode == 6) { // Neon Cam
-        col = [UIColor colorWithRed:1.0 green:0.42 blue:0.21 alpha:1.0];
-    } else if (p_colorMode == 7) { // Vàng Gold
-        col = [UIColor colorWithRed:1.0 green:0.84 blue:0.0 alpha:1.0];
-    } else if (p_colorMode == 8) { // Đỏ Ruby
-        col = [UIColor colorWithRed:1.0 green:0.20 blue:0.40 alpha:1.0];
-    } else if (p_colorMode == 9) { // 🎨 Tự chọn màu tùy thích (Custom RGB)
-        col = [UIColor colorWithRed:p_customGaugeR green:p_customGaugeG blue:p_customGaugeB alpha:1.0];
-    } else { // Dynamic (0)
-        if (self.showRAM) {
-            if (ramRatio > 0.85) col = [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0];
-            else if (ramRatio > 0.65) col = [UIColor colorWithRed:1.0 green:0.60 blue:0.10 alpha:1.0];
-            else col = [UIColor colorWithRed:0.20 green:0.80 blue:1.0 alpha:1.0];
-        } else {
-            if (charging) {
-                col = [UIColor colorWithRed:0.20 green:0.85 blue:0.35 alpha:1.0];
-            } else if (lowPower) {
-                col = [UIColor colorWithRed:1.0 green:0.82 blue:0.0 alpha:1.0];
-            } else if (bat <= 0.20) {
-                col = [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0];
-            }
+    // 1. Màu sắc và độ sáng thích ứng (Adaptive Color Extraction)
+    UIColor *tintColor = [UIColor whiteColor];
+    switch (p_colorMode) {
+        case 1: tintColor = [UIColor colorWithWhite:1.0 alpha:0.95]; break; // Đơn sắc trắng
+        case 2: tintColor = [UIColor colorWithRed:0.0 green:0.96 blue:1.0 alpha:1.0]; break; // Neon Cyan
+        case 3: tintColor = [UIColor colorWithRed:0.75 green:0.33 blue:0.93 alpha:1.0]; break; // Neon Tím
+        case 4: tintColor = [UIColor colorWithRed:1.0 green:0.08 blue:0.58 alpha:1.0]; break; // Neon Hồng
+        case 5: tintColor = [UIColor colorWithRed:0.22 green:1.0 blue:0.08 alpha:1.0]; break; // Neon Xanh Lá
+        case 6: tintColor = [UIColor colorWithRed:1.0 green:0.42 blue:0.21 alpha:1.0]; break; // Neon Cam
+        case 7: tintColor = [UIColor colorWithRed:1.0 green:0.84 blue:0.0 alpha:1.0]; break; // Vàng Gold
+        case 8: tintColor = [UIColor colorWithRed:1.0 green:0.20 blue:0.40 alpha:1.0]; break; // Đỏ Ruby
+        case 9: tintColor = [UIColor colorWithRed:p_customGaugeR green:p_customGaugeG blue:p_customGaugeB alpha:1.0]; break; // Custom RGB
+        default: { // Mode 0: Dynamic / Adaptive theo nền màn hình
+            tintColor = self.adaptiveTintColor ?: [UIColor whiteColor];
+            break;
         }
     }
-    _progressLayer.strokeColor = col.CGColor;
 
-    // 3. Hiệu ứng Breathing Glow
+    CGFloat lum = 1.0;
+    CGFloat cr = 1, cg = 1, cb = 1, ca = 1;
+    if ([tintColor getRed:&cr green:&cg blue:&cb alpha:&ca]) {
+        lum = 0.299f * cr + 0.587f * cg + 0.114f * cb;
+    } else {
+        CGFloat cw = 1;
+        if ([tintColor getWhite:&cw alpha:&ca]) lum = cw;
+    }
+    BOOL isDark = (lum < 0.5f);
+
+    UIColor *activeColor = tintColor;
+    UIColor *inactiveColor = isDark ? [UIColor colorWithWhite:0.0 alpha:0.22] : [UIColor colorWithWhite:1.0 alpha:0.25];
+
+    UIColor *batteryArcColor = activeColor;
+    if (self.showRAM) {
+        if (ramRatio > 0.85) batteryArcColor = [UIColor colorWithRed:1.0 green:0.25 blue:0.25 alpha:1.0];
+        else if (ramRatio > 0.65) batteryArcColor = [UIColor colorWithRed:1.0 green:0.60 blue:0.10 alpha:1.0];
+        else batteryArcColor = [UIColor colorWithRed:0.20 green:0.80 blue:1.0 alpha:1.0];
+    } else {
+        if (charging) {
+            batteryArcColor = [UIColor colorWithRed:52/255.0 green:199/255.0 blue:89/255.0 alpha:1.0]; // Apple System Green #34C759
+        } else if (lowPower) {
+            batteryArcColor = [UIColor colorWithRed:255/255.0 green:204/255.0 blue:0/255.0 alpha:1.0]; // Apple System Yellow #FFCC00
+        } else if (pct <= 20) {
+            batteryArcColor = [UIColor colorWithRed:255/255.0 green:59/255.0 blue:48/255.0 alpha:1.0]; // Apple System Red #FF3B30
+        }
+    }
+
+    _trackLayer.strokeColor = inactiveColor.CGColor;
+    _progressLayer.strokeColor = batteryArcColor.CGColor;
+
+    // 2. Tiến trình vòng cung Pin (Hỗ trợ Mode 4 Top Crown chính xác theo O.status)
+    CGPoint center = CGPointMake(11.0, 11.0);
+    CGFloat radius = 9.0;
+    CGFloat lvl = self.showRAM ? MIN(MAX(ramRatio, 0.0), 1.0) : MIN(MAX(bat, 0.0), 1.0);
+
+    if (p_batteryPercentMode == 4) {
+        CGFloat oStart = 151.5;
+        CGFloat sweep = 237.0;
+        BOOL isFull = (pct >= 100);
+        CGFloat leftTopEnd = isFull ? 231.0 : 236.0;
+        CGFloat rightTopStart = isFull ? 309.0 : 304.0;
+        CGFloat oEnd = 388.5;
+
+        UIBezierPath *crownTrack = [UIBezierPath bezierPath];
+        [crownTrack addArcWithCenter:center radius:radius startAngle:oStart * M_PI / 180.0 endAngle:leftTopEnd * M_PI / 180.0 clockwise:YES];
+        UIBezierPath *rTrack = [UIBezierPath bezierPathWithArcCenter:center radius:radius startAngle:rightTopStart * M_PI / 180.0 endAngle:oEnd * M_PI / 180.0 clockwise:YES];
+        [crownTrack appendPath:rTrack];
+        _trackLayer.path = crownTrack.CGPath;
+
+        CGFloat progressAngle = oStart + sweep * lvl;
+        UIBezierPath *progPath = [UIBezierPath bezierPath];
+        CGFloat leftProgEnd = MIN(progressAngle, leftTopEnd);
+        if (leftProgEnd > oStart) {
+            [progPath addArcWithCenter:center radius:radius startAngle:oStart * M_PI / 180.0 endAngle:leftProgEnd * M_PI / 180.0 clockwise:YES];
+        }
+        if (progressAngle > rightTopStart) {
+            CGFloat rightProgEnd = MIN(progressAngle, oEnd);
+            UIBezierPath *rProg = [UIBezierPath bezierPathWithArcCenter:center radius:radius startAngle:rightTopStart * M_PI / 180.0 endAngle:rightProgEnd * M_PI / 180.0 clockwise:YES];
+            [progPath appendPath:rProg];
+        }
+        _progressLayer.path = progPath.CGPath;
+        _progressLayer.strokeEnd = 1.0;
+    } else {
+        CGFloat startAngle = 151.5 * M_PI / 180.0;
+        CGFloat endAngle = 388.5 * M_PI / 180.0;
+        UIBezierPath *arcPath = [UIBezierPath bezierPathWithArcCenter:center radius:radius startAngle:startAngle endAngle:endAngle clockwise:YES];
+        _trackLayer.path = arcPath.CGPath;
+        _progressLayer.path = arcPath.CGPath;
+        _progressLayer.strokeEnd = lvl;
+    }
+
+    // 3. Hiệu ứng Breathing Glow khi đang sạc
     if (charging && p_breathingGlow) {
         if (!self.isBreathing) {
-            _progressLayer.shadowColor = col.CGColor;
+            _progressLayer.shadowColor = batteryArcColor.CGColor;
             _progressLayer.shadowRadius = 4.0;
             _progressLayer.shadowOffset = CGSizeZero;
             CABasicAnimation *pulse = [CABasicAnimation animationWithKeyPath:@"shadowOpacity"];
@@ -1548,82 +1760,104 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     self.currentDownSpeed = downSpeed;
     self.currentUpSpeed = upSpeed;
 
-    BOOL wifiOn = isWifiActive();
-
-    // 5. Kiểm tra ngưỡng tốc độ mạng
     BOOL hasSpeed = NO;
     if (p_speedThreshold == 1 && (downSpeed > 51200.0 || upSpeed > 51200.0)) hasSpeed = YES;
     else if (p_speedThreshold == 2 && (downSpeed > 102400.0 || upSpeed > 102400.0)) hasSpeed = YES;
     else if (p_speedThreshold == 3) hasSpeed = YES;
 
-    // 6. Hiển thị ở tâm Gauge 22x22 hoặc trên Đỉnh vòm (Mode 4)
-    BOOL isAirplane = isAirplaneModeActive();
-    BOOL isNoSim = isNoSIMPresent();
-
+    // 5. Hiển thị % pin trên đỉnh vòm (Mode 4: Top Crown)
     if (p_batteryPercentMode == 4) {
         _topPercentLabel.hidden = NO;
         _topPercentLabel.text = [NSString stringWithFormat:@"%d", pct];
-        _topPercentLabel.textColor = (pct <= 20 && !charging) ? [UIColor colorWithRed:1.0 green:0.35 blue:0.35 alpha:1.0] : [UIColor whiteColor];
+        _topPercentLabel.font = [UIFont systemFontOfSize:(pct >= 100 ? 5.5 : 6.4) weight:UIFontWeightBold];
+        _topPercentLabel.frame = CGRectMake(0.0, 0.0, 22.0, 8.0);
+        _topPercentLabel.textColor = (pct <= 20 && !charging) ? [UIColor colorWithRed:255/255.0 green:59/255.0 blue:48/255.0 alpha:1.0] : activeColor;
     } else {
         _topPercentLabel.hidden = YES;
     }
 
-    if (p_batteryPercentMode == 1) {
+    // 6. Hiển thị ở tâm Gauge: Quạt Wi-Fi, Máy bay hoặc % Pin
+    BOOL wifiOn = isWifiActive();
+    int wifiBars = getWiFiSignalBars();
+    BOOL isAirplane = isAirplaneModeActive();
+    BOOL isNoSim = isNoSIMPresent();
+
+    if (p_batteryPercentMode == 1) { // Pin ở tâm
         _wifiDotLayer.hidden = YES;
         _wifiWave1Layer.hidden = YES;
         _wifiWave2Layer.hidden = YES;
+        _airplaneCenterLayer.hidden = YES;
         _centerLabel.hidden = NO;
         _centerLabel.text = [NSString stringWithFormat:@"%d", pct];
-        _centerLabel.textColor = col;
-    } else if (p_badgeStyle == 2 && hasSpeed) {
+        _centerLabel.textColor = batteryArcColor;
+    } else if (p_badgeStyle == 2 && hasSpeed) { // Tốc độ mạng ở tâm
         _wifiDotLayer.hidden = YES;
         _wifiWave1Layer.hidden = YES;
         _wifiWave2Layer.hidden = YES;
+        _airplaneCenterLayer.hidden = YES;
         _centerLabel.hidden = NO;
         _centerLabel.text = formatSpeedCompact(downSpeed > 0 ? downSpeed : upSpeed);
         _centerLabel.textColor = [UIColor colorWithRed:0.25 green:0.90 blue:0.40 alpha:1.0];
-    } else if (wifiOn) {
+    } else if (isAirplane && !wifiOn) { // Chế độ máy bay (Wi-Fi tắt) -> Hiển thị silhouette máy bay ở tâm
+        _wifiDotLayer.hidden = YES;
+        _wifiWave1Layer.hidden = YES;
+        _wifiWave2Layer.hidden = YES;
+        _centerLabel.hidden = YES;
+        _airplaneCenterLayer.hidden = NO;
+        _airplaneCenterLayer.fillColor = activeColor.CGColor;
+    } else if (wifiOn) { // Wi-Fi kết nối -> Hiển thị quạt Wi-Fi đa mức sóng
+        _airplaneCenterLayer.hidden = YES;
         _centerLabel.hidden = YES;
         _wifiDotLayer.hidden = NO;
         _wifiWave1Layer.hidden = NO;
         _wifiWave2Layer.hidden = NO;
-        _wifiDotLayer.opacity = 1.0;
-        _wifiWave1Layer.opacity = 1.0;
-        _wifiWave2Layer.opacity = 1.0;
-    } else {
+
+        _wifiDotLayer.fillColor = activeColor.CGColor;
+        _wifiWave1Layer.strokeColor = (wifiBars >= 1 ? activeColor : inactiveColor).CGColor;
+        _wifiWave2Layer.strokeColor = (wifiBars >= 2 ? activeColor : inactiveColor).CGColor;
+    } else { // Không có Wi-Fi
+        _airplaneCenterLayer.hidden = YES;
         _wifiDotLayer.hidden = YES;
         _wifiWave1Layer.hidden = YES;
         _wifiWave2Layer.hidden = YES;
         _centerLabel.hidden = NO;
         if (isAirplane) {
-            _centerLabel.text = @"✈️";
-            _centerLabel.textColor = [UIColor colorWithRed:1.0 green:0.85 blue:0.2 alpha:0.95];
+            _centerLabel.hidden = YES;
+            _airplaneCenterLayer.hidden = NO;
+            _airplaneCenterLayer.fillColor = activeColor.CGColor;
         } else if (isNoSim) {
             _centerLabel.text = @"SOS";
-            _centerLabel.textColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.4 alpha:0.95];
+            _centerLabel.textColor = [UIColor colorWithRed:1.0 green:0.35 blue:0.35 alpha:0.95];
         } else {
             _centerLabel.text = @"4G";
-            _centerLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.90];
+            _centerLabel.textColor = activeColor;
         }
     }
 
-    // 7. Chế độ hiện % pin mép ngoài (Mode 3)
+    // 7. Nhãn % Pin ở mép trái (Mode 3)
     if (p_batteryPercentMode == 3) {
         _sidePercentLabel.hidden = NO;
         _sidePercentLabel.text = [NSString stringWithFormat:@"%d%%", pct];
-        _sidePercentLabel.textColor = col;
+        _sidePercentLabel.textColor = batteryArcColor;
     } else {
         _sidePercentLabel.hidden = YES;
     }
 
     // 8. Chấm sóng di động, Chế độ máy bay & Không có SIM
     if (isAirplane) {
-        if (_airplaneView.image) {
-            _airplaneView.hidden = NO;
-            if (_airplaneVectorLayer) _airplaneVectorLayer.hidden = YES;
-        } else if (_airplaneVectorLayer) {
-            _airplaneVectorLayer.hidden = NO;
+        if (wifiOn) {
+            if (_airplaneView.image) {
+                _airplaneView.hidden = NO;
+                _airplaneView.tintColor = activeColor;
+                if (_airplaneVectorLayer) _airplaneVectorLayer.hidden = YES;
+            } else if (_airplaneVectorLayer) {
+                _airplaneVectorLayer.hidden = NO;
+                _airplaneVectorLayer.strokeColor = activeColor.CGColor;
+                _airplaneView.hidden = YES;
+            }
+        } else {
             _airplaneView.hidden = YES;
+            if (_airplaneVectorLayer) _airplaneVectorLayer.hidden = YES;
         }
         _noSimCardLayer.hidden = YES;
         _noSimSlashLayer.hidden = YES;
@@ -1632,6 +1866,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         _airplaneView.hidden = YES;
         if (_airplaneVectorLayer) _airplaneVectorLayer.hidden = YES;
         _noSimCardLayer.hidden = NO;
+        _noSimCardLayer.strokeColor = activeColor.CGColor;
         _noSimSlashLayer.hidden = NO;
         for (CAShapeLayer *dl in _dotLayers) dl.hidden = YES;
     } else {
@@ -1656,8 +1891,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
             CAShapeLayer *dot = _dotLayers[i];
             dot.hidden = NO;
             BOOL isLit = (i < litCount);
-            dot.fillColor = isLit ? [UIColor colorWithWhite:1.0 alpha:0.95].CGColor
-                                  : [UIColor colorWithWhite:1.0 alpha:0.25].CGColor;
+            dot.fillColor = isLit ? activeColor.CGColor : inactiveColor.CGColor;
         }
     }
 
@@ -1678,7 +1912,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
             _batteryPercentLabel.hidden = NO;
             NSString *pctStr = charging ? [NSString stringWithFormat:@"%d%%⚡", pct] : [NSString stringWithFormat:@"%d%%", pct];
             _batteryPercentLabel.text = pctStr;
-            _batteryPercentLabel.textColor = col;
+            _batteryPercentLabel.textColor = batteryArcColor;
             CGSize sz = [_batteryPercentLabel sizeThatFits:CGSizeMake(60, 16)];
             CGFloat w = MAX(sz.width, 22.0);
             _batteryPercentLabel.frame = CGRectMake(curX, 3.0, w, 16.0);
@@ -1704,6 +1938,9 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         if (p_showSSID) {
             _ssidLabel.hidden = NO;
             _ssidLabel.text = getNetworkTypeString();
+            if (p_colorMode == 0) {
+                _ssidLabel.textColor = isDark ? [UIColor colorWithWhite:0.1 alpha:0.9] : [UIColor colorWithWhite:0.92 alpha:1.0];
+            }
             CGSize sz = [_ssidLabel sizeThatFits:CGSizeMake(100, 16)];
             CGFloat w = MAX(sz.width, 20.0);
             _ssidLabel.frame = CGRectMake(curX, 3.0, w, 16.0);
@@ -1752,9 +1989,9 @@ static void executeAction(int actionCode, CompactStatusView *view) {
             _pillContainerView.layer.borderWidth = 0.5;
             UIColor *bCol = (p_colorMode == 9) ?
                 [UIColor colorWithRed:p_customGaugeR green:p_customGaugeG blue:p_customGaugeB alpha:p_customBorderAlpha] :
-                [UIColor colorWithWhite:1.0 alpha:0.20];
+                (isDark ? [UIColor colorWithWhite:0.0 alpha:0.18] : [UIColor colorWithWhite:1.0 alpha:0.20]);
             _pillContainerView.layer.borderColor = bCol.CGColor;
-            _pillContainerView.backgroundColor = [UIColor colorWithWhite:0.08 alpha:0.38];
+            _pillContainerView.backgroundColor = isDark ? [UIColor colorWithWhite:0.9 alpha:0.25] : [UIColor colorWithWhite:0.08 alpha:0.38];
         } else { // Minimalist Phẳng
             _blurEffectView.hidden = YES;
             _pillContainerView.layer.borderWidth = 0.0;
@@ -2280,7 +2517,40 @@ static inline BOOL isControlCenterView(UIView *view) {
 static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBattery, UIView *container, BOOL isCC) {
     if (!custom || !stockBattery || !container) return;
 
+    // Bộ lọc chống giật: Bỏ qua khi view chưa vào window hoặc đang trong frame chuyển cảnh bất thường
+    if (!stockBattery.window || stockBattery.bounds.size.width < 10.0 || stockBattery.bounds.size.height < 5.0) {
+        return;
+    }
+
     CGRect rectInContainer = [stockBattery convertRect:stockBattery.bounds toView:container];
+    CGFloat containerW = container.bounds.size.width;
+
+    // Battery view trong thanh trạng thái luôn nằm ở nửa phải màn hình (x > containerW * 0.40) và y ở đỉnh
+    if (containerW > 50.0 && (rectInContainer.origin.x < containerW * 0.40 || rectInContainer.origin.y > 80.0 || rectInContainer.origin.y < -20.0)) {
+        return;
+    }
+
+    // Tự động nhận diện màu chữ/màu icon thanh trạng thái hệ thống (STUIStatusBar foregroundColor / SignalView activeColor)
+    UIColor *extracted = nil;
+    if ([container respondsToSelector:@selector(foregroundColor)]) {
+        @try { extracted = [container valueForKey:@"foregroundColor"]; } @catch (__unused id e) {}
+    }
+    if (!extracted) {
+        for (UIView *sub in container.subviews) {
+            NSString *cn = NSStringFromClass([sub class]);
+            if ([cn containsString:@"SignalView"]) {
+                @try { UIColor *c = [sub valueForKey:@"activeColor"]; if (c) { extracted = c; break; } } @catch (__unused id e) {}
+            }
+            if ([sub isKindOfClass:[UILabel class]] && [cn containsString:@"String"]) {
+                extracted = ((UILabel *)sub).textColor;
+                if (extracted) break;
+            }
+        }
+    }
+    if (extracted) {
+        custom.adaptiveTintColor = extracted;
+    }
+
     CGPoint centerInContainer = CGPointMake(CGRectGetMidX(rectInContainer), CGRectGetMidY(rectInContainer));
     if (centerInContainer.x > 0 && centerInContainer.y > 0) {
         custom.anchorCenter = centerInContainer;
