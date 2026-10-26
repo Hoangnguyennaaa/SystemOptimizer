@@ -71,12 +71,15 @@ jobs:
         if: success()
         with:
           tag_name: duodock-latest
-          name: "DuoDock v1.7.1 Rootless DEB"
+          name: "DuoDock v1.7.2 Rootless DEB (Fix Safe Mode)"
           body: |
-            ### DuoDock v1.7.1 (Rootless iOS 15.0 - 15.8.x)
-            - **Thêm tính năng Đặt lại mặc định (Reset to Defaults)**: Cho phép khôi phục toàn bộ vị trí dock, kích thước, hiệu ứng mờ, hàng & cột icon về cấu hình mặc định gốc ngay trong Cài đặt.
-            - **Tùy chỉnh số lượng icon trên Dock (2 - 8 icon)**: Mở khóa giới hạn mặc định của iOS, cho phép kéo thả và hiển thị tối đa 8 ứng dụng trên thanh Dock dọc. Tự động tính toán co dãn khoảng cách (Auto slot scale) để icon không bao giờ bị đè lên nhau.
-            - **Vô hiệu hóa triệt để FloatingDockXVI**: Loại bỏ hoàn toàn hiện tượng giật lag, đơ màn hình chính khi vuốt trang do xung đột gesture và layout engine.
+            ### DuoDock v1.7.2 (Rootless iOS 15.0 - 15.8.x)
+            - **Khắc phục triệt để lỗi Safe Mode**:
+              + Loại bỏ giới hạn cột/hàng trên `SBDockIconListView` (nguyên nhân gây assertion `column out of bounds` khi tải `IconState.plist` lúc khởi động).
+              + Loại bỏ hook cưỡng chế `SBFloatingDockController isFloatingDockSupported` (tránh crash `FloatingDockXVI.dylib` do nil dereference).
+              + Ẩn an toàn `SBFloatingDockView` thông qua `layoutSubviews` (gọi `%orig` trước rồi mới ẩn, đảm bảo UIKit lifecycle hoàn hảo).
+            - **Tính năng Đặt lại mặc định (Reset to Defaults)**: Khôi phục toàn bộ cài đặt gốc tức thì với hộp thoại xác nhận trong Cài đặt.
+            - **Tùy chỉnh số lượng icon trên Dock**: Chọn từ 2 đến 8 icon, tự động co dãn khoảng cách (Auto slot scale) chống đè icon.
             - **Tối ưu 100% Native 120Hz mượt mà**: Chuyển đổi và vận hành hoàn toàn trên thanh Dock gốc (`SBDockView`), giữ nguyên tốc độ phản hồi ProMotion.
             - **Tùy biến thanh Dock chuyên sâu**:
               + Tùy chọn vị trí bám mép màn hình: **Cạnh Trái** hoặc **Cạnh Phải**.

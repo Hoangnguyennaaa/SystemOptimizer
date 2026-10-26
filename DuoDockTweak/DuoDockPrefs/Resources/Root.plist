@@ -624,8 +624,8 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<key>footerAlignment</key>
 			<integer>1</integer>
 			<key>footerText</key>
-			<string>DuoDock v1.7.1 (Tùy chỉnh số lượng icon &amp; Đặt về mặc định)
-Tối ưu 120Hz mượt mà, vô hiệu hóa FloatingDockXVI</string>
+			<string>DuoDock v1.7.2 (Fix Safe Mode, Tùy chỉnh icon &amp; Đặt về mặc định)
+Tối ưu 120Hz mượt mà, ổn định tuyệt đối</string>
 		</dict>
 	</array>
 	<key>title</key>

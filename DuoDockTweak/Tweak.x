@@ -394,18 +394,8 @@ static void attachInteractiveGestures(UIView *dockView) {
 }
 
 - (NSUInteger)maximumIconCount {
-    if (kEnabled) {
-        BOOL isDock = NO;
-        if ([self respondsToSelector:@selector(isDock)]) {
-            isDock = [self isDock];
-        }
-        if (!isDock && [self isKindOfClass:%c(SBDockIconListView)]) {
-            isDock = YES;
-        }
-        if (isDock) {
-            return (NSUInteger)(kDockIconCount > 0 ? kDockIconCount : 4);
-        }
-        if (kCustomGridEnabled && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
+    if (kEnabled && kCustomGridEnabled) {
+        if (!self.isDock && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
             return (NSUInteger)(kHomeRows * kHomeColumns);
         }
     }
@@ -413,18 +403,8 @@ static void attachInteractiveGestures(UIView *dockView) {
 }
 
 - (NSUInteger)iconRowsForCurrentOrientation {
-    if (kEnabled) {
-        BOOL isDock = NO;
-        if ([self respondsToSelector:@selector(isDock)]) {
-            isDock = [self isDock];
-        }
-        if (!isDock && [self isKindOfClass:%c(SBDockIconListView)]) {
-            isDock = YES;
-        }
-        if (isDock) {
-            return (NSUInteger)(kDockIconCount > 0 ? kDockIconCount : 4);
-        }
-        if (kCustomGridEnabled && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
+    if (kEnabled && kCustomGridEnabled) {
+        if (!self.isDock && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
             return (NSUInteger)kHomeRows;
         }
     }
@@ -432,18 +412,8 @@ static void attachInteractiveGestures(UIView *dockView) {
 }
 
 - (NSUInteger)iconColumnsForCurrentOrientation {
-    if (kEnabled) {
-        BOOL isDock = NO;
-        if ([self respondsToSelector:@selector(isDock)]) {
-            isDock = [self isDock];
-        }
-        if (!isDock && [self isKindOfClass:%c(SBDockIconListView)]) {
-            isDock = YES;
-        }
-        if (isDock) {
-            return 1;
-        }
-        if (kCustomGridEnabled && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
+    if (kEnabled && kCustomGridEnabled) {
+        if (!self.isDock && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
             return (NSUInteger)kHomeColumns;
         }
     }
@@ -567,31 +537,16 @@ static void attachInteractiveGestures(UIView *dockView) {
 
 %end
 
-// MARK: - Suppress FloatingDock (Vô hiệu hóa triệt để FloatingDockXVI để loại bỏ 100% giật lag)
-%hook SBFloatingDockController
-
-+ (BOOL)isFloatingDockSupported {
-    if (kEnabled) return NO;
-    return %orig;
-}
-
-- (BOOL)isFloatingDockSupported {
-    if (kEnabled) return NO;
-    return %orig;
-}
-
-%end
-
-// MARK: - Suppress SBFloatingDockView
+// MARK: - Suppress SBFloatingDockView (Ẩn an toàn FloatingDockXVI)
 %hook SBFloatingDockView
 
 - (void)layoutSubviews {
+    %orig;
     if (kEnabled) {
         self.hidden = YES;
         self.alpha = 0.0;
-        return;
+        self.userInteractionEnabled = NO;
     }
-    %orig;
 }
 
 %end

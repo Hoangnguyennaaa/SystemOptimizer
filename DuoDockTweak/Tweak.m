@@ -435,25 +435,17 @@ static UIEdgeInsets custom_SBIconListView_layoutInsetsForOrientation(UIView *sel
 
 static NSUInteger (*orig_SBIconListView_maximumIconCount)(UIView *, SEL);
 static NSUInteger custom_SBIconListView_maximumIconCount(UIView *self, SEL _cmd) {
-    if (kEnabled) {
+    if (kEnabled && kCustomGridEnabled) {
+        NSString *loc = nil;
+        if ([self respondsToSelector:@selector(iconLocation)]) {
+            loc = [self performSelector:@selector(iconLocation)];
+        }
         BOOL isDock = NO;
         if ([self respondsToSelector:@selector(isDock)]) {
             isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
         }
-        if (!isDock && [self isKindOfClass:NSClassFromString(@"SBDockIconListView")]) {
-            isDock = YES;
-        }
-        if (isDock) {
-            return (NSUInteger)(kDockIconCount > 0 ? kDockIconCount : 4);
-        }
-        if (kCustomGridEnabled) {
-            NSString *loc = nil;
-            if ([self respondsToSelector:@selector(iconLocation)]) {
-                loc = [self performSelector:@selector(iconLocation)];
-            }
-            if (!loc || [loc isEqualToString:@"SBIconLocationRoot"]) {
-                return (NSUInteger)(kHomeRows * kHomeColumns);
-            }
+        if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
+            return (NSUInteger)(kHomeRows * kHomeColumns);
         }
     }
     if (orig_SBIconListView_maximumIconCount) {
@@ -464,25 +456,17 @@ static NSUInteger custom_SBIconListView_maximumIconCount(UIView *self, SEL _cmd)
 
 static NSUInteger (*orig_SBIconListView_iconRowsForCurrentOrientation)(UIView *, SEL);
 static NSUInteger custom_SBIconListView_iconRowsForCurrentOrientation(UIView *self, SEL _cmd) {
-    if (kEnabled) {
+    if (kEnabled && kCustomGridEnabled) {
+        NSString *loc = nil;
+        if ([self respondsToSelector:@selector(iconLocation)]) {
+            loc = [self performSelector:@selector(iconLocation)];
+        }
         BOOL isDock = NO;
         if ([self respondsToSelector:@selector(isDock)]) {
             isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
         }
-        if (!isDock && [self isKindOfClass:NSClassFromString(@"SBDockIconListView")]) {
-            isDock = YES;
-        }
-        if (isDock) {
-            return (NSUInteger)(kDockIconCount > 0 ? kDockIconCount : 4);
-        }
-        if (kCustomGridEnabled) {
-            NSString *loc = nil;
-            if ([self respondsToSelector:@selector(iconLocation)]) {
-                loc = [self performSelector:@selector(iconLocation)];
-            }
-            if (!loc || [loc isEqualToString:@"SBIconLocationRoot"]) {
-                return (NSUInteger)kHomeRows;
-            }
+        if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
+            return (NSUInteger)kHomeRows;
         }
     }
     if (orig_SBIconListView_iconRowsForCurrentOrientation) {
@@ -493,25 +477,17 @@ static NSUInteger custom_SBIconListView_iconRowsForCurrentOrientation(UIView *se
 
 static NSUInteger (*orig_SBIconListView_iconColumnsForCurrentOrientation)(UIView *, SEL);
 static NSUInteger custom_SBIconListView_iconColumnsForCurrentOrientation(UIView *self, SEL _cmd) {
-    if (kEnabled) {
+    if (kEnabled && kCustomGridEnabled) {
+        NSString *loc = nil;
+        if ([self respondsToSelector:@selector(iconLocation)]) {
+            loc = [self performSelector:@selector(iconLocation)];
+        }
         BOOL isDock = NO;
         if ([self respondsToSelector:@selector(isDock)]) {
             isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
         }
-        if (!isDock && [self isKindOfClass:NSClassFromString(@"SBDockIconListView")]) {
-            isDock = YES;
-        }
-        if (isDock) {
-            return 1;
-        }
-        if (kCustomGridEnabled) {
-            NSString *loc = nil;
-            if ([self respondsToSelector:@selector(iconLocation)]) {
-                loc = [self performSelector:@selector(iconLocation)];
-            }
-            if (!loc || [loc isEqualToString:@"SBIconLocationRoot"]) {
-                return (NSUInteger)kHomeColumns;
-            }
+        if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
+            return (NSUInteger)kHomeColumns;
         }
     }
     if (orig_SBIconListView_iconColumnsForCurrentOrientation) {
@@ -641,23 +617,16 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
     }
 }
 
-// MARK: - FloatingDock Suppression (Vô hiệu hóa triệt để FloatingDockXVI để loại bỏ giật lag)
-static BOOL custom_SBFloatingDockController_isFloatingDockSupported(id self, SEL _cmd) {
-    if (kEnabled) {
-        return NO;
-    }
-    return NO;
-}
-
+// MARK: - FloatingDock Suppression (Ẩn an toàn FloatingDockXVI để loại bỏ giật lag)
 static void (*orig_SBFloatingDockView_layoutSubviews)(id, SEL);
 static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
+    if (orig_SBFloatingDockView_layoutSubviews) {
+        orig_SBFloatingDockView_layoutSubviews(self, _cmd);
+    }
     if (kEnabled) {
         self.hidden = YES;
         self.alpha = 0.0;
-        return;
-    }
-    if (orig_SBFloatingDockView_layoutSubviews) {
-        orig_SBFloatingDockView_layoutSubviews(self, _cmd);
+        self.userInteractionEnabled = NO;
     }
 }
 
@@ -717,23 +686,7 @@ __attribute__((constructor)) static void DuoDockInit(void) {
             SafeSwizzle(gridConfigClass, @selector(iconImageInfo), (IMP)custom_SBIconListGridLayoutConfiguration_iconImageInfo, (IMP *)&orig_SBIconListGridLayoutConfiguration_iconImageInfo);
         }
         
-        // Vô hiệu hóa triệt để FloatingDockController (Chặn đứng FloatingDockXVI)
-        Class floatDockCtrlClass = objc_getClass("SBFloatingDockController");
-        if (floatDockCtrlClass) {
-            Class metaClass = object_getClass((id)floatDockCtrlClass);
-            if (metaClass) {
-                Method origMethod = class_getClassMethod(floatDockCtrlClass, @selector(isFloatingDockSupported));
-                if (origMethod) {
-                    method_setImplementation(origMethod, (IMP)custom_SBFloatingDockController_isFloatingDockSupported);
-                }
-            }
-            Method instMethod = class_getInstanceMethod(floatDockCtrlClass, @selector(isFloatingDockSupported));
-            if (instMethod) {
-                method_setImplementation(instMethod, (IMP)custom_SBFloatingDockController_isFloatingDockSupported);
-            }
-        }
-        
-        // Vô hiệu hóa SBFloatingDockView
+        // Vô hiệu hóa SBFloatingDockView an toàn (không xung đột với FloatingDockXVI)
         Class floatDockClass = objc_getClass("SBFloatingDockView");
         if (floatDockClass) {
             SafeSwizzle(floatDockClass, @selector(layoutSubviews), (IMP)custom_SBFloatingDockView_layoutSubviews, (IMP *)&orig_SBFloatingDockView_layoutSubviews);
