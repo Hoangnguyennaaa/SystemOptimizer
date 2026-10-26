@@ -13,6 +13,7 @@
                                     cell:(NSInteger)cell
                                     edit:(Class)edit;
 - (void)setProperty:(id)value forKey:(NSString *)key;
+- (id)propertyForKey:(NSString *)key;
 @end
 
 @interface PSListController : UIViewController

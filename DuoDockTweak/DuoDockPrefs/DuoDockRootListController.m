@@ -88,7 +88,7 @@
     [alert addAction:respringAction];
     [alert addAction:cancelAction];
     
-    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+    if ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) {
         alert.popoverPresentationController.barButtonItem = self.navigationItem.rightBarButtonItem;
     }
     

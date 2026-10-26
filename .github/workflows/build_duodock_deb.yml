@@ -65,3 +65,18 @@ jobs:
           name: DuoDock-rootless-deb
           path: "**/*.deb"
           if-no-files-found: error
+
+      - name: Create or Update GitHub Release with DEB
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: duodock-latest
+          name: "DuoDock v1.0.0 Rootless DEB"
+          body: |
+            ### DuoDock v1.0.0 (Rootless iOS 15.0 - 15.8.x)
+            - Chuyển đổi Dock thành thanh Dock dọc dạng viên thuốc bên cạnh phải màn hình (iPhone Foldable / Duo style).
+            - Mở rộng bố cục màn hình chính xuống vùng đáy, tối ưu diện tích.
+            - Tích hợp PreferenceBundle trong Cài đặt với nút Respring nhanh.
+            - Tương thích Dopamine, Sileo, Zebra, arm64/arm64e.
+          files: "**/*.deb"
+
