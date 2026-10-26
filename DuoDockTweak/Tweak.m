@@ -3,7 +3,7 @@
 // MARK: - Global Configurations
 static BOOL kEnabled = YES;
 static BOOL p_dragModeEnabled = NO;
-static NSInteger kDockMode = 0; // 0 = Tự động (Auto-detect), 1 = Dock gốc độc lập (Force SBDockView), 2 = FloatingDock
+static NSInteger kDockMode = 0; // 0 = Tự động (Auto-detect), 1 = Dock gốc độc lập, 2 = FloatingDock
 static NSInteger kDockSide = 1; // 0 = Trái (Left), 1 = Phải (Right - Default)
 static NSInteger kDockIconCount = 4;
 static CGFloat kDockIconScale = 0.85;
@@ -22,23 +22,20 @@ static BOOL kHideDockLabels = YES;
 
 static BOOL kHomeCompressGrid = YES;
 static CGFloat kHomeRightInset = 88.0;
-static BOOL kExpandBottomRows = YES;
-static BOOL kCustomGridEnabled = NO;
-static NSInteger kHomeRows = 7;
-static NSInteger kHomeColumns = 4;
-static CGFloat kHomeIconScale = 0.90;
 
 static BOOL isLayingOutDock = NO;
 
-// MARK: - FloatingDock Active Detection & Mode Resolver
+// MARK: - FloatingDock Active Detection & Mode Resolver (Hỗ trợ hoàn hảo iPhone 7 Plus & A10)
 static BOOL isFloatingDockActive(void) {
     Class fdc = objc_getClass("SBFloatingDockController");
     if (fdc) {
         @try {
-            id ctrl = [fdc performSelector:@selector(sharedInstance)];
-            if (ctrl && [ctrl respondsToSelector:@selector(isFloatingDockSupported)]) {
-                BOOL sup = ((BOOL (*)(id, SEL))objc_msgSend)(ctrl, @selector(isFloatingDockSupported));
-                if (sup) return YES;
+            // isFloatingDockSupported là CLASS method (+) trên SBFloatingDockController
+            if ([fdc respondsToSelector:@selector(isFloatingDockSupported)]) {
+                BOOL (*msgFunc)(id, SEL) = (BOOL (*)(id, SEL))objc_msgSend;
+                if (msgFunc(fdc, @selector(isFloatingDockSupported))) {
+                    return YES;
+                }
             }
         } @catch (NSException *e) {}
     }
@@ -81,11 +78,6 @@ static void loadPreferences(void) {
         
         kHomeCompressGrid = prefs[@"homeCompressGrid"] ? [prefs[@"homeCompressGrid"] boolValue] : YES;
         kHomeRightInset = prefs[@"homeRightInset"] ? [prefs[@"homeRightInset"] doubleValue] : 88.0;
-        kExpandBottomRows = prefs[@"expandBottomRows"] ? [prefs[@"expandBottomRows"] boolValue] : YES;
-        kCustomGridEnabled = prefs[@"customGridEnabled"] ? [prefs[@"customGridEnabled"] boolValue] : NO;
-        kHomeRows = prefs[@"homeRows"] ? [prefs[@"homeRows"] integerValue] : 7;
-        kHomeColumns = prefs[@"homeColumns"] ? [prefs[@"homeColumns"] integerValue] : 4;
-        kHomeIconScale = prefs[@"homeIconScale"] ? [prefs[@"homeIconScale"] doubleValue] : 0.90;
     }
 }
 
@@ -160,6 +152,10 @@ static CGRect calculateDuoDockFrame(void) {
     CGRect screenBounds = [UIScreen mainScreen].bounds;
     CGFloat w = kDockWidth;
     CGFloat h = kDockHeight;
+    // Đảm bảo không bao giờ vượt quá chiều cao màn hình iPhone 7 Plus (736)
+    if (h > screenBounds.size.height - 100.0) {
+        h = screenBounds.size.height - 100.0;
+    }
     CGFloat x;
     if (kDockSide == 0) { // Bám cạnh Trái
         x = kRightMargin;
@@ -167,6 +163,8 @@ static CGRect calculateDuoDockFrame(void) {
         x = screenBounds.size.width - w - kRightMargin;
     }
     CGFloat y = ((screenBounds.size.height - h) / 2.0) + kVerticalOffset;
+    if (y < 40.0) y = 40.0;
+    if (y + h > screenBounds.size.height - 40.0) y = screenBounds.size.height - h - 40.0;
     return CGRectMake(x, y, w, h);
 }
 
@@ -282,7 +280,7 @@ static void setupCapsuleBackground(UIView *dockView) {
         pill.layer.borderWidth = 0.0;
     }
     
-    // Đổ bóng nổi khối (Tối ưu shadowPath để CoreAnimation không render off-screen gây tụt fps 120Hz)
+    // Đổ bóng nổi khối (Tối ưu shadowPath để CoreAnimation không render off-screen gây tụt fps)
     if (kDockShadowEnabled && !p_dragModeEnabled) {
         dockView.layer.shadowColor = [UIColor blackColor].CGColor;
         dockView.layer.shadowOpacity = 0.35;
@@ -375,7 +373,7 @@ static void attachInteractiveGestures(UIView *dockView) {
     pinch.enabled = p_dragModeEnabled;
 }
 
-// MARK: - Safe Swizzle Helper
+// MARK: - Safe Swizzle Helper (Tương thích 100% ARM64 trên iPhone 7 Plus)
 static void SafeSwizzle(Class cls, SEL sel, IMP newIMP, IMP *origIMP) {
     if (!cls) return;
     Method origMethod = class_getInstanceMethod(cls, sel);
@@ -391,43 +389,16 @@ static void SafeSwizzle(Class cls, SEL sel, IMP newIMP, IMP *origIMP) {
     }
 }
 
-// MARK: - SBRootFolderView Hooks (Triệt tiêu 100% nguyên nhân gây Safe Mode Layout Loop)
+// MARK: - SBRootFolderView Hooks (Giữ nguyên frame tính toán an toàn cho iPhone 7 Plus)
 static CGRect (*orig_SBRootFolderView_frameForDockView)(id, SEL);
 static CGRect custom_SBRootFolderView_frameForDockView(id self, SEL _cmd) {
-    if (kEnabled) {
-        if (isUsingFloatingDock()) {
-            if (orig_SBRootFolderView_frameForDockView) {
-                return orig_SBRootFolderView_frameForDockView(self, _cmd);
-            }
-            return CGRectZero;
-        }
-        // Trả về trực tiếp vị trí của DuoDock để SBRootFolderView tự định vị dock sang cạnh màn hình.
-        // Tuyệt đối không trả về height = 0 vì sẽ gây xung đột layout vô tận dẫn đến Safe Mode!
-        return calculateDuoDockFrame();
-    }
     if (orig_SBRootFolderView_frameForDockView) {
         return orig_SBRootFolderView_frameForDockView(self, _cmd);
     }
     return CGRectZero;
 }
 
-static CGRect (*orig_SBRootFolderView_frameForIconListViewAtIndex)(id, SEL, NSUInteger);
-static CGRect custom_SBRootFolderView_frameForIconListViewAtIndex(id self, SEL _cmd, NSUInteger index) {
-    CGRect orig = CGRectZero;
-    if (orig_SBRootFolderView_frameForIconListViewAtIndex) {
-        orig = orig_SBRootFolderView_frameForIconListViewAtIndex(self, _cmd, index);
-    }
-    if (!kEnabled) return orig;
-    
-    CGRect screenBounds = [UIScreen mainScreen].bounds;
-    // GIỮ NGUYÊN orig.origin.x để mỗi trang (index 0, 1, 2...) có vị trí phân trang chính xác trong UIScrollView!
-    // Kéo dài chiều cao xuống tận đáy: chỉ chừa 18pt cho thanh Home bar / page dots
-    CGFloat bottomPadding = (kExpandBottomRows || kCustomGridEnabled) ? 18.0 : 48.0;
-    orig.size.height = screenBounds.size.height - orig.origin.y - bottomPadding;
-    return orig;
-}
-
-// MARK: - SBIconListView Hooks (Anti-Overlap & Expand Bottom & Custom Grid)
+// MARK: - SBIconListView Hooks (Chống đè icon màn hình chính một cách an toàn)
 static UIEdgeInsets (*orig_SBIconListView_layoutInsetsForOrientation)(id, SEL, NSInteger);
 static UIEdgeInsets custom_SBIconListView_layoutInsetsForOrientation(UIView *self, SEL _cmd, NSInteger orientation) {
     UIEdgeInsets insets = UIEdgeInsetsZero;
@@ -436,47 +407,7 @@ static UIEdgeInsets custom_SBIconListView_layoutInsetsForOrientation(UIView *sel
     }
     if (!kEnabled) return insets;
     
-    NSString *loc = nil;
-    if ([self respondsToSelector:@selector(iconLocation)]) {
-        loc = [self performSelector:@selector(iconLocation)];
-    }
-    BOOL isDock = NO;
-    if ([self respondsToSelector:@selector(isDock)]) {
-        isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
-    }
-    
-    // Chỉ can thiệp lưới icon của trang chính màn hình (Root), không can thiệp dock hay thư mục con
-    if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
-        CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-        
-        // 1. Thu hẹp lề để nhường chỗ cho DuoDock, không bao giờ để Dock đè lên icon
-        if (kHomeCompressGrid) {
-            CGFloat dockOccupied = (kHomeRightInset > 0) ? kHomeRightInset : (kDockWidth + kRightMargin + 10.0);
-            CGFloat maxInset = screenWidth - 240.0 - 14.0;
-            if (maxInset > 20.0 && dockOccupied > maxInset) {
-                dockOccupied = maxInset;
-            }
-            
-            if (kDockSide == 0) { // Dock ở bên Trái -> Lùi lề Trái của lưới icon
-                insets.left = dockOccupied;
-                if (insets.right > 14.0) insets.right = 12.0;
-            } else { // Dock ở bên Phải -> Lùi lề Phải của lưới icon
-                insets.right = dockOccupied;
-                if (insets.left > 14.0) insets.left = 12.0;
-            }
-        }
-        
-        // 2. Tràn xuống đáy màn hình (chiếm chỗ của Dock cũ)
-        if (kExpandBottomRows || kCustomGridEnabled) {
-            insets.bottom = 12.0;
-        }
-    }
-    return insets;
-}
-
-static NSUInteger (*orig_SBIconListView_maximumIconCount)(UIView *, SEL);
-static NSUInteger custom_SBIconListView_maximumIconCount(UIView *self, SEL _cmd) {
-    if (kEnabled && kCustomGridEnabled) {
+    @try {
         NSString *loc = nil;
         if ([self respondsToSelector:@selector(iconLocation)]) {
             loc = [self performSelector:@selector(iconLocation)];
@@ -485,149 +416,33 @@ static NSUInteger custom_SBIconListView_maximumIconCount(UIView *self, SEL _cmd)
         if ([self respondsToSelector:@selector(isDock)]) {
             isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
         }
-        if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
-            return (NSUInteger)(kHomeRows * kHomeColumns);
-        }
-    }
-    if (orig_SBIconListView_maximumIconCount) {
-        return orig_SBIconListView_maximumIconCount(self, _cmd);
-    }
-    return 24;
-}
-
-static NSUInteger (*orig_SBIconListView_iconRowsForCurrentOrientation)(UIView *, SEL);
-static NSUInteger custom_SBIconListView_iconRowsForCurrentOrientation(UIView *self, SEL _cmd) {
-    if (kEnabled && kCustomGridEnabled) {
-        NSString *loc = nil;
-        if ([self respondsToSelector:@selector(iconLocation)]) {
-            loc = [self performSelector:@selector(iconLocation)];
-        }
-        BOOL isDock = NO;
-        if ([self respondsToSelector:@selector(isDock)]) {
-            isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
-        }
-        if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
-            return (NSUInteger)kHomeRows;
-        }
-    }
-    if (orig_SBIconListView_iconRowsForCurrentOrientation) {
-        return orig_SBIconListView_iconRowsForCurrentOrientation(self, _cmd);
-    }
-    return 6;
-}
-
-static NSUInteger (*orig_SBIconListView_iconColumnsForCurrentOrientation)(UIView *, SEL);
-static NSUInteger custom_SBIconListView_iconColumnsForCurrentOrientation(UIView *self, SEL _cmd) {
-    if (kEnabled && kCustomGridEnabled) {
-        NSString *loc = nil;
-        if ([self respondsToSelector:@selector(iconLocation)]) {
-            loc = [self performSelector:@selector(iconLocation)];
-        }
-        BOOL isDock = NO;
-        if ([self respondsToSelector:@selector(isDock)]) {
-            isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
-        }
-        if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
-            return (NSUInteger)kHomeColumns;
-        }
-    }
-    if (orig_SBIconListView_iconColumnsForCurrentOrientation) {
-        return orig_SBIconListView_iconColumnsForCurrentOrientation(self, _cmd);
-    }
-    return 4;
-}
-
-// MARK: - SBIconListGridLayoutConfiguration Hooks (Rows, Columns, Insets, Icon Sizing)
-static NSUInteger (*orig_SBIconListGridLayoutConfiguration_numberOfPortraitRows)(id, SEL);
-static NSUInteger custom_SBIconListGridLayoutConfiguration_numberOfPortraitRows(id self, SEL _cmd) {
-    NSUInteger orig = 6;
-    if (orig_SBIconListGridLayoutConfiguration_numberOfPortraitRows) {
-        orig = orig_SBIconListGridLayoutConfiguration_numberOfPortraitRows(self, _cmd);
-    }
-    if (kEnabled) {
-        if (orig >= 5) {
-            if (kCustomGridEnabled && kHomeRows >= 4 && kHomeRows <= 9) {
-                return (NSUInteger)kHomeRows;
-            }
-            if (kExpandBottomRows) {
-                return orig + 1;
-            }
-        }
-    }
-    return orig;
-}
-
-static NSUInteger (*orig_SBIconListGridLayoutConfiguration_numberOfPortraitColumns)(id, SEL);
-static NSUInteger custom_SBIconListGridLayoutConfiguration_numberOfPortraitColumns(id self, SEL _cmd) {
-    NSUInteger orig = 4;
-    if (orig_SBIconListGridLayoutConfiguration_numberOfPortraitColumns) {
-        orig = orig_SBIconListGridLayoutConfiguration_numberOfPortraitColumns(self, _cmd);
-    }
-    if (kEnabled && kCustomGridEnabled) {
-        if (orig == 4 && kHomeColumns >= 3 && kHomeColumns <= 6) {
-            return (NSUInteger)kHomeColumns;
-        }
-    }
-    return orig;
-}
-
-static SBIconImageInfo (*orig_SBIconListGridLayoutConfiguration_iconImageInfo)(id, SEL);
-static SBIconImageInfo custom_SBIconListGridLayoutConfiguration_iconImageInfo(id self, SEL _cmd) {
-    SBIconImageInfo info;
-    if (orig_SBIconListGridLayoutConfiguration_iconImageInfo) {
-        info = orig_SBIconListGridLayoutConfiguration_iconImageInfo(self, _cmd);
-    } else {
-        info.size = CGSizeMake(60.0, 60.0);
-        info.scale = 3.0;
-        info.continuousCornerRadius = 13.5;
-    }
-    if (kEnabled && kCustomGridEnabled && kHomeIconScale >= 0.65 && kHomeIconScale <= 1.25) {
-        info.size.width = round(info.size.width * kHomeIconScale);
-        info.size.height = round(info.size.height * kHomeIconScale);
-        info.continuousCornerRadius = round(info.continuousCornerRadius * kHomeIconScale);
-    }
-    return info;
-}
-
-static UIEdgeInsets (*orig_SBIconListGridLayoutConfiguration_portraitLayoutInsets)(id, SEL);
-static UIEdgeInsets custom_SBIconListGridLayoutConfiguration_portraitLayoutInsets(id self, SEL _cmd) {
-    UIEdgeInsets insets = UIEdgeInsetsZero;
-    if (orig_SBIconListGridLayoutConfiguration_portraitLayoutInsets) {
-        insets = orig_SBIconListGridLayoutConfiguration_portraitLayoutInsets(self, _cmd);
-    }
-    if (!kEnabled) return insets;
-    
-    NSUInteger rows = 0;
-    if ([self respondsToSelector:@selector(numberOfPortraitRows)]) {
-        rows = [self numberOfPortraitRows];
-    }
-    // Chỉ can thiệp vào cấu hình lưới của trang chính (rows >= 4), tuyệt đối không chạm vào Dock (rows <= 1)
-    if (rows >= 4) {
-        if ((kExpandBottomRows || kCustomGridEnabled) && insets.bottom > 40.0) {
-            insets.bottom = 14.0;
-        }
         
-        if (kHomeCompressGrid && insets.bottom > 0) {
-            CGFloat dockOccupied = (kHomeRightInset > 0) ? kHomeRightInset : (kDockWidth + kRightMargin + 10.0);
+        // Chỉ can thiệp lưới icon của trang chính màn hình (Root), không can thiệp dock hay thư mục con
+        if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
             CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-            CGFloat maxInset = screenWidth - 240.0 - 14.0;
-            if (maxInset > 20.0 && dockOccupied > maxInset) {
-                dockOccupied = maxInset;
-            }
             
-            if (kDockSide == 0) {
-                insets.left = dockOccupied;
-                if (insets.right > 14.0) insets.right = 12.0;
-            } else {
-                insets.right = dockOccupied;
-                if (insets.left > 14.0) insets.left = 12.0;
+            if (kHomeCompressGrid) {
+                CGFloat dockOccupied = (kHomeRightInset > 0) ? kHomeRightInset : (kDockWidth + kRightMargin + 10.0);
+                CGFloat maxInset = screenWidth - 240.0 - 14.0;
+                if (maxInset > 20.0 && dockOccupied > maxInset) {
+                    dockOccupied = maxInset;
+                }
+                
+                if (kDockSide == 0) { // Dock ở bên Trái -> Lùi lề Trái của lưới icon
+                    insets.left = dockOccupied;
+                    if (insets.right > 14.0) insets.right = 12.0;
+                } else { // Dock ở bên Phải -> Lùi lề Phải của lưới icon
+                    insets.right = dockOccupied;
+                    if (insets.left > 14.0) insets.left = 12.0;
+                }
             }
         }
-    }
+    } @catch (NSException *e) {}
+    
     return insets;
 }
 
-// MARK: - SBDockView Hooks (Xử lý khi chạy chế độ Dock gốc)
+// MARK: - SBDockView Hooks (Xử lý khi chạy chế độ Dock gốc trên iPhone 7 Plus)
 static void (*orig_SBDockView_layoutSubviews)(id, SEL);
 static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
     if (orig_SBDockView_layoutSubviews) {
@@ -692,7 +507,7 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
     }
 }
 
-// MARK: - SBFloatingDockView Hooks (Xử lý khi chạy cùng FloatingDockXVI)
+// MARK: - SBFloatingDockView Hooks (Xử lý khi chạy cùng FloatingDockXVI trên iPhone 7 Plus)
 static void (*orig_SBFloatingDockView_layoutSubviews)(id, SEL);
 static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
     if (orig_SBFloatingDockView_layoutSubviews) {
@@ -789,29 +604,16 @@ __attribute__((constructor)) static void DuoDockInit(void) {
             SafeSwizzle(dockViewClass, @selector(layoutSubviews), (IMP)custom_SBDockView_layoutSubviews, (IMP *)&orig_SBDockView_layoutSubviews);
         }
         
-        // Swizzle SBRootFolderView
+        // Swizzle SBRootFolderView (Giữ an toàn tuyệt đối cho SpringBoard trên iPhone 7 Plus)
         Class rootFolderClass = objc_getClass("SBRootFolderView");
         if (rootFolderClass) {
             SafeSwizzle(rootFolderClass, @selector(_frameForDockView), (IMP)custom_SBRootFolderView_frameForDockView, (IMP *)&orig_SBRootFolderView_frameForDockView);
-            SafeSwizzle(rootFolderClass, @selector(_frameForIconListViewAtIndex:), (IMP)custom_SBRootFolderView_frameForIconListViewAtIndex, (IMP *)&orig_SBRootFolderView_frameForIconListViewAtIndex);
         }
         
-        // Swizzle SBIconListView (Anti-Overlap & Expand Bottom & Custom Grid)
+        // Swizzle SBIconListView (Chống đè icon màn hình chính)
         Class iconListViewClass = objc_getClass("SBIconListView");
         if (iconListViewClass) {
             SafeSwizzle(iconListViewClass, @selector(layoutInsetsForOrientation:), (IMP)custom_SBIconListView_layoutInsetsForOrientation, (IMP *)&orig_SBIconListView_layoutInsetsForOrientation);
-            SafeSwizzle(iconListViewClass, @selector(maximumIconCount), (IMP)custom_SBIconListView_maximumIconCount, (IMP *)&orig_SBIconListView_maximumIconCount);
-            SafeSwizzle(iconListViewClass, @selector(iconRowsForCurrentOrientation), (IMP)custom_SBIconListView_iconRowsForCurrentOrientation, (IMP *)&orig_SBIconListView_iconRowsForCurrentOrientation);
-            SafeSwizzle(iconListViewClass, @selector(iconColumnsForCurrentOrientation), (IMP)custom_SBIconListView_iconColumnsForCurrentOrientation, (IMP *)&orig_SBIconListView_iconColumnsForCurrentOrientation);
-        }
-        
-        // Swizzle SBIconListGridLayoutConfiguration (Rows, Columns, Insets, Icon Sizing)
-        Class gridConfigClass = objc_getClass("SBIconListGridLayoutConfiguration");
-        if (gridConfigClass) {
-            SafeSwizzle(gridConfigClass, @selector(numberOfPortraitRows), (IMP)custom_SBIconListGridLayoutConfiguration_numberOfPortraitRows, (IMP *)&orig_SBIconListGridLayoutConfiguration_numberOfPortraitRows);
-            SafeSwizzle(gridConfigClass, @selector(numberOfPortraitColumns), (IMP)custom_SBIconListGridLayoutConfiguration_numberOfPortraitColumns, (IMP *)&orig_SBIconListGridLayoutConfiguration_numberOfPortraitColumns);
-            SafeSwizzle(gridConfigClass, @selector(portraitLayoutInsets), (IMP)custom_SBIconListGridLayoutConfiguration_portraitLayoutInsets, (IMP *)&orig_SBIconListGridLayoutConfiguration_portraitLayoutInsets);
-            SafeSwizzle(gridConfigClass, @selector(iconImageInfo), (IMP)custom_SBIconListGridLayoutConfiguration_iconImageInfo, (IMP *)&orig_SBIconListGridLayoutConfiguration_iconImageInfo);
         }
         
         // Swizzle SBFloatingDockView (Hỗ trợ FloatingDockXVI không lag, không Safe Mode)

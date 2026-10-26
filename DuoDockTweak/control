@@ -1,9 +1,9 @@
 Package: com.hoangnguyen.duodock
 Name: DuoDock
 Depends: mobilesubstrate (>= 0.9.5000), preferenceloader
-Version: 1.7.3
+Version: 1.7.4
 Architecture: iphoneos-arm64
-Description: Vertical foldable-style pill dock for iOS 15 Rootless (Complete Safe Mode fix, rock-solid dual-mode Native/FloatingDock, zero-lag shadowPath, custom dock icons 2-8, reset to defaults)
+Description: Vertical foldable-style pill dock for iOS 15 Rootless (100% crash-proof iPhone 7 Plus / A10 compatibility, dual-mode FloatingDockXVI/Native, zero unsafe grid hooks, reset to defaults)
 Maintainer: Hoangnguyen
 Author: Hoangnguyen
 Section: Tweaks

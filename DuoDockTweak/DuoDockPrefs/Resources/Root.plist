@@ -479,144 +479,6 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
 
-		<!-- TẬN DỤNG KHÔNG GIAN ĐÁY MÀN HÌNH -->
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
-			<string>TẬN DỤNG KHÔNG GIAN ĐÁY MÀN HÌNH</string>
-			<key>footerText</key>
-			<string>Giải phóng toàn bộ 90pt vùng đáy của Dock cũ, kéo dài lưới icon xuống sát đáy và cho phép hiển thị thêm 1 hàng icon/widget mới.</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSwitchCell</string>
-			<key>default</key>
-			<true/>
-			<key>defaults</key>
-			<string>com.hoangnguyen.duodock</string>
-			<key>key</key>
-			<string>expandBottomRows</string>
-			<key>label</key>
-			<string>Tràn icon xuống đáy (Dock cũ)</string>
-			<key>PostNotification</key>
-			<string>com.hoangnguyen.duodock/preferences.changed</string>
-		</dict>
-
-		<!-- TUỲ CHỈNH SỐ HÀNG & SỐ CỘT MÀN HÌNH CHÍNH -->
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
-			<string>TUỲ CHỈNH SỐ HÀNG &amp; SỐ CỘT MÀN HÌNH CHÍNH</string>
-			<key>footerText</key>
-			<string>Tự do tùy chỉnh số hàng (4 - 8 hàng) và số cột (3 - 5 cột) trên màn hình chính. Sau khi đổi số hàng/cột, hãy bấm Khởi động lại SpringBoard (Respring) bên dưới.</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSwitchCell</string>
-			<key>default</key>
-			<false/>
-			<key>defaults</key>
-			<string>com.hoangnguyen.duodock</string>
-			<key>key</key>
-			<string>customGridEnabled</string>
-			<key>label</key>
-			<string>Bật tuỳ chỉnh Hàng &amp; Cột</string>
-			<key>PostNotification</key>
-			<string>com.hoangnguyen.duodock/preferences.changed</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
-			<string>SỐ HÀNG ICON (4 - 8 HÀNG)</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSegmentCell</string>
-			<key>default</key>
-			<integer>7</integer>
-			<key>defaults</key>
-			<string>com.hoangnguyen.duodock</string>
-			<key>key</key>
-			<string>homeRows</string>
-			<key>validValues</key>
-			<array>
-				<integer>4</integer>
-				<integer>5</integer>
-				<integer>6</integer>
-				<integer>7</integer>
-				<integer>8</integer>
-			</array>
-			<key>validTitles</key>
-			<array>
-				<string>4 hàng</string>
-				<string>5 hàng</string>
-				<string>6 hàng</string>
-				<string>7 hàng</string>
-				<string>8 hàng</string>
-			</array>
-			<key>PostNotification</key>
-			<string>com.hoangnguyen.duodock/preferences.changed</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
-			<string>SỐ CỘT ICON (3 - 5 CỘT)</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSegmentCell</string>
-			<key>default</key>
-			<integer>4</integer>
-			<key>defaults</key>
-			<string>com.hoangnguyen.duodock</string>
-			<key>key</key>
-			<string>homeColumns</string>
-			<key>validValues</key>
-			<array>
-				<integer>3</integer>
-				<integer>4</integer>
-				<integer>5</integer>
-			</array>
-			<key>validTitles</key>
-			<array>
-				<string>3 cột</string>
-				<string>4 cột</string>
-				<string>5 cột</string>
-			</array>
-			<key>PostNotification</key>
-			<string>com.hoangnguyen.duodock/preferences.changed</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
-			<string>TỶ LỆ THU PHÓNG ICON MÀN HÌNH CHÍNH (0.7x - 1.05x)</string>
-			<key>footerText</key>
-			<string>Nên đặt 0.85x - 0.90x nếu chọn 5 cột để icon không bị chạm mép.</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSliderCell</string>
-			<key>default</key>
-			<real>0.90</real>
-			<key>defaults</key>
-			<string>com.hoangnguyen.duodock</string>
-			<key>key</key>
-			<string>homeIconScale</string>
-			<key>min</key>
-			<real>0.70</real>
-			<key>max</key>
-			<real>1.05</real>
-			<key>showValue</key>
-			<true/>
-			<key>PostNotification</key>
-			<string>com.hoangnguyen.duodock/preferences.changed</string>
-		</dict>
-
 		<!-- KHÔI PHỤC CÀI ĐẶT MẶC ĐỊNH -->
 		<dict>
 			<key>cell</key>
@@ -660,8 +522,8 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<key>footerAlignment</key>
 			<integer>1</integer>
 			<key>footerText</key>
-			<string>DuoDock v1.7.3 (Fix Safe Mode triệt để, Dual-Mode Native/FloatingDock &amp; Đặt về mặc định)
-Tối ưu 120Hz mượt mà, ổn định tuyệt đối</string>
+			<string>DuoDock v1.7.4 (Tương thích 100% iPhone 7 Plus / iOS 15, Chống Safe Mode &amp; Đặt về mặc định)
+Tối ưu mượt mà, ổn định tuyệt đối</string>
 		</dict>
 	</array>
 	<key>title</key>
