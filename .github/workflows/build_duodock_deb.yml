@@ -1,0 +1,57 @@
+name: Build DuoDock Tweak DEB
+
+on:
+  push:
+    paths:
+      - 'DuoDockTweak/**'
+      - '.github/workflows/build_duodock_deb.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Developer Tools
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app
+          xcrun --sdk iphoneos --show-sdk-path
+
+      - name: Install dependencies (ldid, dpkg)
+        run: |
+          brew install ldid dpkg
+
+      - name: Build DuoDock Rootless DEB
+        run: |
+          cd DuoDockTweak
+          sed -i '' 's/\r$//' build_deb.sh
+          chmod +x build_deb.sh
+          set -o pipefail
+          ./build_deb.sh 2>&1 | tee build.log
+
+      - name: Output Build Log to Summary
+        if: always()
+        run: |
+          echo "## DuoDock Build Log" >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          cat DuoDockTweak/build.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Build Log Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duodock-build-log
+          path: DuoDockTweak/build.log
+
+      - name: Upload DuoDock DEB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DuoDock-rootless-deb
+          path: "**/*.deb"
+          if-no-files-found: error

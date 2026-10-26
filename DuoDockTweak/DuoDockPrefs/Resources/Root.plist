@@ -1,0 +1,350 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>items</key>
+    <array>
+        <!-- MASTER TOGGLE -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>headerCellClass</key>
+            <string>HBPackageNameHeaderCell</string>
+            <key>title</key>
+            <string>DuoDock</string>
+            <key>footerText</key>
+            <string>Biến đổi thanh Dock ngang truyền thống thành thanh Dock dọc kiểu iPhone Foldable/Duo bám cạnh phải màn hình.</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.duodock</string>
+            <key>key</key>
+            <string>enabled</string>
+            <key>label</key>
+            <string>Kích hoạt DuoDock</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.duodock/preferences.changed</string>
+        </dict>
+
+        <!-- SỐ LƯỢNG ICON TRÊN DOCK -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>SỐ LƯỢNG ICON TRÊN DOCK</string>
+            <key>footerText</key>
+            <string>Hỗ trợ sắp xếp từ 3 đến 8 icon ứng dụng trong thanh Dock dọc.</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSegmentCell</string>
+            <key>default</key>
+            <integer>4</integer>
+            <key>defaults</key>
+            <string>com.hoangnguyen.duodock</string>
+            <key>key</key>
+            <string>dockIconCount</string>
+            <key>validValues</key>
+            <array>
+                <integer>3</integer>
+                <integer>4</integer>
+                <integer>5</integer>
+                <integer>6</integer>
+                <integer>7</integer>
+                <integer>8</integer>
+            </array>
+            <key>validTitles</key>
+            <array>
+                <string>3</string>
+                <string>4</string>
+                <string>5</string>
+                <string>6</string>
+                <string>7</string>
+                <string>8</string>
+            </array>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.duodock/preferences.changed</string>
+        </dict>
+
+        <!-- KÍCH THƯỚC ICON DOCK -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>TỶ LỆ THU PHÓNG ICON DOCK (0.6x - 1.2x)</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>0.85</real>
+            <key>defaults</key>
+            <string>com.hoangnguyen.duodock</string>
+            <key>key</key>
+            <string>dockIconScale</string>
+            <key>min</key>
+            <real>0.60</real>
+            <key>max</key>
+            <real>1.20</real>
+            <key>showValue</key>
+            <true/>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.duodock/preferences.changed</string>
+        </dict>
+
+        <!-- KÍCH THƯỚC DOCK (WIDTH & HEIGHT) -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>CHIỀU RỘNG DOCK (WIDTH: 50 - 95 PT)</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>74.0</real>
+            <key>defaults</key>
+            <string>com.hoangnguyen.duodock</string>
+            <key>key</key>
+            <string>dockWidth</string>
+            <key>min</key>
+            <real>50.0</real>
+            <key>max</key>
+            <real>95.0</real>
+            <key>showValue</key>
+            <true/>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.duodock/preferences.changed</string>
+        </dict>
+
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>CHIỀU CAO DOCK (HEIGHT: 180 - 450 PT)</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>320.0</real>
+            <key>defaults</key>
+            <string>com.hoangnguyen.duodock</string>
+            <key>key</key>
+            <string>dockHeight</string>
+            <key>min</key>
+            <real>180.0</real>
+            <key>max</key>
+            <real>450.0</real>
+            <key>showValue</key>
+            <true/>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.duodock/preferences.changed</string>
+        </dict>
+
+        <!-- VỊ TRÍ & LỀ CẠNH PHẢI -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>KHOẢNG CÁCH LỀ PHẢI (MARGIN: 0 - 30 PT)</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>10.0</real>
+            <key>defaults</key>
+            <string>com.hoangnguyen.duodock</string>
+            <key>key</key>
+            <string>rightMargin</string>
+            <key>min</key>
+            <real>0.0</real>
+            <key>max</key>
+            <real>30.0</real>
+            <key>showValue</key>
+            <true/>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.duodock/preferences.changed</string>
+        </dict>
+
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>VỊ TRÍ DỌC TRUNG TÂM (OFFSET Y: -150 - 150 PT)</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>0.0</real>
+            <key>defaults</key>
+            <string>com.hoangnguyen.duodock</string>
+            <key>key</key>
+            <string>verticalOffset</string>
+            <key>min</key>
+            <real>-150.0</real>
+            <key>max</key>
+            <real>150.0</real>
+            <key>showValue</key>
+            <true/>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.duodock/preferences.changed</string>
+        </dict>
+
+        <!-- ĐỘ BO GÓC VIÊN THUỐC -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>ĐỘ BO GÓC DOCK (CORNER RADIUS: 10 - 45 PT)</string>
+            <key>footerText</key>
+            <string>Đặt 37pt tương đương dáng viên thuốc hoàn hảo (Capsule) cho chiều rộng 74pt.</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>37.0</real>
+            <key>defaults</key>
+            <string>com.hoangnguyen.duodock</string>
+            <key>key</key>
+            <string>cornerRadius</string>
+            <key>min</key>
+            <real>10.0</real>
+            <key>max</key>
+            <real>45.0</real>
+            <key>showValue</key>
+            <true/>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.duodock/preferences.changed</string>
+        </dict>
+
+        <!-- NỀN VIÊN THUỐC & HIỆU ỨNG MỜ (BLUR & ALPHA) -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>HIỆU ỨNG LÀM MỜ NỀN (BLUR &amp; ALPHA)</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.duodock</string>
+            <key>key</key>
+            <string>dockBlurEnabled</string>
+            <key>label</key>
+            <string>Bật nền làm mờ (Capsule Blur)</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.duodock/preferences.changed</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>0.82</real>
+            <key>defaults</key>
+            <string>com.hoangnguyen.duodock</string>
+            <key>key</key>
+            <string>dockBlurAlpha</string>
+            <key>min</key>
+            <real>0.10</real>
+            <key>max</key>
+            <real>1.00</real>
+            <key>showValue</key>
+            <true/>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.duodock/preferences.changed</string>
+        </dict>
+
+        <!-- TẬN DỤNG KHÔNG GIAN HOMESCREEN -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>TẬN DỤNG KHÔNG GIAN MÀN HÌNH CHÍNH</string>
+            <key>footerText</key>
+            <string>Tự động mở rộng lưới icon chính xuống khoảng trống đáy màn hình cũ và thu hẹp biên phải để tránh bị đè lên.</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSwitchCell</string>
+            <key>default</key>
+            <true/>
+            <key>defaults</key>
+            <string>com.hoangnguyen.duodock</string>
+            <key>key</key>
+            <string>expandBottomRows</string>
+            <key>label</key>
+            <string>Mở rộng icon xuống đáy (Expand Bottom)</string>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.duodock/preferences.changed</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSSliderCell</string>
+            <key>default</key>
+            <real>80.0</real>
+            <key>defaults</key>
+            <string>com.hoangnguyen.duodock</string>
+            <key>key</key>
+            <string>homeRightInset</string>
+            <key>min</key>
+            <real>50.0</real>
+            <key>max</key>
+            <real>110.0</real>
+            <key>showValue</key>
+            <true/>
+            <key>PostNotification</key>
+            <string>com.hoangnguyen.duodock/preferences.changed</string>
+        </dict>
+
+        <!-- THAO TÁC HỆ THỐNG -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>label</key>
+            <string>THAO TÁC HỆ THỐNG</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSButtonCell</string>
+            <key>label</key>
+            <string>Respring SpringBoard</string>
+            <key>action</key>
+            <string>respringPrompt</string>
+        </dict>
+        <dict>
+            <key>cell</key>
+            <string>PSButtonCell</string>
+            <key>label</key>
+            <string>Khôi phục mặc định</string>
+            <key>action</key>
+            <string>resetToDefaults</string>
+        </dict>
+
+        <!-- FOOTER -->
+        <dict>
+            <key>cell</key>
+            <string>PSGroupCell</string>
+            <key>footerAlignment</key>
+            <integer>1</integer>
+            <key>footerText</key>
+            <string>DuoDock v1.0.0 (Rootless)
+Hỗ trợ iOS 15.0 - 15.8.x &amp; Dopamine
+Thiết kế thanh Dock dọc phong cách Duo / Foldable</string>
+        </dict>
+    </array>
+    <key>title</key>
+    <string>DuoDock</string>
+</dict>
+</plist>

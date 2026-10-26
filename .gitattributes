@@ -3,5 +3,9 @@
 *.swift text eol=lf
 *.c text eol=lf
 *.m text eol=lf
+*.x text eol=lf
+*.h text eol=lf
 *.plist text eol=lf
 *.yml text eol=lf
+Makefile text eol=lf
+
