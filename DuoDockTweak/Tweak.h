@@ -31,6 +31,12 @@
 - (double)dockHeight;
 @end
 
+@interface SBRootFolderView : UIView
+@property (nonatomic, retain) SBDockView *dockView;
+- (CGRect)_frameForDockView;
+- (CGRect)_frameForIconListViewAtIndex:(NSUInteger)arg1;
+@end
+
 @interface SBFloatingDockView : UIView
 @property (nonatomic, retain) UIView *mainPlatterView;
 @property (nonatomic, retain) SBIconListView *userIconListView;

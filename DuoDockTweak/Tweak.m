@@ -140,6 +140,56 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
     }
 }
 
+// MARK: - Safe Swizzle Helper
+static void SafeSwizzle(Class cls, SEL sel, IMP newIMP, IMP *origIMP) {
+    if (!cls) return;
+    Method origMethod = class_getInstanceMethod(cls, sel);
+    if (!origMethod) return;
+    
+    *origIMP = method_getImplementation(origMethod);
+    const char *types = method_getTypeEncoding(origMethod);
+    
+    if (class_addMethod(cls, sel, newIMP, types)) {
+        // Method added to subclass cleanly
+    } else {
+        method_setImplementation(origMethod, newIMP);
+    }
+}
+
+// MARK: - SBRootFolderView Hooks
+static CGRect (*orig_SBRootFolderView_frameForDockView)(id, SEL);
+static CGRect custom_SBRootFolderView_frameForDockView(id self, SEL _cmd) {
+    if (kEnabled) {
+        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
+        if (useFloating) {
+            if (orig_SBRootFolderView_frameForDockView) {
+                return orig_SBRootFolderView_frameForDockView(self, _cmd);
+            }
+        }
+        return calculateDuoDockFrame();
+    }
+    if (orig_SBRootFolderView_frameForDockView) {
+        return orig_SBRootFolderView_frameForDockView(self, _cmd);
+    }
+    return CGRectZero;
+}
+
+static CGRect (*orig_SBRootFolderView_frameForIconListViewAtIndex)(id, SEL, NSUInteger);
+static CGRect custom_SBRootFolderView_frameForIconListViewAtIndex(id self, SEL _cmd, NSUInteger index) {
+    CGRect orig = CGRectZero;
+    if (orig_SBRootFolderView_frameForIconListViewAtIndex) {
+        orig = orig_SBRootFolderView_frameForIconListViewAtIndex(self, _cmd, index);
+    }
+    if (!kEnabled) return orig;
+    
+    // Đảm bảo trang vuốt màn hình chính luôn giữ đủ chiều cao, không bao giờ bị bóp nghẹt
+    CGRect screenBounds = [UIScreen mainScreen].bounds;
+    orig.origin.x = 0;
+    orig.size.width = screenBounds.size.width;
+    orig.size.height = screenBounds.size.height - orig.origin.y - 70.0;
+    return orig;
+}
+
 // MARK: - SBDockView Hooks
 static void (*orig_SBDockView_layoutSubviews)(id, SEL);
 static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
@@ -214,31 +264,6 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
     }
 }
 
-static UIView *(*orig_SBDockView_hitTest)(id, SEL, CGPoint, UIEvent *);
-static UIView *custom_SBDockView_hitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
-    if (kEnabled) {
-        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
-        if (useFloating || self.hidden || self.alpha < 0.01) return nil;
-        if (!CGRectContainsPoint(self.bounds, point)) return nil;
-    }
-    if (orig_SBDockView_hitTest) {
-        return orig_SBDockView_hitTest(self, _cmd, point, event);
-    }
-    return nil;
-}
-
-// MARK: - SBIconListView Hooks
-static NSUInteger (*orig_SBIconListView_maximumIconCount)(id, SEL);
-static NSUInteger custom_SBIconListView_maximumIconCount(SBIconListView *self, SEL _cmd) {
-    if (kEnabled && self.isDock) {
-        return kDockIconCount;
-    }
-    if (orig_SBIconListView_maximumIconCount) {
-        return orig_SBIconListView_maximumIconCount(self, _cmd);
-    }
-    return 4;
-}
-
 // MARK: - SBFloatingDockView Hooks
 static void (*orig_SBFloatingDockView_layoutSubviews)(id, SEL);
 static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
@@ -308,19 +333,6 @@ static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
     }
 }
 
-static UIView *(*orig_SBFloatingDockView_hitTest)(id, SEL, CGPoint, UIEvent *);
-static UIView *custom_SBFloatingDockView_hitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
-    if (kEnabled) {
-        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
-        if (!useFloating || self.hidden || self.alpha < 0.01) return nil;
-        if (!CGRectContainsPoint(self.bounds, point)) return nil;
-    }
-    if (orig_SBFloatingDockView_hitTest) {
-        return orig_SBFloatingDockView_hitTest(self, _cmd, point, event);
-    }
-    return nil;
-}
-
 // MARK: - Constructor
 __attribute__((constructor)) static void DuoDockInit(void) {
     @autoreleasepool {
@@ -347,43 +359,20 @@ __attribute__((constructor)) static void DuoDockInit(void) {
         // Swizzle SBDockView
         Class dockViewClass = objc_getClass("SBDockView");
         if (dockViewClass) {
-            Method mLayout = class_getInstanceMethod(dockViewClass, @selector(layoutSubviews));
-            if (mLayout) {
-                orig_SBDockView_layoutSubviews = (void (*)(id, SEL))method_getImplementation(mLayout);
-                method_setImplementation(mLayout, (IMP)custom_SBDockView_layoutSubviews);
-            }
-            
-            Method mHitTest = class_getInstanceMethod(dockViewClass, @selector(hitTest:withEvent:));
-            if (mHitTest) {
-                orig_SBDockView_hitTest = (UIView *(*)(id, SEL, CGPoint, UIEvent *))method_getImplementation(mHitTest);
-                method_setImplementation(mHitTest, (IMP)custom_SBDockView_hitTest);
-            }
+            SafeSwizzle(dockViewClass, @selector(layoutSubviews), (IMP)custom_SBDockView_layoutSubviews, (IMP *)&orig_SBDockView_layoutSubviews);
         }
         
-        // Swizzle SBIconListView (Maximum icon count only)
-        Class iconListViewClass = objc_getClass("SBIconListView");
-        if (iconListViewClass) {
-            Method mMaxIcons = class_getInstanceMethod(iconListViewClass, @selector(maximumIconCount));
-            if (mMaxIcons) {
-                orig_SBIconListView_maximumIconCount = (NSUInteger (*)(id, SEL))method_getImplementation(mMaxIcons);
-                method_setImplementation(mMaxIcons, (IMP)custom_SBIconListView_maximumIconCount);
-            }
+        // Swizzle SBRootFolderView (Dock frame & Full height paging)
+        Class rootFolderClass = objc_getClass("SBRootFolderView");
+        if (rootFolderClass) {
+            SafeSwizzle(rootFolderClass, @selector(_frameForDockView), (IMP)custom_SBRootFolderView_frameForDockView, (IMP *)&orig_SBRootFolderView_frameForDockView);
+            SafeSwizzle(rootFolderClass, @selector(_frameForIconListViewAtIndex:), (IMP)custom_SBRootFolderView_frameForIconListViewAtIndex, (IMP *)&orig_SBRootFolderView_frameForIconListViewAtIndex);
         }
         
         // Swizzle SBFloatingDockView
         Class floatDockClass = objc_getClass("SBFloatingDockView");
         if (floatDockClass) {
-            Method mFLayout = class_getInstanceMethod(floatDockClass, @selector(layoutSubviews));
-            if (mFLayout) {
-                orig_SBFloatingDockView_layoutSubviews = (void (*)(id, SEL))method_getImplementation(mFLayout);
-                method_setImplementation(mFLayout, (IMP)custom_SBFloatingDockView_layoutSubviews);
-            }
-            
-            Method mFHit = class_getInstanceMethod(floatDockClass, @selector(hitTest:withEvent:));
-            if (mFHit) {
-                orig_SBFloatingDockView_hitTest = (UIView *(*)(id, SEL, CGPoint, UIEvent *))method_getImplementation(mFHit);
-                method_setImplementation(mFHit, (IMP)custom_SBFloatingDockView_hitTest);
-            }
+            SafeSwizzle(floatDockClass, @selector(layoutSubviews), (IMP)custom_SBFloatingDockView_layoutSubviews, (IMP *)&orig_SBFloatingDockView_layoutSubviews);
         }
     }
 }
