@@ -2,17 +2,19 @@
 
 // MARK: - Global Configurations
 static BOOL kEnabled = YES;
+static NSInteger kDockMode = 1; // 0 = Standalone, 1 = Combined with FloatingDockXVI
 static NSInteger kDockIconCount = 4;
 static CGFloat kDockIconScale = 0.85;
-static CGFloat kDockWidth = 74.0;
-static CGFloat kDockHeight = 320.0;
+static CGFloat kDockWidth = 78.0;
+static CGFloat kDockHeight = 330.0;
 static CGFloat kRightMargin = 10.0;
 static CGFloat kVerticalOffset = 0.0;
-static CGFloat kCornerRadius = 37.0;
+static CGFloat kCornerRadius = 39.0;
 static CGFloat kDockBlurAlpha = 0.82;
 static BOOL kDockBlurEnabled = YES;
+static BOOL kHomeCompressGrid = YES;
+static CGFloat kHomeRightInset = 90.0;
 static BOOL kExpandBottomRows = YES;
-static CGFloat kHomeRightInset = 80.0;
 
 // MARK: - Preference Loader
 static void loadPreferences(void) {
@@ -24,18 +26,36 @@ static void loadPreferences(void) {
     NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:prefPath];
     if (prefs) {
         kEnabled = prefs[@"enabled"] ? [prefs[@"enabled"] boolValue] : YES;
+        kDockMode = prefs[@"dockMode"] ? [prefs[@"dockMode"] integerValue] : 1;
         kDockIconCount = prefs[@"dockIconCount"] ? [prefs[@"dockIconCount"] integerValue] : 4;
         kDockIconScale = prefs[@"dockIconScale"] ? [prefs[@"dockIconScale"] doubleValue] : 0.85;
-        kDockWidth = prefs[@"dockWidth"] ? [prefs[@"dockWidth"] doubleValue] : 74.0;
-        kDockHeight = prefs[@"dockHeight"] ? [prefs[@"dockHeight"] doubleValue] : 320.0;
+        kDockWidth = prefs[@"dockWidth"] ? [prefs[@"dockWidth"] doubleValue] : 78.0;
+        kDockHeight = prefs[@"dockHeight"] ? [prefs[@"dockHeight"] doubleValue] : 330.0;
         kRightMargin = prefs[@"rightMargin"] ? [prefs[@"rightMargin"] doubleValue] : 10.0;
         kVerticalOffset = prefs[@"verticalOffset"] ? [prefs[@"verticalOffset"] doubleValue] : 0.0;
         kCornerRadius = prefs[@"cornerRadius"] ? [prefs[@"cornerRadius"] doubleValue] : (kDockWidth / 2.0);
         kDockBlurAlpha = prefs[@"dockBlurAlpha"] ? [prefs[@"dockBlurAlpha"] doubleValue] : 0.82;
         kDockBlurEnabled = prefs[@"dockBlurEnabled"] ? [prefs[@"dockBlurEnabled"] boolValue] : YES;
+        kHomeCompressGrid = prefs[@"homeCompressGrid"] ? [prefs[@"homeCompressGrid"] boolValue] : YES;
+        kHomeRightInset = prefs[@"homeRightInset"] ? [prefs[@"homeRightInset"] doubleValue] : 90.0;
         kExpandBottomRows = prefs[@"expandBottomRows"] ? [prefs[@"expandBottomRows"] boolValue] : YES;
-        kHomeRightInset = prefs[@"homeRightInset"] ? [prefs[@"homeRightInset"] doubleValue] : 80.0;
     }
+}
+
+static void triggerRespring(void) {
+    pid_t pid;
+    const char *args_sbr_rootless[] = {"/var/jb/usr/bin/sbreload", NULL};
+    if (access("/var/jb/usr/bin/sbreload", X_OK) == 0) {
+        posix_spawn(&pid, "/var/jb/usr/bin/sbreload", NULL, NULL, (char *const *)args_sbr_rootless, NULL);
+        return;
+    }
+    const char *args_sbr[] = {"/usr/bin/sbreload", NULL};
+    if (access("/usr/bin/sbreload", X_OK) == 0) {
+        posix_spawn(&pid, "/usr/bin/sbreload", NULL, NULL, (char *const *)args_sbr, NULL);
+        return;
+    }
+    const char *args_killall[] = {"/var/jb/usr/bin/killall", "-9", "SpringBoard", NULL};
+    posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char *const *)args_killall, NULL);
 }
 
 static void preferencesChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
@@ -47,12 +67,18 @@ static void preferencesChanged(CFNotificationCenterRef center, void *observer, C
             if (iconControllerClass) {
                 id iconController = [iconControllerClass performSelector:@selector(sharedInstance)];
                 if ([iconController respondsToSelector:@selector(relayout)]) {
-                    [UIView animateWithDuration:0.35 delay:0.0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+                    [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
                         [iconController performSelector:@selector(relayout)];
                     } completion:nil];
                 }
             }
         } @catch (NSException *e) {}
+    });
+}
+
+static void respringNotificationReceived(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        triggerRespring();
     });
 }
 
@@ -80,39 +106,23 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
     NSUInteger count = icons.count;
     if (count == 0) return;
     
-    CGFloat topPadding = 14.0;
-    CGFloat bottomPadding = 14.0;
+    CGFloat topPadding = 22.0;
+    CGFloat bottomPadding = 22.0;
     CGFloat availableHeight = dockH - topPadding - bottomPadding;
     CGFloat slotHeight = availableHeight / (CGFloat)count;
-    CGFloat iconSize = 60.0 * kDockIconScale;
+    CGFloat iconSize = (dockW < 75.0 ? 46.0 : 52.0) * kDockIconScale;
     
     for (NSUInteger i = 0; i < count; i++) {
         UIView *iconView = icons[i];
-        CGFloat iy = topPadding + (i * slotHeight) + (slotHeight - iconSize) / 2.0;
-        CGFloat ix = (dockW - iconSize) / 2.0;
+        CGFloat centerY = topPadding + (i * slotHeight) + (slotHeight / 2.0);
         
-        iconView.frame = CGRectMake(ix, iy, iconSize, iconSize);
+        iconView.bounds = CGRectMake(0, 0, iconSize, iconSize);
+        iconView.center = CGPointMake(dockW / 2.0, centerY);
         iconView.transform = CGAffineTransformIdentity;
         
         if ([iconView respondsToSelector:@selector(setLabelHidden:)]) {
             [((SBIconView *)iconView) setLabelHidden:YES];
         }
-    }
-}
-
-// MARK: - Swizzle Method Utility
-static void SwizzleMethod(Class cls, SEL origSEL, SEL newSEL, IMP newIMP, const char *types) {
-    if (!cls) return;
-    Method origMethod = class_getInstanceMethod(cls, origSEL);
-    if (!origMethod) return;
-    
-    if (class_addMethod(cls, newSEL, newIMP, types)) {
-        Method newMethod = class_getInstanceMethod(cls, newSEL);
-        method_exchangeImplementations(origMethod, newMethod);
-    } else {
-        class_replaceMethod(cls, newSEL, newIMP, types);
-        Method newMethod = class_getInstanceMethod(cls, newSEL);
-        method_exchangeImplementations(origMethod, newMethod);
     }
 }
 
@@ -125,6 +135,18 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
     if (!kEnabled) return;
     
     @try {
+        if (kDockMode == 1) {
+            // Khi ở chế độ FloatingDockXVI, ẩn dock gốc ở đáy
+            self.hidden = YES;
+            self.alpha = 0.0;
+            self.frame = CGRectZero;
+            return;
+        }
+        
+        // Chế độ 0: Độc lập
+        self.hidden = NO;
+        self.alpha = 1.0;
+        
         CGRect dockFrame = calculateDuoDockFrame();
         self.frame = dockFrame;
         
@@ -151,14 +173,8 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
                 bg.layer.cornerCurve = kCACornerCurveContinuous;
             }
             bg.layer.masksToBounds = YES;
-            
-            if (!kDockBlurEnabled) {
-                bg.hidden = YES;
-                bg.alpha = 0.0;
-            } else {
-                bg.hidden = NO;
-                bg.alpha = kDockBlurAlpha;
-            }
+            bg.hidden = !kDockBlurEnabled;
+            bg.alpha = kDockBlurEnabled ? kDockBlurAlpha : 0.0;
         }
         
         UIView *iconListView = nil;
@@ -179,9 +195,8 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
 static UIView *(*orig_SBDockView_hitTest)(id, SEL, CGPoint, UIEvent *);
 static UIView *custom_SBDockView_hitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
     if (kEnabled) {
-        if (!CGRectContainsPoint(self.bounds, point)) {
-            return nil;
-        }
+        if (kDockMode == 1) return nil;
+        if (!CGRectContainsPoint(self.bounds, point)) return nil;
     }
     if (orig_SBDockView_hitTest) {
         return orig_SBDockView_hitTest(self, _cmd, point, event);
@@ -193,6 +208,9 @@ static UIView *custom_SBDockView_hitTest(UIView *self, SEL _cmd, CGPoint point, 
 static CGRect (*orig_SBRootFolderView_frameForDockView)(id, SEL);
 static CGRect custom_SBRootFolderView_frameForDockView(id self, SEL _cmd) {
     if (kEnabled) {
+        if (kDockMode == 1) {
+            return CGRectZero;
+        }
         return calculateDuoDockFrame();
     }
     if (orig_SBRootFolderView_frameForDockView) {
@@ -210,12 +228,7 @@ static CGRect custom_SBRootFolderView_frameForIconListViewAtIndex(id self, SEL _
     if (!kEnabled) return origFrame;
     
     @try {
-        CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
         CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
-        
-        CGFloat occupiedRight = kDockWidth + kRightMargin + 10.0;
-        origFrame.size.width = screenWidth - occupiedRight;
-        
         if (kExpandBottomRows) {
             CGFloat bottomPadding = 32.0;
             origFrame.size.height = screenHeight - origFrame.origin.y - bottomPadding;
@@ -226,6 +239,35 @@ static CGRect custom_SBRootFolderView_frameForIconListViewAtIndex(id self, SEL _
 }
 
 // MARK: - SBIconListView Hooks
+static void (*orig_SBIconListView_layoutSubviews)(id, SEL);
+static void custom_SBIconListView_layoutSubviews(SBIconListView *self, SEL _cmd) {
+    if (orig_SBIconListView_layoutSubviews) {
+        orig_SBIconListView_layoutSubviews(self, _cmd);
+    }
+    if (!kEnabled) return;
+    
+    @try {
+        if (!self.isDock && [self.iconLocation isEqualToString:@"SBIconLocationRoot"]) {
+            if (kHomeCompressGrid) {
+                CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+                CGFloat dockOccupiedWidth = kDockWidth + kRightMargin + 14.0;
+                CGFloat availableWidth = screenWidth - dockOccupiedWidth;
+                CGFloat scaleRatio = availableWidth / screenWidth;
+                
+                Class iconViewClass = objc_getClass("SBIconView");
+                for (UIView *subview in self.subviews) {
+                    if ([subview isKindOfClass:iconViewClass]) {
+                        CGPoint center = subview.center;
+                        CGFloat newX = (center.x * scaleRatio) + 6.0;
+                        subview.center = CGPointMake(newX, center.y);
+                        subview.transform = CGAffineTransformMakeScale(scaleRatio, scaleRatio);
+                    }
+                }
+            }
+        }
+    } @catch (NSException *e) {}
+}
+
 static NSUInteger (*orig_SBIconListView_maximumIconCount)(id, SEL);
 static NSUInteger custom_SBIconListView_maximumIconCount(SBIconListView *self, SEL _cmd) {
     if (kEnabled && self.isDock) {
@@ -237,26 +279,6 @@ static NSUInteger custom_SBIconListView_maximumIconCount(SBIconListView *self, S
     return 4;
 }
 
-static UIEdgeInsets (*orig_SBIconListView_layoutInsetsForOrientation)(id, SEL, NSInteger);
-static UIEdgeInsets custom_SBIconListView_layoutInsetsForOrientation(SBIconListView *self, SEL _cmd, NSInteger orientation) {
-    UIEdgeInsets insets = UIEdgeInsetsZero;
-    if (orig_SBIconListView_layoutInsetsForOrientation) {
-        insets = orig_SBIconListView_layoutInsetsForOrientation(self, _cmd, orientation);
-    }
-    if (!kEnabled) return insets;
-    
-    @try {
-        if (!self.isDock && [self.iconLocation isEqualToString:@"SBIconLocationRoot"]) {
-            insets.right += (kDockWidth + kRightMargin);
-            if (kExpandBottomRows) {
-                insets.bottom = 8.0;
-            }
-        }
-    } @catch (NSException *e) {}
-    
-    return insets;
-}
-
 // MARK: - SBFloatingDockView Hooks
 static void (*orig_SBFloatingDockView_layoutSubviews)(id, SEL);
 static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
@@ -266,6 +288,16 @@ static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
     if (!kEnabled) return;
     
     @try {
+        if (kDockMode == 0) {
+            // Chế độ độc lập: ẩn FloatingDock
+            self.hidden = YES;
+            self.alpha = 0.0;
+            return;
+        }
+        
+        self.hidden = NO;
+        self.alpha = 1.0;
+        
         CGRect dockFrame = calculateDuoDockFrame();
         self.frame = dockFrame;
         
@@ -286,14 +318,8 @@ static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
                 platter.layer.cornerCurve = kCACornerCurveContinuous;
             }
             platter.layer.masksToBounds = YES;
-            
-            if (!kDockBlurEnabled) {
-                platter.hidden = YES;
-                platter.alpha = 0.0;
-            } else {
-                platter.hidden = NO;
-                platter.alpha = kDockBlurAlpha;
-            }
+            platter.hidden = !kDockBlurEnabled;
+            platter.alpha = kDockBlurEnabled ? kDockBlurAlpha : 0.0;
         }
         
         UIView *divider = nil;
@@ -315,9 +341,8 @@ static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
 static UIView *(*orig_SBFloatingDockView_hitTest)(id, SEL, CGPoint, UIEvent *);
 static UIView *custom_SBFloatingDockView_hitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
     if (kEnabled) {
-        if (!CGRectContainsPoint(self.bounds, point)) {
-            return nil;
-        }
+        if (kDockMode == 0) return nil;
+        if (!CGRectContainsPoint(self.bounds, point)) return nil;
     }
     if (orig_SBFloatingDockView_hitTest) {
         return orig_SBFloatingDockView_hitTest(self, _cmd, point, event);
@@ -335,6 +360,15 @@ __attribute__((constructor)) static void DuoDockInit(void) {
             NULL,
             (CFNotificationCallback)preferencesChanged,
             CFSTR(PREF_CHANGED_NOTIFICATION),
+            NULL,
+            CFNotificationSuspensionBehaviorDeliverImmediately
+        );
+        
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            NULL,
+            (CFNotificationCallback)respringNotificationReceived,
+            CFSTR(PREF_RESPRING_NOTIFICATION),
             NULL,
             CFNotificationSuspensionBehaviorDeliverImmediately
         );
@@ -374,16 +408,16 @@ __attribute__((constructor)) static void DuoDockInit(void) {
         // Swizzle SBIconListView
         Class iconListViewClass = objc_getClass("SBIconListView");
         if (iconListViewClass) {
+            Method mLayout = class_getInstanceMethod(iconListViewClass, @selector(layoutSubviews));
+            if (mLayout) {
+                orig_SBIconListView_layoutSubviews = (void (*)(id, SEL))method_getImplementation(mLayout);
+                method_setImplementation(mLayout, (IMP)custom_SBIconListView_layoutSubviews);
+            }
+            
             Method mMaxIcons = class_getInstanceMethod(iconListViewClass, @selector(maximumIconCount));
             if (mMaxIcons) {
                 orig_SBIconListView_maximumIconCount = (NSUInteger (*)(id, SEL))method_getImplementation(mMaxIcons);
                 method_setImplementation(mMaxIcons, (IMP)custom_SBIconListView_maximumIconCount);
-            }
-            
-            Method mInsets = class_getInstanceMethod(iconListViewClass, @selector(layoutInsetsForOrientation:));
-            if (mInsets) {
-                orig_SBIconListView_layoutInsetsForOrientation = (UIEdgeInsets (*)(id, SEL, NSInteger))method_getImplementation(mInsets);
-                method_setImplementation(mInsets, (IMP)custom_SBIconListView_layoutInsetsForOrientation);
             }
         }
         

@@ -46,7 +46,7 @@ mkdir -p pkg_root/DEBIAN
 cp DuoDock.dylib pkg_root/var/jb/Library/MobileSubstrate/DynamicLibraries/
 cp DuoDock.plist pkg_root/var/jb/Library/MobileSubstrate/DynamicLibraries/
 
-# Copy PreferenceLoader entry plist
+# Direct native PreferenceLoader plist with all specifiers
 cp Preferences/DuoDock.plist pkg_root/var/jb/Library/PreferenceLoader/Preferences/
 
 # Copy PreferenceBundle

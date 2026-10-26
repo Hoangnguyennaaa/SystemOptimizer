@@ -1,9 +1,9 @@
 Package: com.hoangnguyen.duodock
 Name: DuoDock
 Depends: mobilesubstrate (>= 0.9.5000), preferenceloader
-Version: 1.0.0
+Version: 1.1.0
 Architecture: iphoneos-arm64
-Description: Transform iOS Dock into a vertical right-edge pill dock (Foldable/Duo style) for iOS 15 Rootless
+Description: Vertical right-edge pill dock (Foldable/Duo style) for iOS 15 Rootless with Anti-Overlap & FloatingDockXVI support
 Maintainer: Hoangnguyen
 Author: Hoangnguyen
 Section: Tweaks

@@ -7,10 +7,7 @@
 #define PREF_PATH_ROOTLESS @"/var/jb/var/mobile/Library/Preferences/com.hoangnguyen.duodock.plist"
 #define PREF_PATH_ROOTFUL  @"/var/mobile/Library/Preferences/com.hoangnguyen.duodock.plist"
 #define PREF_CHANGED_NOTIFICATION "com.hoangnguyen.duodock/preferences.changed"
-
-// Forward declarations
-@class SBDockView, SBRootFolderView, SBFloatingDockView, SBFloatingDockViewController;
-@class SBIconListView, SBIconView, SBIconController, SBHIconManager, MTMaterialView;
+#define PREF_RESPRING_NOTIFICATION "com.hoangnguyen.duodock/respring"
 
 @interface SBIconView : UIView
 @property (nonatomic, assign) BOOL labelHidden;
@@ -46,9 +43,6 @@
 - (void)layoutSubviews;
 @end
 
-@interface SBFloatingDockPlatterView : UIView
-@end
-
 @interface SBFloatingDockView : UIView
 @property (nonatomic, retain) UIView *mainPlatterView;
 @property (nonatomic, retain) SBIconListView *userIconListView;
@@ -59,21 +53,9 @@
 
 @interface SBFloatingDockViewController : UIViewController
 - (SBFloatingDockView *)floatingDockView;
-- (CGRect)floatingDockView:(id)arg1 frameForIconAtIndex:(NSUInteger)arg2;
-- (double)maximumDockContinuousCornerRadius;
 @end
 
 @interface SBIconController : NSObject
 + (id)sharedInstance;
 - (void)relayout;
-- (SBRootFolderView *)_rootFolderView;
-@end
-
-@interface SBHIconManager : NSObject
-- (void)relayout;
-@end
-
-@interface MTMaterialView : UIView
-+ (instancetype)materialViewWithRecipe:(NSInteger)recipe options:(NSUInteger)options;
-@property (nonatomic, assign) CGFloat weighting;
 @end
