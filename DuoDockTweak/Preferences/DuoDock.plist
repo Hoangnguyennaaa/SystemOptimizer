@@ -35,21 +35,22 @@
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
 
-		<!-- PHẦN CHẾ ĐỘ HOẠT ĐỘNG (2 CHẾ ĐỘ) -->
+		<!-- PHẦN CHẾ ĐỘ HOẠT ĐỘNG (TỰ ĐỘNG THÍCH ỨNG) -->
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>CHẾ ĐỘ DOCK (FLOATINGDOCK / GHOSTBOARD)</string>
+			<string>CHẾ ĐỘ TƯƠNG THÍCH DOCK</string>
 			<key>footerText</key>
-			<string>• Độc lập: Dùng với Dock gốc iPhone. Tweak tự đưa Dock sang cạnh phải và dọn sạch đáy màn hình.
-• Kết hợp FloatingDockXVI: Dành cho máy đang dùng FloatingDockXVI hoặc GhostBoard. Tweak sẽ chuyển Dock nổi sang phải và ẩn hoàn toàn Dock gốc ở đáy màn hình để không bị đè 2 dock.</string>
+			<string>• Tự động: Tự phát hiện xem máy có đang bật FloatingDockXVI hay không để điều chỉnh phù hợp, không bao giờ gây đơ.
+• Độc lập: Luôn dùng Dock gốc iPhone.
+• FloatingDock: Luôn dùng FloatingDockXVI.</string>
 		</dict>
 		<dict>
 			<key>cell</key>
 			<string>PSSegmentCell</string>
 			<key>default</key>
-			<integer>1</integer>
+			<integer>0</integer>
 			<key>defaults</key>
 			<string>com.hoangnguyen.duodock</string>
 			<key>key</key>
@@ -58,11 +59,13 @@
 			<array>
 				<integer>0</integer>
 				<integer>1</integer>
+				<integer>2</integer>
 			</array>
 			<key>validTitles</key>
 			<array>
+				<string>Tự động</string>
 				<string>Độc lập</string>
-				<string>FloatingDockXVI</string>
+				<string>FloatingDock</string>
 			</array>
 			<key>PostNotification</key>
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
@@ -115,7 +118,7 @@
 			<key>label</key>
 			<string>TỶ LỆ THU PHÓNG ICON DOCK (0.6x - 1.2x)</string>
 			<key>footerText</key>
-			<string>Nên đặt 0.85x - 0.90x để icon nằm gọn gàng bên trong viên thuốc mà không bị chạm sát viền cong.</string>
+			<string>Nên đặt 0.85x để icon nằm cân đối chính giữa viên thuốc.</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -306,72 +309,6 @@
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
 
-		<!-- KHẮC PHỤC LỖI ĐÈ ICON HOMESCREEN -->
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
-			<string>CHỐNG ĐÈ ICON MÀN HÌNH CHÍNH (ANTI-OVERLAP)</string>
-			<key>footerText</key>
-			<string>Tự động co gọn lưới icon ứng dụng sang trái màn hình để cột icon thứ 4 không bị thanh Dock dọc đè lên.</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSwitchCell</string>
-			<key>default</key>
-			<true/>
-			<key>defaults</key>
-			<string>com.hoangnguyen.duodock</string>
-			<key>key</key>
-			<string>homeCompressGrid</string>
-			<key>label</key>
-			<string>Tự động co lưới icon sang trái</string>
-			<key>PostNotification</key>
-			<string>com.hoangnguyen.duodock/preferences.changed</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSliderCell</string>
-			<key>default</key>
-			<real>90.0</real>
-			<key>defaults</key>
-			<string>com.hoangnguyen.duodock</string>
-			<key>key</key>
-			<string>homeRightInset</string>
-			<key>min</key>
-			<real>60.0</real>
-			<key>max</key>
-			<real>130.0</real>
-			<key>showValue</key>
-			<true/>
-			<key>PostNotification</key>
-			<string>com.hoangnguyen.duodock/preferences.changed</string>
-		</dict>
-
-		<!-- MỞ RỘNG ĐÁY MÀN HÌNH -->
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
-			<string>TẬN DỤNG KHÔNG GIAN ĐÁY MÀN HÌNH</string>
-			<key>footerText</key>
-			<string>Kéo dài lưới icon màn hình chính xuống khoảng trống đáy màn hình của Dock cũ.</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSwitchCell</string>
-			<key>default</key>
-			<true/>
-			<key>defaults</key>
-			<string>com.hoangnguyen.duodock</string>
-			<key>key</key>
-			<string>expandBottomRows</string>
-			<key>label</key>
-			<string>Mở rộng icon xuống đáy (Expand Bottom)</string>
-			<key>PostNotification</key>
-			<string>com.hoangnguyen.duodock/preferences.changed</string>
-		</dict>
-
 		<!-- THAO TÁC HỆ THỐNG -->
 		<dict>
 			<key>cell</key>
@@ -397,9 +334,8 @@
 			<key>footerAlignment</key>
 			<integer>1</integer>
 			<key>footerText</key>
-			<string>DuoDock v1.1.0 (Rootless iOS 15)
-Thiết kế Dock dọc iPhone Duo / Foldable
-Hỗ trợ độc lập &amp; kết hợp FloatingDockXVI / GhostBoard</string>
+			<string>DuoDock v1.2.0 (Tự động thích ứng &amp; Siêu mượt)
+Hỗ trợ cả Dock gốc và FloatingDockXVI / GhostBoard</string>
 		</dict>
 	</array>
 	<key>title</key>

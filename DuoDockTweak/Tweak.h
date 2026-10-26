@@ -19,10 +19,6 @@
 @property (nonatomic, readonly) BOOL isDock;
 - (NSArray<SBIconView *> *)displayedIconViews;
 - (NSUInteger)maximumIconCount;
-- (UIEdgeInsets)layoutInsetsForOrientation:(NSInteger)orientation;
-- (CGPoint)originForIconAtIndex:(NSUInteger)arg1;
-- (CGPoint)centerForIconAtIndex:(NSUInteger)arg1;
-- (void)layoutIconsNow;
 @end
 
 @interface SBDockIconListView : SBIconListView
@@ -35,24 +31,12 @@
 - (double)dockHeight;
 @end
 
-@interface SBRootFolderView : UIView
-@property (nonatomic, retain) SBDockView *dockView;
-- (CGRect)_frameForDockView;
-- (CGRect)_frameForIconListViewAtIndex:(NSUInteger)arg1;
-- (CGRect)_frameForDockIconListView;
-- (void)layoutSubviews;
-@end
-
 @interface SBFloatingDockView : UIView
 @property (nonatomic, retain) UIView *mainPlatterView;
 @property (nonatomic, retain) SBIconListView *userIconListView;
 @property (nonatomic, retain) SBIconListView *recentIconListView;
 @property (nonatomic, retain) UIView *dividerView;
 - (void)layoutSubviews;
-@end
-
-@interface SBFloatingDockViewController : UIViewController
-- (SBFloatingDockView *)floatingDockView;
 @end
 
 @interface SBIconController : NSObject

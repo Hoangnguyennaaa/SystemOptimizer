@@ -2,7 +2,7 @@
 
 // MARK: - Global Configuration Variables
 static BOOL kEnabled = YES;
-static NSInteger kDockMode = 1; // 0 = Standalone, 1 = Combined with FloatingDockXVI
+static NSInteger kDockMode = 0; // 0 = Auto-detect, 1 = Standalone, 2 = FloatingDock
 static NSInteger kDockIconCount = 4;
 static CGFloat kDockIconScale = 0.85;
 static CGFloat kDockWidth = 78.0;
@@ -12,11 +12,23 @@ static CGFloat kVerticalOffset = 0.0;
 static CGFloat kCornerRadius = 39.0;
 static CGFloat kDockBlurAlpha = 0.82;
 static BOOL kDockBlurEnabled = YES;
-static BOOL kHomeCompressGrid = YES;
-static CGFloat kHomeRightInset = 90.0;
-static BOOL kExpandBottomRows = YES;
 
 static BOOL isLayingOutDock = NO;
+
+// MARK: - FloatingDock Active Detection
+static BOOL isFloatingDockActive(void) {
+    Class fdc = objc_getClass("SBFloatingDockController");
+    if (fdc) {
+        @try {
+            id ctrl = [fdc performSelector:@selector(sharedInstance)];
+            if (ctrl && [ctrl respondsToSelector:@selector(isFloatingDockSupported)]) {
+                BOOL sup = ((BOOL (*)(id, SEL))objc_msgSend)(ctrl, @selector(isFloatingDockSupported));
+                if (sup) return YES;
+            }
+        } @catch (NSException *e) {}
+    }
+    return NO;
+}
 
 // MARK: - Preference Loader
 static void loadPreferences() {
@@ -28,7 +40,7 @@ static void loadPreferences() {
     NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:prefPath];
     if (prefs) {
         kEnabled = prefs[@"enabled"] ? [prefs[@"enabled"] boolValue] : YES;
-        kDockMode = prefs[@"dockMode"] ? [prefs[@"dockMode"] integerValue] : 1;
+        kDockMode = prefs[@"dockMode"] ? [prefs[@"dockMode"] integerValue] : 0;
         kDockIconCount = prefs[@"dockIconCount"] ? [prefs[@"dockIconCount"] integerValue] : 4;
         kDockIconScale = prefs[@"dockIconScale"] ? [prefs[@"dockIconScale"] doubleValue] : 0.85;
         kDockWidth = prefs[@"dockWidth"] ? [prefs[@"dockWidth"] doubleValue] : 78.0;
@@ -38,9 +50,6 @@ static void loadPreferences() {
         kCornerRadius = prefs[@"cornerRadius"] ? [prefs[@"cornerRadius"] doubleValue] : (kDockWidth / 2.0);
         kDockBlurAlpha = prefs[@"dockBlurAlpha"] ? [prefs[@"dockBlurAlpha"] doubleValue] : 0.82;
         kDockBlurEnabled = prefs[@"dockBlurEnabled"] ? [prefs[@"dockBlurEnabled"] boolValue] : YES;
-        kHomeCompressGrid = prefs[@"homeCompressGrid"] ? [prefs[@"homeCompressGrid"] boolValue] : YES;
-        kHomeRightInset = prefs[@"homeRightInset"] ? [prefs[@"homeRightInset"] doubleValue] : 90.0;
-        kExpandBottomRows = prefs[@"expandBottomRows"] ? [prefs[@"expandBottomRows"] boolValue] : YES;
     }
 }
 
@@ -79,7 +88,7 @@ static void respringNotificationReceived(CFNotificationCenterRef center, void *o
     });
 }
 
-// MARK: - Helper Layout Functions
+// MARK: - Frame Calculation & Icon Layout Helpers
 static CGRect calculateDuoDockFrame(void) {
     CGRect screenBounds = [UIScreen mainScreen].bounds;
     CGFloat w = kDockWidth;
@@ -127,7 +136,7 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
     }
 }
 
-// MARK: - Hook SBDockView
+// MARK: - Hook SBDockView (Dock gốc của iPhone)
 %hook SBDockView
 
 - (void)layoutSubviews {
@@ -136,8 +145,11 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
     if (isLayingOutDock) return;
     
     @try {
-        // Chế độ 1: Kết hợp FloatingDockXVI -> Ẩn dock gốc ở đáy
-        if (kDockMode == 1) {
+        // Xác định xem có đang ở chế độ FloatingDock không
+        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
+        
+        if (useFloating) {
+            // Nếu có FloatingDock thì ẩn dock gốc ở đáy
             if (!self.hidden) {
                 self.hidden = YES;
                 self.alpha = 0.0;
@@ -145,7 +157,7 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
             return;
         }
         
-        // Chế độ 0: Độc lập
+        // Chế độ Độc lập: Biến SBDockView thành dock dọc bên phải
         isLayingOutDock = YES;
         self.hidden = NO;
         self.alpha = 1.0;
@@ -197,7 +209,8 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
 
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     if (kEnabled) {
-        if (kDockMode == 1 || self.hidden || self.alpha < 0.01) return nil;
+        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
+        if (useFloating || self.hidden || self.alpha < 0.01) return nil;
         if (!CGRectContainsPoint(self.bounds, point)) return nil;
     }
     return %orig(point, event);
@@ -205,40 +218,8 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
 
 %end
 
-// MARK: - Hook SBRootFolderView
-%hook SBRootFolderView
-
-- (CGRect)_frameForDockView {
-    if (kEnabled) {
-        if (kDockMode == 1) {
-            return CGRectMake(0, [UIScreen mainScreen].bounds.size.height + 200, 0, 0);
-        }
-        return calculateDuoDockFrame();
-    }
-    return %orig;
-}
-
-%end
-
-// MARK: - Hook SBIconListView (Layout Insets - Native & Zero Lag)
+// MARK: - Hook SBIconListView (Số lượng icon tối đa)
 %hook SBIconListView
-
-- (UIEdgeInsets)layoutInsetsForOrientation:(NSInteger)orientation {
-    UIEdgeInsets insets = %orig;
-    if (!kEnabled) return insets;
-    
-    @try {
-        if (!self.isDock && [self.iconLocation isEqualToString:@"SBIconLocationRoot"]) {
-            // Lùi lề phải để nhường không gian cho DuoDock mà không phá vỡ cử chỉ vuốt
-            insets.right += (kDockWidth + kRightMargin + 10.0);
-            if (kExpandBottomRows) {
-                insets.bottom = 8.0;
-            }
-        }
-    } @catch (NSException *e) {}
-    
-    return insets;
-}
 
 - (NSUInteger)maximumIconCount {
     if (kEnabled && self.isDock) {
@@ -249,7 +230,7 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
 
 %end
 
-// MARK: - Hook SBFloatingDockView (Mode 1: FloatingDockXVI / GhostBoard)
+// MARK: - Hook SBFloatingDockView (Mode FloatingDock / iPad Dock)
 %hook SBFloatingDockView
 
 - (void)layoutSubviews {
@@ -258,8 +239,10 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
     if (isLayingOutDock) return;
     
     @try {
-        // Chế độ 0: Độc lập -> Ẩn FloatingDock
-        if (kDockMode == 0) {
+        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
+        
+        if (!useFloating) {
+            // Không dùng FloatingDock -> Ẩn nếu nó xuất hiện
             if (!self.hidden) {
                 self.hidden = YES;
                 self.alpha = 0.0;
@@ -317,7 +300,8 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
 
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     if (kEnabled) {
-        if (kDockMode == 0 || self.hidden || self.alpha < 0.01) return nil;
+        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
+        if (!useFloating || self.hidden || self.alpha < 0.01) return nil;
         if (!CGRectContainsPoint(self.bounds, point)) return nil;
     }
     return %orig(point, event);

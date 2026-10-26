@@ -1,9 +1,9 @@
 Package: com.hoangnguyen.duodock
 Name: DuoDock
 Depends: mobilesubstrate (>= 0.9.5000), preferenceloader
-Version: 1.1.1
+Version: 1.2.0
 Architecture: iphoneos-arm64
-Description: Vertical right-edge pill dock for iOS 15 Rootless (Smooth, Zero-Lag, Paging-Safe)
+Description: Vertical right-edge pill dock for iOS 15 Rootless (Auto-detect FloatingDock / Zero-Lag / Ultra-Smooth)
 Maintainer: Hoangnguyen
 Author: Hoangnguyen
 Section: Tweaks

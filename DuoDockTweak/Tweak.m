@@ -2,7 +2,7 @@
 
 // MARK: - Global Configurations
 static BOOL kEnabled = YES;
-static NSInteger kDockMode = 1; // 0 = Standalone, 1 = Combined with FloatingDockXVI
+static NSInteger kDockMode = 0; // 0 = Auto-detect, 1 = Standalone, 2 = FloatingDock
 static NSInteger kDockIconCount = 4;
 static CGFloat kDockIconScale = 0.85;
 static CGFloat kDockWidth = 78.0;
@@ -12,11 +12,23 @@ static CGFloat kVerticalOffset = 0.0;
 static CGFloat kCornerRadius = 39.0;
 static CGFloat kDockBlurAlpha = 0.82;
 static BOOL kDockBlurEnabled = YES;
-static BOOL kHomeCompressGrid = YES;
-static CGFloat kHomeRightInset = 90.0;
-static BOOL kExpandBottomRows = YES;
 
 static BOOL isLayingOutDock = NO;
+
+// MARK: - FloatingDock Active Detection
+static BOOL isFloatingDockActive(void) {
+    Class fdc = objc_getClass("SBFloatingDockController");
+    if (fdc) {
+        @try {
+            id ctrl = [fdc performSelector:@selector(sharedInstance)];
+            if (ctrl && [ctrl respondsToSelector:@selector(isFloatingDockSupported)]) {
+                BOOL sup = ((BOOL (*)(id, SEL))objc_msgSend)(ctrl, @selector(isFloatingDockSupported));
+                if (sup) return YES;
+            }
+        } @catch (NSException *e) {}
+    }
+    return NO;
+}
 
 // MARK: - Preference Loader
 static void loadPreferences(void) {
@@ -28,7 +40,7 @@ static void loadPreferences(void) {
     NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:prefPath];
     if (prefs) {
         kEnabled = prefs[@"enabled"] ? [prefs[@"enabled"] boolValue] : YES;
-        kDockMode = prefs[@"dockMode"] ? [prefs[@"dockMode"] integerValue] : 1;
+        kDockMode = prefs[@"dockMode"] ? [prefs[@"dockMode"] integerValue] : 0;
         kDockIconCount = prefs[@"dockIconCount"] ? [prefs[@"dockIconCount"] integerValue] : 4;
         kDockIconScale = prefs[@"dockIconScale"] ? [prefs[@"dockIconScale"] doubleValue] : 0.85;
         kDockWidth = prefs[@"dockWidth"] ? [prefs[@"dockWidth"] doubleValue] : 78.0;
@@ -38,9 +50,6 @@ static void loadPreferences(void) {
         kCornerRadius = prefs[@"cornerRadius"] ? [prefs[@"cornerRadius"] doubleValue] : (kDockWidth / 2.0);
         kDockBlurAlpha = prefs[@"dockBlurAlpha"] ? [prefs[@"dockBlurAlpha"] doubleValue] : 0.82;
         kDockBlurEnabled = prefs[@"dockBlurEnabled"] ? [prefs[@"dockBlurEnabled"] boolValue] : YES;
-        kHomeCompressGrid = prefs[@"homeCompressGrid"] ? [prefs[@"homeCompressGrid"] boolValue] : YES;
-        kHomeRightInset = prefs[@"homeRightInset"] ? [prefs[@"homeRightInset"] doubleValue] : 90.0;
-        kExpandBottomRows = prefs[@"expandBottomRows"] ? [prefs[@"expandBottomRows"] boolValue] : YES;
     }
 }
 
@@ -141,7 +150,9 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
     if (isLayingOutDock) return;
     
     @try {
-        if (kDockMode == 1) {
+        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
+        
+        if (useFloating) {
             if (!self.hidden) {
                 self.hidden = YES;
                 self.alpha = 0.0;
@@ -206,7 +217,8 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
 static UIView *(*orig_SBDockView_hitTest)(id, SEL, CGPoint, UIEvent *);
 static UIView *custom_SBDockView_hitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
     if (kEnabled) {
-        if (kDockMode == 1 || self.hidden || self.alpha < 0.01) return nil;
+        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
+        if (useFloating || self.hidden || self.alpha < 0.01) return nil;
         if (!CGRectContainsPoint(self.bounds, point)) return nil;
     }
     if (orig_SBDockView_hitTest) {
@@ -215,42 +227,7 @@ static UIView *custom_SBDockView_hitTest(UIView *self, SEL _cmd, CGPoint point, 
     return nil;
 }
 
-// MARK: - SBRootFolderView Hooks
-static CGRect (*orig_SBRootFolderView_frameForDockView)(id, SEL);
-static CGRect custom_SBRootFolderView_frameForDockView(id self, SEL _cmd) {
-    if (kEnabled) {
-        if (kDockMode == 1) {
-            return CGRectMake(0, [UIScreen mainScreen].bounds.size.height + 200, 0, 0);
-        }
-        return calculateDuoDockFrame();
-    }
-    if (orig_SBRootFolderView_frameForDockView) {
-        return orig_SBRootFolderView_frameForDockView(self, _cmd);
-    }
-    return CGRectZero;
-}
-
-// MARK: - SBIconListView Hooks (Native Layout Insets)
-static UIEdgeInsets (*orig_SBIconListView_layoutInsetsForOrientation)(id, SEL, NSInteger);
-static UIEdgeInsets custom_SBIconListView_layoutInsetsForOrientation(SBIconListView *self, SEL _cmd, NSInteger orientation) {
-    UIEdgeInsets insets = UIEdgeInsetsZero;
-    if (orig_SBIconListView_layoutInsetsForOrientation) {
-        insets = orig_SBIconListView_layoutInsetsForOrientation(self, _cmd, orientation);
-    }
-    if (!kEnabled) return insets;
-    
-    @try {
-        if (!self.isDock && [self.iconLocation isEqualToString:@"SBIconLocationRoot"]) {
-            insets.right += (kDockWidth + kRightMargin + 10.0);
-            if (kExpandBottomRows) {
-                insets.bottom = 8.0;
-            }
-        }
-    } @catch (NSException *e) {}
-    
-    return insets;
-}
-
+// MARK: - SBIconListView Hooks
 static NSUInteger (*orig_SBIconListView_maximumIconCount)(id, SEL);
 static NSUInteger custom_SBIconListView_maximumIconCount(SBIconListView *self, SEL _cmd) {
     if (kEnabled && self.isDock) {
@@ -272,7 +249,9 @@ static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
     if (isLayingOutDock) return;
     
     @try {
-        if (kDockMode == 0) {
+        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
+        
+        if (!useFloating) {
             if (!self.hidden) {
                 self.hidden = YES;
                 self.alpha = 0.0;
@@ -332,7 +311,8 @@ static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
 static UIView *(*orig_SBFloatingDockView_hitTest)(id, SEL, CGPoint, UIEvent *);
 static UIView *custom_SBFloatingDockView_hitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
     if (kEnabled) {
-        if (kDockMode == 0 || self.hidden || self.alpha < 0.01) return nil;
+        BOOL useFloating = (kDockMode == 2) || (kDockMode == 0 && isFloatingDockActive());
+        if (!useFloating || self.hidden || self.alpha < 0.01) return nil;
         if (!CGRectContainsPoint(self.bounds, point)) return nil;
     }
     if (orig_SBFloatingDockView_hitTest) {
@@ -380,25 +360,9 @@ __attribute__((constructor)) static void DuoDockInit(void) {
             }
         }
         
-        // Swizzle SBRootFolderView
-        Class rootFolderClass = objc_getClass("SBRootFolderView");
-        if (rootFolderClass) {
-            Method mDockFrame = class_getInstanceMethod(rootFolderClass, @selector(_frameForDockView));
-            if (mDockFrame) {
-                orig_SBRootFolderView_frameForDockView = (CGRect (*)(id, SEL))method_getImplementation(mDockFrame);
-                method_setImplementation(mDockFrame, (IMP)custom_SBRootFolderView_frameForDockView);
-            }
-        }
-        
-        // Swizzle SBIconListView (Layout insets only)
+        // Swizzle SBIconListView (Maximum icon count only)
         Class iconListViewClass = objc_getClass("SBIconListView");
         if (iconListViewClass) {
-            Method mInsets = class_getInstanceMethod(iconListViewClass, @selector(layoutInsetsForOrientation:));
-            if (mInsets) {
-                orig_SBIconListView_layoutInsetsForOrientation = (UIEdgeInsets (*)(id, SEL, NSInteger))method_getImplementation(mInsets);
-                method_setImplementation(mInsets, (IMP)custom_SBIconListView_layoutInsetsForOrientation);
-            }
-            
             Method mMaxIcons = class_getInstanceMethod(iconListViewClass, @selector(maximumIconCount));
             if (mMaxIcons) {
                 orig_SBIconListView_maximumIconCount = (NSUInteger (*)(id, SEL))method_getImplementation(mMaxIcons);
