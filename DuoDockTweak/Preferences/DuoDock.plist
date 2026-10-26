@@ -35,6 +35,42 @@
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
 
+		<!-- CHẾ ĐỘ HOẠT ĐỘNG DOCK -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>CHẾ ĐỘ HOẠT ĐỘNG DOCK</string>
+			<key>footerText</key>
+			<string>• Tự động (Khuyên dùng): Tự động phát hiện FloatingDockXVI hoặc Dock gốc để tối ưu 120Hz không giật lag.
+• Dock gốc độc lập: Ép sử dụng Dock gốc hệ thống, vô hiệu hóa FloatingDockXVI an toàn không gây Safe Mode.
+• FloatingDock: Ép sử dụng FloatingDock nếu bạn đang cài đặt tweak này.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSegmentCell</string>
+			<key>default</key>
+			<integer>0</integer>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>dockMode</string>
+			<key>validValues</key>
+			<array>
+				<integer>0</integer>
+				<integer>1</integer>
+				<integer>2</integer>
+			</array>
+			<key>validTitles</key>
+			<array>
+				<string>Tự động</string>
+				<string>Dock gốc</string>
+				<string>FloatingDock</string>
+			</array>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
+		</dict>
+
 		<!-- KÉO THẢ VÀ PHÓNG TO THU NHỎ TRỰC TIẾP -->
 		<dict>
 			<key>cell</key>
@@ -631,7 +667,7 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<key>footerAlignment</key>
 			<integer>1</integer>
 			<key>footerText</key>
-			<string>DuoDock v1.7.2 (Fix Safe Mode, Tùy chỉnh icon &amp; Đặt về mặc định)
+			<string>DuoDock v1.7.3 (Fix Safe Mode triệt để, Dual-Mode Native/FloatingDock &amp; Đặt về mặc định)
 Tối ưu 120Hz mượt mà, ổn định tuyệt đối</string>
 		</dict>
 	</array>

@@ -130,6 +130,7 @@
     NSDictionary *defaults = @{
         @"enabled": @YES,
         @"dragModeEnabled": @NO,
+        @"dockMode": @0,
         @"dockSide": @1,
         @"dockIconCount": @4,
         @"dockIconScale": @(0.85),
