@@ -182,7 +182,11 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
             CGPoint targetCenter = CGPointMake(dockW / 2.0, centerY);
             
             iconView.center = targetCenter;
-            iconView.transform = CGAffineTransformMakeScale(kDockIconScale, kDockIconScale);
+            
+            CGFloat maxSlotScale = (slotHeight * 0.88) / 60.0;
+            CGFloat effectiveScale = MIN(kDockIconScale, maxSlotScale);
+            if (effectiveScale < 0.40) effectiveScale = 0.40;
+            iconView.transform = CGAffineTransformMakeScale(effectiveScale, effectiveScale);
             
             if ([iconView respondsToSelector:@selector(setLabelHidden:)]) {
                 [((SBIconView *)iconView) setLabelHidden:kHideDockLabels];
@@ -431,17 +435,25 @@ static UIEdgeInsets custom_SBIconListView_layoutInsetsForOrientation(UIView *sel
 
 static NSUInteger (*orig_SBIconListView_maximumIconCount)(UIView *, SEL);
 static NSUInteger custom_SBIconListView_maximumIconCount(UIView *self, SEL _cmd) {
-    if (kEnabled && kCustomGridEnabled) {
-        NSString *loc = nil;
-        if ([self respondsToSelector:@selector(iconLocation)]) {
-            loc = [self performSelector:@selector(iconLocation)];
-        }
+    if (kEnabled) {
         BOOL isDock = NO;
         if ([self respondsToSelector:@selector(isDock)]) {
             isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
         }
-        if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
-            return (NSUInteger)(kHomeRows * kHomeColumns);
+        if (!isDock && [self isKindOfClass:NSClassFromString(@"SBDockIconListView")]) {
+            isDock = YES;
+        }
+        if (isDock) {
+            return (NSUInteger)(kDockIconCount > 0 ? kDockIconCount : 4);
+        }
+        if (kCustomGridEnabled) {
+            NSString *loc = nil;
+            if ([self respondsToSelector:@selector(iconLocation)]) {
+                loc = [self performSelector:@selector(iconLocation)];
+            }
+            if (!loc || [loc isEqualToString:@"SBIconLocationRoot"]) {
+                return (NSUInteger)(kHomeRows * kHomeColumns);
+            }
         }
     }
     if (orig_SBIconListView_maximumIconCount) {
@@ -452,17 +464,25 @@ static NSUInteger custom_SBIconListView_maximumIconCount(UIView *self, SEL _cmd)
 
 static NSUInteger (*orig_SBIconListView_iconRowsForCurrentOrientation)(UIView *, SEL);
 static NSUInteger custom_SBIconListView_iconRowsForCurrentOrientation(UIView *self, SEL _cmd) {
-    if (kEnabled && kCustomGridEnabled) {
-        NSString *loc = nil;
-        if ([self respondsToSelector:@selector(iconLocation)]) {
-            loc = [self performSelector:@selector(iconLocation)];
-        }
+    if (kEnabled) {
         BOOL isDock = NO;
         if ([self respondsToSelector:@selector(isDock)]) {
             isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
         }
-        if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
-            return (NSUInteger)kHomeRows;
+        if (!isDock && [self isKindOfClass:NSClassFromString(@"SBDockIconListView")]) {
+            isDock = YES;
+        }
+        if (isDock) {
+            return (NSUInteger)(kDockIconCount > 0 ? kDockIconCount : 4);
+        }
+        if (kCustomGridEnabled) {
+            NSString *loc = nil;
+            if ([self respondsToSelector:@selector(iconLocation)]) {
+                loc = [self performSelector:@selector(iconLocation)];
+            }
+            if (!loc || [loc isEqualToString:@"SBIconLocationRoot"]) {
+                return (NSUInteger)kHomeRows;
+            }
         }
     }
     if (orig_SBIconListView_iconRowsForCurrentOrientation) {
@@ -473,17 +493,25 @@ static NSUInteger custom_SBIconListView_iconRowsForCurrentOrientation(UIView *se
 
 static NSUInteger (*orig_SBIconListView_iconColumnsForCurrentOrientation)(UIView *, SEL);
 static NSUInteger custom_SBIconListView_iconColumnsForCurrentOrientation(UIView *self, SEL _cmd) {
-    if (kEnabled && kCustomGridEnabled) {
-        NSString *loc = nil;
-        if ([self respondsToSelector:@selector(iconLocation)]) {
-            loc = [self performSelector:@selector(iconLocation)];
-        }
+    if (kEnabled) {
         BOOL isDock = NO;
         if ([self respondsToSelector:@selector(isDock)]) {
             isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
         }
-        if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
-            return (NSUInteger)kHomeColumns;
+        if (!isDock && [self isKindOfClass:NSClassFromString(@"SBDockIconListView")]) {
+            isDock = YES;
+        }
+        if (isDock) {
+            return 1;
+        }
+        if (kCustomGridEnabled) {
+            NSString *loc = nil;
+            if ([self respondsToSelector:@selector(iconLocation)]) {
+                loc = [self performSelector:@selector(iconLocation)];
+            }
+            if (!loc || [loc isEqualToString:@"SBIconLocationRoot"]) {
+                return (NSUInteger)kHomeColumns;
+            }
         }
     }
     if (orig_SBIconListView_iconColumnsForCurrentOrientation) {

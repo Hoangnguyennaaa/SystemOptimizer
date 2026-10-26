@@ -26,5 +26,7 @@
 
 @interface DuoDockRootListController : PSListController
 - (void)respring;
+- (void)respring:(id)sender;
 - (void)resetToDefaults;
+- (void)resetToDefaults:(id)sender;
 @end

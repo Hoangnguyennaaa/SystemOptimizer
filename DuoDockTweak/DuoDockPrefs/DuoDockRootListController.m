@@ -94,6 +94,97 @@
     [self respringPrompt];
 }
 
+- (void)resetToDefaults {
+    [self resetToDefaults:nil];
+}
+
+- (void)resetToDefaults:(id)sender {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DuoDock"
+                                                                   message:@"Bạn có chắc chắn muốn khôi phục toàn bộ cài đặt DuoDock về mặc định ban đầu không?"
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    
+    UIAlertAction *resetAction = [UIAlertAction actionWithTitle:@"Đặt lại mặc định"
+                                                          style:UIAlertActionStyleDestructive
+                                                        handler:^(UIAlertAction * _Nonnull action) {
+        [self performResetToDefaults];
+    }];
+    
+    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Huỷ"
+                                                           style:UIAlertActionStyleCancel
+                                                         handler:nil];
+    
+    [alert addAction:resetAction];
+    [alert addAction:cancelAction];
+    
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)performResetToDefaults {
+    NSString *path = PREF_PATH_ROOTLESS;
+    NSString *dir = [path stringByDeletingLastPathComponent];
+    
+    if (![[NSFileManager defaultManager] fileExistsAtPath:dir]) {
+        [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+    }
+    
+    NSDictionary *defaults = @{
+        @"enabled": @YES,
+        @"dragModeEnabled": @NO,
+        @"dockSide": @1,
+        @"dockIconCount": @4,
+        @"dockIconScale": @(0.85),
+        @"dockWidth": @(78.0),
+        @"dockHeight": @(330.0),
+        @"rightMargin": @(10.0),
+        @"verticalOffset": @(0.0),
+        @"cornerRadius": @(39.0),
+        @"dockBlurAlpha": @(0.82),
+        @"dockBlurEnabled": @YES,
+        @"dockBlurStyle": @0,
+        @"dockBorderEnabled": @NO,
+        @"dockBorderWidth": @(1.0),
+        @"dockShadowEnabled": @YES,
+        @"hideDockLabels": @YES,
+        @"homeCompressGrid": @YES,
+        @"homeRightInset": @(88.0),
+        @"expandBottomRows": @YES,
+        @"customGridEnabled": @NO,
+        @"homeRows": @7,
+        @"homeColumns": @4,
+        @"homeIconScale": @(0.90)
+    };
+    
+    [defaults writeToFile:path atomically:YES];
+    
+    if ([[NSFileManager defaultManager] fileExistsAtPath:PREF_PATH_ROOTFUL]) {
+        [defaults writeToFile:PREF_PATH_ROOTFUL atomically:YES];
+    }
+    
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        CFSTR(PREF_CHANGED_NOTIFICATION),
+        NULL,
+        NULL,
+        YES
+    );
+    
+    [self reloadSpecifiers];
+    
+    UIAlertController *doneAlert = [UIAlertController alertControllerWithTitle:@"Đã khôi phục"
+                                                                       message:@"Toàn bộ cài đặt DuoDock đã được đưa về mặc định. Khởi động lại SpringBoard (Respring) ngay để áp dụng?"
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+    [doneAlert addAction:[UIAlertAction actionWithTitle:@"Respring ngay"
+                                                  style:UIAlertActionStyleDestructive
+                                                handler:^(UIAlertAction * _Nonnull action) {
+        [self performRespring];
+    }]];
+    [doneAlert addAction:[UIAlertAction actionWithTitle:@"Để sau"
+                                                  style:UIAlertActionStyleCancel
+                                                handler:nil]];
+    
+    [self presentViewController:doneAlert animated:YES completion:nil];
+}
+
 - (void)respringPrompt {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DuoDock"
                                                                    message:@"Khởi động lại SpringBoard (Respring) để áp dụng ngay các thay đổi?"

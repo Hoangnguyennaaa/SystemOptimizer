@@ -92,9 +92,9 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>SỐ LƯỢNG ICON TRÊN DOCK</string>
+			<string>SỐ LƯỢNG ICON TRÊN DOCK (2 - 8 ICON)</string>
 			<key>footerText</key>
-			<string>Chọn số lượng icon hiển thị trên thanh Dock dọc.</string>
+			<string>Chọn số lượng icon trên Dock (mở khóa cho phép kéo thả tối đa 8 ứng dụng vào thanh Dock dọc). DuoDock tự căn đều khoảng cách và chống đè icon.</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -107,6 +107,7 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<string>dockIconCount</string>
 			<key>validValues</key>
 			<array>
+				<integer>2</integer>
 				<integer>3</integer>
 				<integer>4</integer>
 				<integer>5</integer>
@@ -116,6 +117,7 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			</array>
 			<key>validTitles</key>
 			<array>
+				<string>2</string>
 				<string>3</string>
 				<string>4</string>
 				<string>5</string>
@@ -579,6 +581,24 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
 
+		<!-- KHÔI PHỤC CÀI ĐẶT MẶC ĐỊNH -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>KHÔI PHỤC CÀI ĐẶT MẶC ĐỊNH</string>
+			<key>footerText</key>
+			<string>Đặt lại toàn bộ vị trí dock, kích thước, hiệu ứng mờ, hàng &amp; cột icon về cấu hình mặc định gốc.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSButtonCell</string>
+			<key>label</key>
+			<string>Đặt lại cài đặt mặc định (Reset)</string>
+			<key>action</key>
+			<string>resetToDefaults:</string>
+		</dict>
+
 		<!-- THAO TÁC HỆ THỐNG -->
 		<dict>
 			<key>cell</key>
@@ -604,8 +624,8 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<key>footerAlignment</key>
 			<integer>1</integer>
 			<key>footerText</key>
-			<string>DuoDock v1.7.0 (Tối ưu 120Hz mượt mà, Tùy biến Dock chuyên sâu)
-Vô hiệu hóa FloatingDockXVI triệt để</string>
+			<string>DuoDock v1.7.1 (Tùy chỉnh số lượng icon &amp; Đặt về mặc định)
+Tối ưu 120Hz mượt mà, vô hiệu hóa FloatingDockXVI</string>
 		</dict>
 	</array>
 	<key>title</key>

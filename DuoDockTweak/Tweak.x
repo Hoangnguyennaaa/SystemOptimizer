@@ -177,7 +177,11 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
             CGPoint targetCenter = CGPointMake(dockW / 2.0, centerY);
             
             iconView.center = targetCenter;
-            iconView.transform = CGAffineTransformMakeScale(kDockIconScale, kDockIconScale);
+            
+            CGFloat maxSlotScale = (slotHeight * 0.88) / 60.0;
+            CGFloat effectiveScale = MIN(kDockIconScale, maxSlotScale);
+            if (effectiveScale < 0.40) effectiveScale = 0.40;
+            iconView.transform = CGAffineTransformMakeScale(effectiveScale, effectiveScale);
             
             if ([iconView respondsToSelector:@selector(setLabelHidden:)]) {
                 [iconView setLabelHidden:kHideDockLabels];
@@ -390,8 +394,18 @@ static void attachInteractiveGestures(UIView *dockView) {
 }
 
 - (NSUInteger)maximumIconCount {
-    if (kEnabled && kCustomGridEnabled) {
-        if (!self.isDock && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
+    if (kEnabled) {
+        BOOL isDock = NO;
+        if ([self respondsToSelector:@selector(isDock)]) {
+            isDock = [self isDock];
+        }
+        if (!isDock && [self isKindOfClass:%c(SBDockIconListView)]) {
+            isDock = YES;
+        }
+        if (isDock) {
+            return (NSUInteger)(kDockIconCount > 0 ? kDockIconCount : 4);
+        }
+        if (kCustomGridEnabled && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
             return (NSUInteger)(kHomeRows * kHomeColumns);
         }
     }
@@ -399,8 +413,18 @@ static void attachInteractiveGestures(UIView *dockView) {
 }
 
 - (NSUInteger)iconRowsForCurrentOrientation {
-    if (kEnabled && kCustomGridEnabled) {
-        if (!self.isDock && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
+    if (kEnabled) {
+        BOOL isDock = NO;
+        if ([self respondsToSelector:@selector(isDock)]) {
+            isDock = [self isDock];
+        }
+        if (!isDock && [self isKindOfClass:%c(SBDockIconListView)]) {
+            isDock = YES;
+        }
+        if (isDock) {
+            return (NSUInteger)(kDockIconCount > 0 ? kDockIconCount : 4);
+        }
+        if (kCustomGridEnabled && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
             return (NSUInteger)kHomeRows;
         }
     }
@@ -408,8 +432,18 @@ static void attachInteractiveGestures(UIView *dockView) {
 }
 
 - (NSUInteger)iconColumnsForCurrentOrientation {
-    if (kEnabled && kCustomGridEnabled) {
-        if (!self.isDock && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
+    if (kEnabled) {
+        BOOL isDock = NO;
+        if ([self respondsToSelector:@selector(isDock)]) {
+            isDock = [self isDock];
+        }
+        if (!isDock && [self isKindOfClass:%c(SBDockIconListView)]) {
+            isDock = YES;
+        }
+        if (isDock) {
+            return 1;
+        }
+        if (kCustomGridEnabled && (!self.iconLocation || [self.iconLocation isEqualToString:@"SBIconLocationRoot"])) {
             return (NSUInteger)kHomeColumns;
         }
     }
