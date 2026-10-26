@@ -16,6 +16,8 @@ static BOOL kHomeCompressGrid = YES;
 static CGFloat kHomeRightInset = 90.0;
 static BOOL kExpandBottomRows = YES;
 
+static BOOL isLayingOutDock = NO;
+
 // MARK: - Preference Loader
 static void loadPreferences() {
     NSString *prefPath = PREF_PATH_ROOTLESS;
@@ -65,9 +67,7 @@ static void preferencesChanged(CFNotificationCenterRef center, void *observer, C
         @try {
             SBIconController *iconController = [%c(SBIconController) sharedInstance];
             if ([iconController respondsToSelector:@selector(relayout)]) {
-                [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
-                    [iconController relayout];
-                } completion:nil];
+                [iconController relayout];
             }
         } @catch (NSException *e) {}
     });
@@ -111,10 +111,15 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
     for (NSUInteger i = 0; i < count; i++) {
         SBIconView *iconView = icons[i];
         CGFloat centerY = topPadding + (i * slotHeight) + (slotHeight / 2.0);
+        CGPoint targetCenter = CGPointMake(dockW / 2.0, centerY);
+        CGRect targetBounds = CGRectMake(0, 0, iconSize, iconSize);
         
-        iconView.bounds = CGRectMake(0, 0, iconSize, iconSize);
-        iconView.center = CGPointMake(dockW / 2.0, centerY);
-        iconView.transform = CGAffineTransformIdentity;
+        if (!CGPointEqualToPoint(iconView.center, targetCenter)) {
+            iconView.center = targetCenter;
+        }
+        if (!CGRectEqualToRect(iconView.bounds, targetBounds)) {
+            iconView.bounds = targetBounds;
+        }
         
         if ([iconView respondsToSelector:@selector(setLabelHidden:)]) {
             [iconView setLabelHidden:YES];
@@ -128,22 +133,27 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
 - (void)layoutSubviews {
     %orig;
     if (!kEnabled) return;
+    if (isLayingOutDock) return;
     
     @try {
-        // Chế độ 1: Kết hợp FloatingDockXVI -> Ẩn hoàn toàn SBDockView đáy để không bị đè 2 dock
+        // Chế độ 1: Kết hợp FloatingDockXVI -> Ẩn dock gốc ở đáy
         if (kDockMode == 1) {
-            self.hidden = YES;
-            self.alpha = 0.0;
-            self.frame = CGRectZero;
+            if (!self.hidden) {
+                self.hidden = YES;
+                self.alpha = 0.0;
+            }
             return;
         }
         
-        // Chế độ 0: Độc lập -> Đưa SBDockView thành dock dọc bám phải
+        // Chế độ 0: Độc lập
+        isLayingOutDock = YES;
         self.hidden = NO;
         self.alpha = 1.0;
         
         CGRect dockFrame = calculateDuoDockFrame();
-        self.frame = dockFrame;
+        if (!CGRectEqualToRect(self.frame, dockFrame)) {
+            self.frame = dockFrame;
+        }
         
         CGFloat radius = (kCornerRadius > 0) ? kCornerRadius : (dockFrame.size.width / 2.0);
         self.layer.cornerRadius = radius;
@@ -179,12 +189,15 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
             iconListView.frame = self.bounds;
             applyVerticalIconLayout(iconListView, dockFrame.size.width, dockFrame.size.height);
         }
-    } @catch (NSException *e) {}
+        isLayingOutDock = NO;
+    } @catch (NSException *e) {
+        isLayingOutDock = NO;
+    }
 }
 
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     if (kEnabled) {
-        if (kDockMode == 1) return nil; // Nếu đang chạy FloatingDockXVI, không nhận cảm ứng ở dock gốc
+        if (kDockMode == 1 || self.hidden || self.alpha < 0.01) return nil;
         if (!CGRectContainsPoint(self.bounds, point)) return nil;
     }
     return %orig(point, event);
@@ -198,57 +211,33 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
 - (CGRect)_frameForDockView {
     if (kEnabled) {
         if (kDockMode == 1) {
-            return CGRectZero; // Ẩn vùng dock đáy cho FloatingDock
+            return CGRectMake(0, [UIScreen mainScreen].bounds.size.height + 200, 0, 0);
         }
         return calculateDuoDockFrame();
     }
     return %orig;
 }
 
-- (CGRect)_frameForIconListViewAtIndex:(NSUInteger)arg1 {
-    CGRect origFrame = %orig;
-    if (!kEnabled) return origFrame;
-    
-    @try {
-        CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
-        if (kExpandBottomRows) {
-            CGFloat bottomPadding = 32.0;
-            origFrame.size.height = screenHeight - origFrame.origin.y - bottomPadding;
-        }
-    } @catch (NSException *e) {}
-    
-    return origFrame;
-}
-
 %end
 
-// MARK: - Hook SBIconListView (Anti-Overlap & Scale)
+// MARK: - Hook SBIconListView (Layout Insets - Native & Zero Lag)
 %hook SBIconListView
 
-- (void)layoutSubviews {
-    %orig;
-    if (!kEnabled) return;
+- (UIEdgeInsets)layoutInsetsForOrientation:(NSInteger)orientation {
+    UIEdgeInsets insets = %orig;
+    if (!kEnabled) return insets;
     
     @try {
-        // Chỉ xử lý màn hình chính (không xử lý trong dock)
         if (!self.isDock && [self.iconLocation isEqualToString:@"SBIconLocationRoot"]) {
-            if (kHomeCompressGrid) {
-                CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-                CGFloat dockOccupiedWidth = kDockWidth + kRightMargin + 14.0;
-                CGFloat availableWidth = screenWidth - dockOccupiedWidth;
-                CGFloat scaleRatio = availableWidth / screenWidth;
-                
-                for (UIView *subview in self.subviews) {
-                    if ([subview isKindOfClass:%c(SBIconView)]) {
-                        CGPoint center = subview.center;
-                        CGFloat newX = (center.x * scaleRatio) + 6.0;
-                        subview.center = CGPointMake(newX, center.y);
-                        subview.transform = CGAffineTransformMakeScale(scaleRatio, scaleRatio);
-                    }
-                }
+            // Lùi lề phải để nhường không gian cho DuoDock mà không phá vỡ cử chỉ vuốt
+            insets.right += (kDockWidth + kRightMargin + 10.0);
+            if (kExpandBottomRows) {
+                insets.bottom = 8.0;
             }
         }
     } @catch (NSException *e) {}
+    
+    return insets;
 }
 
 - (NSUInteger)maximumIconCount {
@@ -266,21 +255,26 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
 - (void)layoutSubviews {
     %orig;
     if (!kEnabled) return;
+    if (isLayingOutDock) return;
     
     @try {
-        // Chế độ 0: Độc lập -> Ẩn FloatingDock để tránh capsule rỗng
+        // Chế độ 0: Độc lập -> Ẩn FloatingDock
         if (kDockMode == 0) {
-            self.hidden = YES;
-            self.alpha = 0.0;
+            if (!self.hidden) {
+                self.hidden = YES;
+                self.alpha = 0.0;
+            }
             return;
         }
         
-        // Chế độ 1: Kết hợp FloatingDockXVI
+        isLayingOutDock = YES;
         self.hidden = NO;
         self.alpha = 1.0;
         
         CGRect dockFrame = calculateDuoDockFrame();
-        self.frame = dockFrame;
+        if (!CGRectEqualToRect(self.frame, dockFrame)) {
+            self.frame = dockFrame;
+        }
         
         CGFloat radius = (kCornerRadius > 0) ? kCornerRadius : (dockFrame.size.width / 2.0);
         self.layer.cornerRadius = radius;
@@ -315,12 +309,15 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
             userIcons.frame = self.bounds;
             applyVerticalIconLayout(userIcons, dockFrame.size.width, dockFrame.size.height);
         }
-    } @catch (NSException *e) {}
+        isLayingOutDock = NO;
+    } @catch (NSException *e) {
+        isLayingOutDock = NO;
+    }
 }
 
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     if (kEnabled) {
-        if (kDockMode == 0) return nil;
+        if (kDockMode == 0 || self.hidden || self.alpha < 0.01) return nil;
         if (!CGRectContainsPoint(self.bounds, point)) return nil;
     }
     return %orig(point, event);
