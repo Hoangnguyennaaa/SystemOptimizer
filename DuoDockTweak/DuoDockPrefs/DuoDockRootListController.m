@@ -8,6 +8,11 @@
 #define PREF_CHANGED_NOTIFICATION "com.hoangnguyen.duodock/preferences.changed"
 #define PREF_RESPRING_NOTIFICATION "com.hoangnguyen.duodock/respring"
 
+@interface PSSpecifier (DuoDock)
+- (id)propertyForKey:(NSString *)key;
+- (void)setProperty:(id)value forKey:(NSString *)key;
+@end
+
 @interface DuoDockRootListController () {
     NSMutableArray *_specifiers;
 }
