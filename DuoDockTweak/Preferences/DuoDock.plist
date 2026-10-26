@@ -308,6 +308,72 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
 
+		<!-- BỐ TRÍ MÀN HÌNH CHÍNH & TRÁNH ĐÈ DOCK -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>BỐ TRÍ MÀN HÌNH CHÍNH (TRÁNH ĐÈ DOCK)</string>
+			<key>footerText</key>
+			<string>Tự động lùi lề phải của lưới icon để thanh Dock dọc không bao giờ đè lên các icon bên phải màn hình.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>homeCompressGrid</string>
+			<key>label</key>
+			<string>Thu hẹp lề phải tránh Dock</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>88.0</real>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>homeRightInset</string>
+			<key>min</key>
+			<real>60.0</real>
+			<key>max</key>
+			<real>120.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
+		</dict>
+
+		<!-- TẬN DỤNG KHÔNG GIAN ĐÁY MÀN HÌNH -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>TẬN DỤNG KHÔNG GIAN ĐÁY MÀN HÌNH</string>
+			<key>footerText</key>
+			<string>Giải phóng toàn bộ 90pt vùng đáy của Dock cũ, kéo dài lưới icon xuống sát đáy và cho phép hiển thị thêm 1 hàng icon/widget mới.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>expandBottomRows</string>
+			<key>label</key>
+			<string>Tràn icon xuống đáy (Dock cũ)</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
+		</dict>
+
 		<!-- THAO TÁC HỆ THỐNG -->
 		<dict>
 			<key>cell</key>
@@ -333,7 +399,7 @@ TẮT công tắc này khi đã căn chỉnh xong để cố định vị trí.<
 			<key>footerAlignment</key>
 			<integer>1</integer>
 			<key>footerText</key>
-			<string>DuoDock v1.4.0 (Interactive Drag &amp; Pinch-to-Scale)
+			<string>DuoDock v1.5.0 (Tràn đáy dock cũ &amp; Chống đè icon)
 Kéo thả và phóng to thu nhỏ trực tiếp trên màn hình</string>
 		</dict>
 	</array>

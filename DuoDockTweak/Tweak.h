@@ -19,6 +19,13 @@
 @property (nonatomic, readonly) BOOL isDock;
 - (NSArray<SBIconView *> *)displayedIconViews;
 - (NSUInteger)maximumIconCount;
+- (UIEdgeInsets)layoutInsetsForOrientation:(NSInteger)orientation;
+@end
+
+@interface SBIconListGridLayoutConfiguration : NSObject
+@property (nonatomic, assign) NSUInteger numberOfPortraitRows;
+@property (nonatomic, assign) NSUInteger numberOfPortraitColumns;
+@property (nonatomic, assign) UIEdgeInsets portraitLayoutInsets;
 @end
 
 @interface SBDockIconListView : SBIconListView

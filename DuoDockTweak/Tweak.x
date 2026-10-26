@@ -13,6 +13,9 @@ static CGFloat kVerticalOffset = 0.0;
 static CGFloat kCornerRadius = 39.0;
 static CGFloat kDockBlurAlpha = 0.82;
 static BOOL kDockBlurEnabled = YES;
+static BOOL kHomeCompressGrid = YES;
+static CGFloat kHomeRightInset = 88.0;
+static BOOL kExpandBottomRows = YES;
 
 static BOOL isLayingOutDock = NO;
 
@@ -52,6 +55,9 @@ static void loadPreferences() {
         kCornerRadius = prefs[@"cornerRadius"] ? [prefs[@"cornerRadius"] doubleValue] : (kDockWidth / 2.0);
         kDockBlurAlpha = prefs[@"dockBlurAlpha"] ? [prefs[@"dockBlurAlpha"] doubleValue] : 0.82;
         kDockBlurEnabled = prefs[@"dockBlurEnabled"] ? [prefs[@"dockBlurEnabled"] boolValue] : YES;
+        kHomeCompressGrid = prefs[@"homeCompressGrid"] ? [prefs[@"homeCompressGrid"] boolValue] : YES;
+        kHomeRightInset = prefs[@"homeRightInset"] ? [prefs[@"homeRightInset"] doubleValue] : 88.0;
+        kExpandBottomRows = prefs[@"expandBottomRows"] ? [prefs[@"expandBottomRows"] boolValue] : YES;
     }
 }
 
@@ -267,7 +273,10 @@ static void attachInteractiveGestures(UIView *dockView) {
         if (useFloating) {
             return %orig;
         }
-        return calculateDuoDockFrame();
+        // Cho dock độc lập: Đặt frame dock ảo ở mép dưới để SBRootFolderView giải phóng 90pt diện tích đáy
+        // và không ép pageControl lên giữa màn hình. SBDockView sẽ tự định vị sang cạnh phải.
+        CGRect screenBounds = [UIScreen mainScreen].bounds;
+        return CGRectMake(0, screenBounds.size.height, screenBounds.size.width, 0);
     }
     return %orig;
 }
@@ -277,10 +286,92 @@ static void attachInteractiveGestures(UIView *dockView) {
     if (!kEnabled) return orig;
     
     CGRect screenBounds = [UIScreen mainScreen].bounds;
-    orig.origin.x = 0;
-    orig.size.width = screenBounds.size.width;
-    orig.size.height = screenBounds.size.height - orig.origin.y - 70.0;
+    // GIỮ NGUYÊN orig.origin.x để mỗi trang (index 0, 1, 2...) có vị trí phân trang chính xác trong UIScrollView!
+    // Kéo dài chiều cao xuống tận đáy: chỉ chừa 18pt cho thanh Home bar / page dots
+    CGFloat bottomPadding = (kExpandBottomRows) ? 18.0 : 48.0;
+    orig.size.height = screenBounds.size.height - orig.origin.y - bottomPadding;
     return orig;
+}
+
+%end
+
+// MARK: - Hook SBIconListView (Anti-Overlap & Expand Bottom)
+%hook SBIconListView
+
+- (UIEdgeInsets)layoutInsetsForOrientation:(NSInteger)orientation {
+    UIEdgeInsets insets = %orig;
+    if (!kEnabled) return insets;
+    
+    NSString *loc = nil;
+    if ([self respondsToSelector:@selector(iconLocation)]) {
+        loc = [self iconLocation];
+    }
+    BOOL isDock = NO;
+    if ([self respondsToSelector:@selector(isDock)]) {
+        isDock = [self isDock];
+    }
+    
+    if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
+        CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+        
+        // 1. Thu hẹp lề phải để nhường chỗ cho DuoDock, không bao giờ để Dock đè lên icon
+        if (kHomeCompressGrid) {
+            CGFloat dockOccupied = (kHomeRightInset > 0) ? kHomeRightInset : (kDockWidth + kRightMargin + 10.0);
+            CGFloat maxRight = screenWidth - insets.left - 240.0;
+            if (maxRight > 20.0 && dockOccupied > maxRight) {
+                dockOccupied = maxRight;
+            }
+            insets.right = dockOccupied;
+            
+            if (insets.left > 14.0) {
+                insets.left = 12.0;
+            }
+        }
+        
+        // 2. Tràn xuống đáy màn hình (chiếm chỗ của Dock cũ)
+        if (kExpandBottomRows) {
+            insets.bottom = 12.0;
+        }
+    }
+    return insets;
+}
+
+%end
+
+// MARK: - Hook SBIconListGridLayoutConfiguration (Expand Rows & Insets)
+%hook SBIconListGridLayoutConfiguration
+
+- (NSUInteger)numberOfPortraitRows {
+    NSUInteger orig = %orig;
+    if (kEnabled && kExpandBottomRows) {
+        if (orig >= 5) {
+            return orig + 1;
+        }
+    }
+    return orig;
+}
+
+- (UIEdgeInsets)portraitLayoutInsets {
+    UIEdgeInsets insets = %orig;
+    if (!kEnabled) return insets;
+    
+    if (kExpandBottomRows && insets.bottom > 40.0) {
+        insets.bottom = 14.0;
+    }
+    
+    if (kHomeCompressGrid && insets.bottom > 0) {
+        CGFloat dockOccupied = (kHomeRightInset > 0) ? kHomeRightInset : (kDockWidth + kRightMargin + 10.0);
+        CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+        CGFloat maxRight = screenWidth - insets.left - 240.0;
+        if (maxRight > 20.0 && dockOccupied > maxRight) {
+            dockOccupied = maxRight;
+        }
+        insets.right = dockOccupied;
+        if (insets.left > 14.0) {
+            insets.left = 12.0;
+        }
+    }
+    return insets;
 }
 
 %end

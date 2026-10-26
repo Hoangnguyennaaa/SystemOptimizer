@@ -13,6 +13,9 @@ static CGFloat kVerticalOffset = 0.0;
 static CGFloat kCornerRadius = 39.0;
 static CGFloat kDockBlurAlpha = 0.82;
 static BOOL kDockBlurEnabled = YES;
+static BOOL kHomeCompressGrid = YES;
+static CGFloat kHomeRightInset = 88.0;
+static BOOL kExpandBottomRows = YES;
 
 static BOOL isLayingOutDock = NO;
 
@@ -52,6 +55,9 @@ static void loadPreferences(void) {
         kCornerRadius = prefs[@"cornerRadius"] ? [prefs[@"cornerRadius"] doubleValue] : (kDockWidth / 2.0);
         kDockBlurAlpha = prefs[@"dockBlurAlpha"] ? [prefs[@"dockBlurAlpha"] doubleValue] : 0.82;
         kDockBlurEnabled = prefs[@"dockBlurEnabled"] ? [prefs[@"dockBlurEnabled"] boolValue] : YES;
+        kHomeCompressGrid = prefs[@"homeCompressGrid"] ? [prefs[@"homeCompressGrid"] boolValue] : YES;
+        kHomeRightInset = prefs[@"homeRightInset"] ? [prefs[@"homeRightInset"] doubleValue] : 88.0;
+        kExpandBottomRows = prefs[@"expandBottomRows"] ? [prefs[@"expandBottomRows"] boolValue] : YES;
     }
 }
 
@@ -292,7 +298,10 @@ static CGRect custom_SBRootFolderView_frameForDockView(id self, SEL _cmd) {
                 return orig_SBRootFolderView_frameForDockView(self, _cmd);
             }
         }
-        return calculateDuoDockFrame();
+        // Cho dock độc lập: Đặt frame dock ảo ở mép dưới để SBRootFolderView giải phóng 90pt diện tích đáy
+        // và không ép pageControl lên giữa màn hình. SBDockView sẽ tự định vị sang cạnh phải.
+        CGRect screenBounds = [UIScreen mainScreen].bounds;
+        return CGRectMake(0, screenBounds.size.height, screenBounds.size.width, 0);
     }
     if (orig_SBRootFolderView_frameForDockView) {
         return orig_SBRootFolderView_frameForDockView(self, _cmd);
@@ -309,10 +318,99 @@ static CGRect custom_SBRootFolderView_frameForIconListViewAtIndex(id self, SEL _
     if (!kEnabled) return orig;
     
     CGRect screenBounds = [UIScreen mainScreen].bounds;
-    orig.origin.x = 0;
-    orig.size.width = screenBounds.size.width;
-    orig.size.height = screenBounds.size.height - orig.origin.y - 70.0;
+    // GIỮ NGUYÊN orig.origin.x để mỗi trang (index 0, 1, 2...) có vị trí phân trang chính xác trong UIScrollView!
+    // Kéo dài chiều cao xuống tận đáy: chỉ chừa 18pt cho thanh Home bar / page dots
+    CGFloat bottomPadding = (kExpandBottomRows) ? 18.0 : 48.0;
+    orig.size.height = screenBounds.size.height - orig.origin.y - bottomPadding;
     return orig;
+}
+
+// MARK: - SBIconListView Hooks (Anti-Overlap & Expand Bottom)
+static UIEdgeInsets (*orig_SBIconListView_layoutInsetsForOrientation)(id, SEL, NSInteger);
+static UIEdgeInsets custom_SBIconListView_layoutInsetsForOrientation(UIView *self, SEL _cmd, NSInteger orientation) {
+    UIEdgeInsets insets = UIEdgeInsetsZero;
+    if (orig_SBIconListView_layoutInsetsForOrientation) {
+        insets = orig_SBIconListView_layoutInsetsForOrientation(self, _cmd, orientation);
+    }
+    if (!kEnabled) return insets;
+    
+    NSString *loc = nil;
+    if ([self respondsToSelector:@selector(iconLocation)]) {
+        loc = [self performSelector:@selector(iconLocation)];
+    }
+    BOOL isDock = NO;
+    if ([self respondsToSelector:@selector(isDock)]) {
+        isDock = ((BOOL (*)(id, SEL))objc_msgSend)(self, @selector(isDock));
+    }
+    
+    // Chỉ can thiệp lưới icon của trang chính màn hình (Root), không can thiệp dock hay thư mục con
+    if (!isDock && (!loc || [loc isEqualToString:@"SBIconLocationRoot"])) {
+        CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+        
+        // 1. Thu hẹp lề phải để nhường chỗ cho DuoDock, không bao giờ để Dock đè lên icon
+        if (kHomeCompressGrid) {
+            CGFloat dockOccupied = (kHomeRightInset > 0) ? kHomeRightInset : (kDockWidth + kRightMargin + 10.0);
+            CGFloat maxRight = screenWidth - insets.left - 240.0;
+            if (maxRight > 20.0 && dockOccupied > maxRight) {
+                dockOccupied = maxRight;
+            }
+            insets.right = dockOccupied;
+            
+            if (insets.left > 14.0) {
+                insets.left = 12.0;
+            }
+        }
+        
+        // 2. Tràn xuống đáy màn hình (chiếm chỗ của Dock cũ)
+        if (kExpandBottomRows) {
+            insets.bottom = 12.0;
+        }
+    }
+    return insets;
+}
+
+// MARK: - SBIconListGridLayoutConfiguration Hooks (Expand Rows & Insets)
+static NSUInteger (*orig_SBIconListGridLayoutConfiguration_numberOfPortraitRows)(id, SEL);
+static NSUInteger custom_SBIconListGridLayoutConfiguration_numberOfPortraitRows(id self, SEL _cmd) {
+    NSUInteger orig = 6;
+    if (orig_SBIconListGridLayoutConfiguration_numberOfPortraitRows) {
+        orig = orig_SBIconListGridLayoutConfiguration_numberOfPortraitRows(self, _cmd);
+    }
+    if (kEnabled && kExpandBottomRows) {
+        // Mở rộng thêm 1 hàng trên màn hình chính (mặc định iPhone là 5 hoặc 6 hàng)
+        // Dock luôn là 1 hàng, Thư mục (folder) luôn là 3-4 hàng
+        if (orig >= 5) {
+            return orig + 1;
+        }
+    }
+    return orig;
+}
+
+static UIEdgeInsets (*orig_SBIconListGridLayoutConfiguration_portraitLayoutInsets)(id, SEL);
+static UIEdgeInsets custom_SBIconListGridLayoutConfiguration_portraitLayoutInsets(id self, SEL _cmd) {
+    UIEdgeInsets insets = UIEdgeInsetsZero;
+    if (orig_SBIconListGridLayoutConfiguration_portraitLayoutInsets) {
+        insets = orig_SBIconListGridLayoutConfiguration_portraitLayoutInsets(self, _cmd);
+    }
+    if (!kEnabled) return insets;
+    
+    if (kExpandBottomRows && insets.bottom > 40.0) {
+        insets.bottom = 14.0;
+    }
+    
+    if (kHomeCompressGrid && insets.bottom > 0) {
+        CGFloat dockOccupied = (kHomeRightInset > 0) ? kHomeRightInset : (kDockWidth + kRightMargin + 10.0);
+        CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+        CGFloat maxRight = screenWidth - insets.left - 240.0;
+        if (maxRight > 20.0 && dockOccupied > maxRight) {
+            dockOccupied = maxRight;
+        }
+        insets.right = dockOccupied;
+        if (insets.left > 14.0) {
+            insets.left = 12.0;
+        }
+    }
+    return insets;
 }
 
 // MARK: - SBDockView Hooks
@@ -452,6 +550,19 @@ __attribute__((constructor)) static void DuoDockInit(void) {
         if (rootFolderClass) {
             SafeSwizzle(rootFolderClass, @selector(_frameForDockView), (IMP)custom_SBRootFolderView_frameForDockView, (IMP *)&orig_SBRootFolderView_frameForDockView);
             SafeSwizzle(rootFolderClass, @selector(_frameForIconListViewAtIndex:), (IMP)custom_SBRootFolderView_frameForIconListViewAtIndex, (IMP *)&orig_SBRootFolderView_frameForIconListViewAtIndex);
+        }
+        
+        // Swizzle SBIconListView (Anti-Overlap & Expand Bottom)
+        Class iconListViewClass = objc_getClass("SBIconListView");
+        if (iconListViewClass) {
+            SafeSwizzle(iconListViewClass, @selector(layoutInsetsForOrientation:), (IMP)custom_SBIconListView_layoutInsetsForOrientation, (IMP *)&orig_SBIconListView_layoutInsetsForOrientation);
+        }
+        
+        // Swizzle SBIconListGridLayoutConfiguration (Expand Rows & Insets)
+        Class gridConfigClass = objc_getClass("SBIconListGridLayoutConfiguration");
+        if (gridConfigClass) {
+            SafeSwizzle(gridConfigClass, @selector(numberOfPortraitRows), (IMP)custom_SBIconListGridLayoutConfiguration_numberOfPortraitRows, (IMP *)&orig_SBIconListGridLayoutConfiguration_numberOfPortraitRows);
+            SafeSwizzle(gridConfigClass, @selector(portraitLayoutInsets), (IMP)custom_SBIconListGridLayoutConfiguration_portraitLayoutInsets, (IMP *)&orig_SBIconListGridLayoutConfiguration_portraitLayoutInsets);
         }
         
         // Swizzle SBFloatingDockView
