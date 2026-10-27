@@ -1262,6 +1262,7 @@ static void registerIOKitPowerNotification(void) {
 }
 
 - (void)applyPreferences {
+    self.showRAM = p_showRAM;
     [self rebuildGaugePaths];
     CGFloat scale = 1.0;
     if (self.isControlCenter) {
@@ -1353,13 +1354,13 @@ static void registerIOKitPowerNotification(void) {
             }
             CGFloat totalW = self.pillContainerView.frame.size.width;
             if (totalW < 22.0) totalW = 22.0;
-            self.anchorCenter = CGPointMake(self.center.x + (totalW - 22.0) / 2.0 - offX, self.center.y - offY);
+            self.anchorCenter = CGPointMake(self.center.x - (totalW - 22.0) / 2.0 - offX, self.center.y - offY);
         }
     }
 
     CGFloat totalW = self.pillContainerView.frame.size.width;
     if (totalW < 22.0) totalW = 22.0;
-    CGFloat curX = (self.center.x + (totalW - 22.0) / 2.0) - self.anchorCenter.x;
+    CGFloat curX = (self.center.x - (totalW - 22.0) / 2.0) - self.anchorCenter.x;
     CGFloat curY = self.center.y - self.anchorCenter.y;
     BOOL inApp = isAppOrLockScreen(self);
     if (self.isControlCenter) {
@@ -1875,7 +1876,17 @@ static void executeAction(int actionCode, CompactStatusView *view) {
 
 - (void)toggleRAMDisplay {
     self.showRAM = !self.showRAM;
+    p_showRAM = self.showRAM;
+    savePreferenceNumber(@"showRAM", @(self.showRAM));
     [self updateStats];
+    if (g_activeStatusView && g_activeStatusView != self) {
+        g_activeStatusView.showRAM = self.showRAM;
+        [g_activeStatusView updateStats];
+    }
+    if (g_activeCCStatusView && g_activeCCStatusView != self) {
+        g_activeCCStatusView.showRAM = self.showRAM;
+        [g_activeCCStatusView updateStats];
+    }
 }
 
 // MARK: - HUD Popup: Interactive Frosted Card
@@ -2176,7 +2187,6 @@ static void executeAction(int actionCode, CompactStatusView *view) {
 
     if (p_batteryPercentMode == 4) {
         CGFloat oStart = 151.5;
-        CGFloat sweep = 237.0;
         BOOL isFull = (pct >= 100);
         CGFloat leftTopEnd = isFull ? 231.0 : 236.0;
         CGFloat rightTopStart = isFull ? 309.0 : 304.0;
@@ -2188,16 +2198,16 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         [crownTrack appendPath:rTrack];
         _trackLayer.path = crownTrack.CGPath;
 
-        CGFloat progressAngle = oStart + sweep * lvl;
+        CGFloat leftSpan = leftTopEnd - oStart;
+        CGFloat fillSpan = leftSpan * lvl;
+
         UIBezierPath *progPath = [UIBezierPath bezierPath];
-        CGFloat leftProgEnd = MIN(progressAngle, leftTopEnd);
-        if (leftProgEnd > oStart) {
-            [progPath addArcWithCenter:center radius:radius startAngle:oStart * M_PI / 180.0 endAngle:leftProgEnd * M_PI / 180.0 clockwise:YES];
-        }
-        if (progressAngle > rightTopStart) {
-            CGFloat rightProgEnd = MIN(progressAngle, oEnd);
-            UIBezierPath *rProg = [UIBezierPath bezierPathWithArcCenter:center radius:radius startAngle:rightTopStart * M_PI / 180.0 endAngle:rightProgEnd * M_PI / 180.0 clockwise:YES];
-            [progPath appendPath:rProg];
+        if (fillSpan > 0.1) {
+            // Cánh trái: tăng đều đặn từ đáy (151.5°) lên đỉnh (236°)
+            [progPath addArcWithCenter:center radius:radius startAngle:oStart * M_PI / 180.0 endAngle:(oStart + fillSpan) * M_PI / 180.0 clockwise:YES];
+            // Cánh phải: đối xứng hoàn hảo, tăng đều đặn từ đáy (388.5°) lên đỉnh (304°)
+            [progPath moveToPoint:CGPointMake(center.x + radius * cos(oEnd * M_PI / 180.0), center.y + radius * sin(oEnd * M_PI / 180.0))];
+            [progPath addArcWithCenter:center radius:radius startAngle:oEnd * M_PI / 180.0 endAngle:(oEnd - fillSpan) * M_PI / 180.0 clockwise:NO];
         }
         _progressLayer.path = progPath.CGPath;
         _progressLayer.strokeEnd = 1.0;
@@ -2280,7 +2290,11 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         _wifiWave2Layer.hidden = YES;
         _airplaneCenterLayer.hidden = YES;
         _centerLabel.hidden = NO;
-        _centerLabel.text = charging ? [NSString stringWithFormat:@"%d⚡", pct] : [NSString stringWithFormat:@"%d", pct];
+        if (self.showRAM) {
+            _centerLabel.text = [NSString stringWithFormat:@"%d", pct];
+        } else {
+            _centerLabel.text = charging ? [NSString stringWithFormat:@"%d⚡", pct] : [NSString stringWithFormat:@"%d", pct];
+        }
         _centerLabel.textColor = batteryArcColor;
     } else if (p_badgeStyle == 2 && hasSpeed) { // Tốc độ mạng ở tâm
         _wifiDotLayer.hidden = YES;
@@ -2550,7 +2564,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
             }
             CGFloat totalW = _pillContainerView.frame.size.width;
             if (totalW < 22.0) totalW = 22.0;
-            CGPoint targetCenter = CGPointMake(self.anchorCenter.x + offX - (totalW - 22.0) / 2.0, self.anchorCenter.y + offY);
+            CGPoint targetCenter = CGPointMake(self.anchorCenter.x + offX + (totalW - 22.0) / 2.0, self.anchorCenter.y + offY);
             if (fabs(self.center.x - targetCenter.x) > 0.5 || fabs(self.center.y - targetCenter.y) > 0.5) {
                 self.center = targetCenter;
             }
@@ -3132,7 +3146,7 @@ static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBat
             CGFloat offY = isCC ? p_ccOffsetY : ((p_separateAppPosition && isAppOrLockScreen(custom)) ? p_appOffsetY : p_offsetY);
             CGFloat totalW = custom.pillContainerView.frame.size.width;
             if (totalW < 22.0) totalW = 22.0;
-            custom.center = CGPointMake(custom.anchorCenter.x + offX - (totalW - 22.0) / 2.0, custom.anchorCenter.y + offY);
+            custom.center = CGPointMake(custom.anchorCenter.x + offX + (totalW - 22.0) / 2.0, custom.anchorCenter.y + offY);
         }
         return;
     }
@@ -3156,7 +3170,7 @@ static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBat
     CGFloat totalW = custom.pillContainerView.frame.size.width;
     if (totalW < 22.0) totalW = 22.0;
 
-    CGPoint targetCenter = CGPointMake(custom.anchorCenter.x + offX - (totalW - 22.0) / 2.0, custom.anchorCenter.y + offY);
+    CGPoint targetCenter = CGPointMake(custom.anchorCenter.x + offX + (totalW - 22.0) / 2.0, custom.anchorCenter.y + offY);
     if (fabs(custom.center.x - targetCenter.x) > 0.5 || fabs(custom.center.y - targetCenter.y) > 0.5) {
         custom.center = targetCenter;
     }
@@ -3420,6 +3434,7 @@ static void handleReloadNotification(CFNotificationCenterRef center, void *obser
     loadPrefs();
     dispatch_async(dispatch_get_main_queue(), ^{
         if (g_activeStatusView) {
+            g_activeStatusView.showRAM = p_showRAM;
             [g_activeStatusView rebuildCellularDots];
             [g_activeStatusView applyPreferences];
             [g_activeStatusView updateStats];
@@ -3428,17 +3443,18 @@ static void handleReloadNotification(CFNotificationCenterRef center, void *obser
                 CGFloat offY = (p_separateAppPosition && isAppOrLockScreen(g_activeStatusView)) ? p_appOffsetY : p_offsetY;
                 CGFloat totalW = g_activeStatusView.pillContainerView.frame.size.width;
                 if (totalW < 22.0) totalW = 22.0;
-                g_activeStatusView.center = CGPointMake(g_activeStatusView.anchorCenter.x + offX - (totalW - 22.0) / 2.0, g_activeStatusView.anchorCenter.y + offY);
+                g_activeStatusView.center = CGPointMake(g_activeStatusView.anchorCenter.x + offX + (totalW - 22.0) / 2.0, g_activeStatusView.anchorCenter.y + offY);
             }
         }
         if (g_activeCCStatusView) {
+            g_activeCCStatusView.showRAM = p_showRAM;
             [g_activeCCStatusView rebuildCellularDots];
             [g_activeCCStatusView applyPreferences];
             [g_activeCCStatusView updateStats];
             if (!p_dragModeEnabled && g_activeCCStatusView.anchorCenter.x > 0) {
                 CGFloat totalW = g_activeCCStatusView.pillContainerView.frame.size.width;
                 if (totalW < 22.0) totalW = 22.0;
-                g_activeCCStatusView.center = CGPointMake(g_activeCCStatusView.anchorCenter.x + p_ccOffsetX - (totalW - 22.0) / 2.0, g_activeCCStatusView.anchorCenter.y + p_ccOffsetY);
+                g_activeCCStatusView.center = CGPointMake(g_activeCCStatusView.anchorCenter.x + p_ccOffsetX + (totalW - 22.0) / 2.0, g_activeCCStatusView.anchorCenter.y + p_ccOffsetY);
             }
         }
     });

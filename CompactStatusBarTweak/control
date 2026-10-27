@@ -1,9 +1,9 @@
 Package: com.hoangnguyen.compactstatusbartweak
 Name: CompactStatusBar
 Depends: mobilesubstrate, preferenceloader
-Version: 1.4.1
+Version: 1.4.2
 Architecture: iphoneos-arm64
-Description: Compact 3-in-1 status bar gauge with separate Home/In-App/LockScreen positioning, dynamic scaling, and instant battery sync
+Description: Compact 3-in-1 status bar gauge with synchronized Pin/RAM switching, balanced crown geometry, and stable anchoring
 Maintainer: Hoangnguyen
 Author: Hoangnguyen
 Section: Tweaks
