@@ -1,0 +1,57 @@
+++ xcrun --sdk iphoneos --show-sdk-path
++ SDK_PATH=/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk
++ echo '[*] Step 1: Compiling CompactStatusBar.dylib...'
+[*] Step 1: Compiling CompactStatusBar.dylib...
++ xcrun -sdk iphoneos clang -arch arm64 -target arm64-apple-ios15.0 -miphoneos-version-min=15.0 -dynamiclib -isysroot /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -framework UIKit -framework Foundation -framework CoreGraphics -framework QuartzCore -fobjc-arc Tweak.m -o CompactStatusBar.dylib
+Tweak.m:1366:61: warning: 'keyWindow' is deprecated: first deprecated in iOS 13.0 - Should not be used for applications that support multiple scenes as it returns a key window across all connected scenes [-Wdeprecated-declarations]
+    UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+                                                            ^
+/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/System/Library/Frameworks/UIKit.framework/Headers/UIApplication.h:108:51: note: 'keyWindow' has been explicitly marked deprecated here
+@property(nullable, nonatomic,readonly) UIWindow *keyWindow API_DEPRECATED("Should not be used for applications that support multiple scenes as it returns a key window across all connected scenes", ios(2.0, 13.0)) API_UNAVAILABLE(visionos);
+                                                  ^
+Tweak.m:1368:63: warning: 'windows' is deprecated: first deprecated in iOS 15.0 - Use UIWindowScene.windows on a relevant window scene instead [-Wdeprecated-declarations]
+        for (UIWindow *w in [UIApplication sharedApplication].windows) {
+                                                              ^
+/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/System/Library/Frameworks/UIKit.framework/Headers/UIApplication.h:109:62: note: 'windows' has been explicitly marked deprecated here
+@property(nonatomic,readonly) NSArray<__kindof UIWindow *>  *windows API_DEPRECATED("Use UIWindowScene.windows on a relevant window scene instead", ios(2.0, 15.0), visionos(1.0, 1.0));
+                                                             ^
+Tweak.m:1863:61: warning: 'keyWindow' is deprecated: first deprecated in iOS 13.0 - Should not be used for applications that support multiple scenes as it returns a key window across all connected scenes [-Wdeprecated-declarations]
+    UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+                                                            ^
+/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/System/Library/Frameworks/UIKit.framework/Headers/UIApplication.h:108:51: note: 'keyWindow' has been explicitly marked deprecated here
+@property(nullable, nonatomic,readonly) UIWindow *keyWindow API_DEPRECATED("Should not be used for applications that support multiple scenes as it returns a key window across all connected scenes", ios(2.0, 13.0)) API_UNAVAILABLE(visionos);
+                                                  ^
+Tweak.m:1865:63: warning: 'windows' is deprecated: first deprecated in iOS 15.0 - Use UIWindowScene.windows on a relevant window scene instead [-Wdeprecated-declarations]
+        for (UIWindow *w in [UIApplication sharedApplication].windows) {
+                                                              ^
+/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/System/Library/Frameworks/UIKit.framework/Headers/UIApplication.h:109:62: note: 'windows' has been explicitly marked deprecated here
+@property(nonatomic,readonly) NSArray<__kindof UIWindow *>  *windows API_DEPRECATED("Use UIWindowScene.windows on a relevant window scene instead", ios(2.0, 15.0), visionos(1.0, 1.0));
+                                                             ^
+Tweak.m:2023:61: warning: 'keyWindow' is deprecated: first deprecated in iOS 13.0 - Should not be used for applications that support multiple scenes as it returns a key window across all connected scenes [-Wdeprecated-declarations]
+    UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+                                                            ^
+/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/System/Library/Frameworks/UIKit.framework/Headers/UIApplication.h:108:51: note: 'keyWindow' has been explicitly marked deprecated here
+@property(nullable, nonatomic,readonly) UIWindow *keyWindow API_DEPRECATED("Should not be used for applications that support multiple scenes as it returns a key window across all connected scenes", ios(2.0, 13.0)) API_UNAVAILABLE(visionos);
+                                                  ^
+Tweak.m:2328:37: error: call to undeclared function 'getCellularNetworkType'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+                NSString *netType = getCellularNetworkType();
+                                    ^
+Tweak.m:2328:37: error: implicit conversion of 'int' to 'NSString *' is disallowed with ARC
+                NSString *netType = getCellularNetworkType();
+                                    ^~~~~~~~~~~~~~~~~~~~~~~~
+Tweak.m:2328:27: error: incompatible integer to pointer conversion initializing 'NSString *__strong' with an expression of type 'int' [-Wint-conversion]
+                NSString *netType = getCellularNetworkType();
+                          ^         ~~~~~~~~~~~~~~~~~~~~~~~~
+Tweak.m:2446:40: error: use of undeclared identifier 'isDark'
+                _ssidLabel.textColor = isDark ? [UIColor colorWithWhite:0.1 alpha:0.9] : [UIColor colorWithWhite:0.92 alpha:1.0];
+                                       ^
+Tweak.m:2515:18: error: use of undeclared identifier 'isDark'
+                (isDark ? [UIColor colorWithWhite:0.0 alpha:0.18] : [UIColor colorWithWhite:1.0 alpha:0.20]);
+                 ^
+Tweak.m:2523:54: error: use of undeclared identifier 'isDark'
+                _pillContainerView.backgroundColor = isDark ? [UIColor colorWithWhite:0.9 alpha:0.25] : [UIColor colorWithWhite:0.08 alpha:0.38];
+                                                     ^
+Tweak.m:2111:36: warning: @available does not guard availability here; use if (@available) instead [-Wunsupported-availability-guard]
+                if (self.window && @available(iOS 12.0, *)) {
+                                   ^
+6 warnings and 6 errors generated.
