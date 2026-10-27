@@ -7,6 +7,7 @@
 #import <spawn.h>
 #import <unistd.h>
 #import <sys/types.h>
+#import <sys/stat.h>
 #import <sys/socket.h>
 #import <ifaddrs.h>
 #import <net/if.h>
