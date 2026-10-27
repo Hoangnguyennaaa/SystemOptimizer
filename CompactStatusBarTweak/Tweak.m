@@ -186,6 +186,7 @@ static CGFloat p_offsetY = 0.0;
 
 // Control Center Separated Position Preferences
 static BOOL p_ccEnabled = YES;
+static BOOL p_ccSyncWithStatusBar = YES;
 static BOOL p_ccHideStockBattery = YES;
 static CGFloat p_ccOffsetX = 0.0;
 static CGFloat p_ccOffsetY = 0.0;
@@ -288,6 +289,11 @@ static void loadPrefs(void) {
     if (keyExists) p_ccEnabled = (BOOL)b;
     else if (prefs && prefs[@"ccEnabled"]) p_ccEnabled = [prefs[@"ccEnabled"] boolValue];
     else p_ccEnabled = YES;
+
+    b = CFPreferencesGetAppBooleanValue(CFSTR("ccSyncWithStatusBar"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
+    if (keyExists) p_ccSyncWithStatusBar = (BOOL)b;
+    else if (prefs && prefs[@"ccSyncWithStatusBar"]) p_ccSyncWithStatusBar = [prefs[@"ccSyncWithStatusBar"] boolValue];
+    else p_ccSyncWithStatusBar = YES;
 
     b = CFPreferencesGetAppBooleanValue(CFSTR("ccHideStockBattery"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
     if (keyExists) p_ccHideStockBattery = (BOOL)b;
@@ -483,6 +489,21 @@ static void loadPrefs(void) {
     if (keyExists) p_springAnimations = (BOOL)b;
     else if (prefs && prefs[@"springAnimations"]) p_springAnimations = [prefs[@"springAnimations"] boolValue];
     else p_springAnimations = YES;
+}
+
+static inline CGFloat getEffectiveOffsetX(BOOL isCC) {
+    if (isCC) return p_ccSyncWithStatusBar ? p_offsetX : p_ccOffsetX;
+    return p_offsetX;
+}
+
+static inline CGFloat getEffectiveOffsetY(BOOL isCC) {
+    if (isCC) return p_ccSyncWithStatusBar ? p_offsetY : p_ccOffsetY;
+    return p_offsetY;
+}
+
+static inline CGFloat getEffectiveIconScale(BOOL isCC) {
+    if (isCC) return p_ccSyncWithStatusBar ? p_iconScale : p_ccIconScale;
+    return p_iconScale;
 }
 
 static void savePreferenceNumber(NSString *key, NSNumber *val) {
@@ -1221,7 +1242,7 @@ static void registerIOKitPowerNotification(void) {
 - (void)applyPreferences {
     self.showRAM = p_showRAM;
     [self rebuildGaugePaths];
-    CGFloat scale = self.isControlCenter ? p_ccIconScale : p_iconScale;
+    CGFloat scale = getEffectiveIconScale(self.isControlCenter);
     if (scale < 0.2) scale = 1.0;
     self.transform = CGAffineTransformMakeScale(scale, scale);
     self.alpha = p_iconOpacity;
@@ -1275,6 +1296,10 @@ static void registerIOKitPowerNotification(void) {
     if (!superview) return;
 
     if (pan.state == UIGestureRecognizerStateBegan) {
+        if (self.isControlCenter && p_ccSyncWithStatusBar) {
+            p_ccSyncWithStatusBar = NO;
+            savePreferenceNumber(@"ccSyncWithStatusBar", @NO);
+        }
         triggerHaptic(1);
         [UIView animateWithDuration:0.12 animations:^{
             self.transform = CGAffineTransformScale(self.transform, 1.25, 1.25);
@@ -1296,8 +1321,8 @@ static void registerIOKitPowerNotification(void) {
             }
         }
         if (self.anchorCenter.x <= 0) {
-            CGFloat offX = self.isControlCenter ? p_ccOffsetX : p_offsetX;
-            CGFloat offY = self.isControlCenter ? p_ccOffsetY : p_offsetY;
+            CGFloat offX = getEffectiveOffsetX(self.isControlCenter);
+            CGFloat offY = getEffectiveOffsetY(self.isControlCenter);
             CGFloat totalW = self.pillContainerView.frame.size.width;
             if (totalW < 22.0) totalW = 22.0;
             self.anchorCenter = CGPointMake(self.center.x - (totalW - 22.0) / 2.0 - offX, self.center.y - offY);
@@ -1320,7 +1345,7 @@ static void registerIOKitPowerNotification(void) {
 
     if (pan.state == UIGestureRecognizerStateEnded || pan.state == UIGestureRecognizerStateCancelled) {
         [UIView animateWithDuration:0.2 delay:0 usingSpringWithDamping:0.75 initialSpringVelocity:0.5 options:0 animations:^{
-            CGFloat scale = self.isControlCenter ? p_ccIconScale : p_iconScale;
+            CGFloat scale = getEffectiveIconScale(self.isControlCenter);
             if (scale < 0.2) scale = 1.0;
             self.transform = CGAffineTransformMakeScale(scale, scale);
             self.alpha = p_iconOpacity;
@@ -1328,6 +1353,7 @@ static void registerIOKitPowerNotification(void) {
         if (self.isControlCenter) {
             savePreferenceNumber(@"ccOffsetX", @(curX));
             savePreferenceNumber(@"ccOffsetY", @(curY));
+            savePreferenceNumber(@"ccSyncWithStatusBar", @NO);
         } else {
             savePreferenceNumber(@"offsetX", @(curX));
             savePreferenceNumber(@"offsetY", @(curY));
@@ -2039,7 +2065,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     }
 
     // 0. Cập nhật tỷ lệ phóng to (Scale) thích ứng theo đúng ngữ cảnh hiện tại
-    CGFloat targetScale = self.isControlCenter ? p_ccIconScale : p_iconScale;
+    CGFloat targetScale = getEffectiveIconScale(self.isControlCenter);
     if (targetScale < 0.2) targetScale = 1.0;
     CGAffineTransform targetTransform = CGAffineTransformMakeScale(targetScale, targetScale);
     if (!CGAffineTransformEqualToTransform(self.transform, targetTransform)) {
@@ -2487,8 +2513,8 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     // 10. Căn toạ độ neo (Anchor Position) với bộ lọc vi dao động (Micro-jitter filter)
     if (!p_dragModeEnabled && self.superview && self.anchorCenter.x > 0 && self.anchorCenter.y > 0) {
         if (!self.dragPanGesture || (self.dragPanGesture.state != UIGestureRecognizerStateBegan && self.dragPanGesture.state != UIGestureRecognizerStateChanged)) {
-            CGFloat offX = self.isControlCenter ? p_ccOffsetX : p_offsetX;
-            CGFloat offY = self.isControlCenter ? p_ccOffsetY : p_offsetY;
+            CGFloat offX = getEffectiveOffsetX(self.isControlCenter);
+            CGFloat offY = getEffectiveOffsetY(self.isControlCenter);
             CGFloat totalW = _pillContainerView.frame.size.width;
             if (totalW < 22.0) totalW = 22.0;
             CGPoint targetCenter = CGPointMake(self.anchorCenter.x + offX + (totalW - 22.0) / 2.0, self.anchorCenter.y + offY);
@@ -3009,8 +3035,11 @@ static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBat
     CGRect rectInContainer = [stockBattery convertRect:stockBattery.bounds toView:container];
     CGFloat containerW = container.bounds.size.width;
 
-    // Battery view trong thanh trạng thái luôn nằm ở nửa phải màn hình (x > containerW * 0.40) và y ở đỉnh
-    if (containerW > 50.0 && (rectInContainer.origin.x < containerW * 0.40 || rectInContainer.origin.y > 80.0 || rectInContainer.origin.y < -20.0)) {
+    // Battery view trong thanh trạng thái luôn nằm ở nửa phải màn hình và y ở đỉnh.
+    // Đối với Control Center: mở rộng giới hạn toạ độ để không bao giờ bị loại bỏ sai vị trí
+    CGFloat maxOriginY = isCC ? 300.0 : 80.0;
+    CGFloat minOriginXRatio = isCC ? 0.15 : 0.40;
+    if (containerW > 50.0 && (rectInContainer.origin.x < containerW * minOriginXRatio || rectInContainer.origin.y > maxOriginY || rectInContainer.origin.y < -50.0)) {
         return;
     }
 
@@ -3053,7 +3082,7 @@ static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBat
     }
 
     // Cập nhật tỷ lệ phóng to (Scale) ngay tức thì theo đúng ngữ cảnh hiện tại
-    CGFloat targetScale = isCC ? p_ccIconScale : p_iconScale;
+    CGFloat targetScale = getEffectiveIconScale(isCC);
     if (targetScale < 0.2) targetScale = 1.0;
     CGAffineTransform targetTransform = CGAffineTransformMakeScale(targetScale, targetScale);
     if (!CGAffineTransformEqualToTransform(custom.transform, targetTransform)) {
@@ -3062,8 +3091,8 @@ static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBat
 
     if (p_dragModeEnabled) {
         if (custom.center.x <= 11.0 && custom.center.y <= 11.0 && custom.anchorCenter.x > 0) {
-            CGFloat offX = isCC ? p_ccOffsetX : p_offsetX;
-            CGFloat offY = isCC ? p_ccOffsetY : p_offsetY;
+            CGFloat offX = getEffectiveOffsetX(isCC);
+            CGFloat offY = getEffectiveOffsetY(isCC);
             CGFloat totalW = custom.pillContainerView.frame.size.width;
             if (totalW < 22.0) totalW = 22.0;
             custom.center = CGPointMake(custom.anchorCenter.x + offX + (totalW - 22.0) / 2.0, custom.anchorCenter.y + offY);
@@ -3075,8 +3104,8 @@ static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBat
         return;
     }
 
-    CGFloat offX = isCC ? p_ccOffsetX : p_offsetX;
-    CGFloat offY = isCC ? p_ccOffsetY : p_offsetY;
+    CGFloat offX = getEffectiveOffsetX(isCC);
+    CGFloat offY = getEffectiveOffsetY(isCC);
     CGFloat totalW = custom.pillContainerView.frame.size.width;
     if (totalW < 22.0) totalW = 22.0;
 
@@ -3362,7 +3391,9 @@ static void handleReloadNotification(CFNotificationCenterRef center, void *obser
             if (!p_dragModeEnabled && g_activeCCStatusView.anchorCenter.x > 0) {
                 CGFloat totalW = g_activeCCStatusView.pillContainerView.frame.size.width;
                 if (totalW < 22.0) totalW = 22.0;
-                g_activeCCStatusView.center = CGPointMake(g_activeCCStatusView.anchorCenter.x + p_ccOffsetX + (totalW - 22.0) / 2.0, g_activeCCStatusView.anchorCenter.y + p_ccOffsetY);
+                CGFloat offX = getEffectiveOffsetX(YES);
+                CGFloat offY = getEffectiveOffsetY(YES);
+                g_activeCCStatusView.center = CGPointMake(g_activeCCStatusView.anchorCenter.x + offX + (totalW - 22.0) / 2.0, g_activeCCStatusView.anchorCenter.y + offY);
             }
         }
     });

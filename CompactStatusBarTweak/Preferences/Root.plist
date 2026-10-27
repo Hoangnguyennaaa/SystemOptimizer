@@ -395,7 +395,7 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>Căn chỉnh vị trí và kích thước hoàn toàn độc lập khi vuốt mở Control Center. Khi bật "Kéo thả trực tiếp", bạn có thể vuốt mở Control Center rồi kéo biểu tượng để lưu riêng toạ độ này.</string>
+			<string>Khi bật "Đồng bộ", icon trong Control Center tự động khớp vị trí và cỡ với thanh trạng thái chính. Tắt để chỉnh riêng bằng 3 thanh trượt bên dưới hoặc kéo thả trực tiếp.</string>
 			<key>label</key>
 			<string>VỊ TRÍ TRONG TRUNG TÂM ĐIỀU KHIỂN (CONTROL CENTER)</string>
 		</dict>
@@ -423,9 +423,29 @@
 			<key>defaults</key>
 			<string>com.hoangnguyen.compactstatusbar</string>
 			<key>key</key>
+			<string>ccSyncWithStatusBar</string>
+			<key>label</key>
+			<string>Đồng bộ vị trí với Thanh trạng thái</string>
+		</dict>
+		<dict>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
 			<string>ccHideStockBattery</string>
 			<key>label</key>
 			<string>Ẩn pin gốc trong Control Center</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>ĐỘ LỆCH NGANG CONTROL CENTER (X)</string>
 		</dict>
 		<dict>
 			<key>PostNotification</key>
@@ -446,6 +466,12 @@
 			<true/>
 		</dict>
 		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>ĐỘ LỆCH DỌC CONTROL CENTER (Y)</string>
+		</dict>
+		<dict>
 			<key>PostNotification</key>
 			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
 			<key>cell</key>
@@ -462,6 +488,12 @@
 			<real>-50.0</real>
 			<key>showValue</key>
 			<true/>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>KÍCH THƯỚC ICON CONTROL CENTER (SCALE)</string>
 		</dict>
 		<dict>
 			<key>PostNotification</key>
