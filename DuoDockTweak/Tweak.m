@@ -25,6 +25,11 @@ static BOOL kHomeCompressGrid = YES;
 static CGFloat kHomeRightInset = 80.0;
 static BOOL kExpandBottomRows = YES;
 
+// Spotlight Search Button
+static BOOL kShowSearchButton = YES;
+static CGFloat kSearchButtonSize = 48.0;
+static CGFloat kSearchButtonOffsetY = 0.0;
+
 // MARK: - Helper to Read Preference with Fallback
 static id getPref(NSString *key, id defaultVal) {
     CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.duodock"));
@@ -65,6 +70,10 @@ static void loadPreferences(void) {
     kHomeCompressGrid = [getPref(@"homeCompressGrid", @YES) boolValue];
     kHomeRightInset = [getPref(@"homeRightInset", @(80.0)) doubleValue];
     kExpandBottomRows = [getPref(@"expandBottomRows", @YES) boolValue];
+    
+    kShowSearchButton = [getPref(@"showSearchButton", @YES) boolValue];
+    kSearchButtonSize = [getPref(@"searchButtonSize", @(48.0)) doubleValue];
+    kSearchButtonOffsetY = [getPref(@"searchButtonOffsetY", @(0.0)) doubleValue];
 }
 
 // MARK: - Respring Implementation (SpringBoard Process)
@@ -697,7 +706,7 @@ static void prefs_respringPrompt(UIViewController *controller, SEL _cmd, id send
     [alert addAction:respringAction];
     [alert addAction:cancelAction];
     
-    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad && [sender isKindOfClass:[UIView class]]) {
+    if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad && [sender isKindOfClass:[UIView class]]) {
         alert.popoverPresentationController.sourceView = (UIView *)sender;
         alert.popoverPresentationController.sourceRect = ((UIView *)sender).bounds;
     }
