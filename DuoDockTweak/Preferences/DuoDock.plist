@@ -476,7 +476,7 @@
 			<key>label</key>
 			<string>NÚT TÌM KIẾM SPOTLIGHT (SEARCH BUTTON)</string>
 			<key>footerText</key>
-			<string>Nút tìm kiếm dạng tròn hiệu ứng kính mờ đặt ngay dưới Dock dọc, mở nhanh Spotlight khi chạm vào với hiệu ứng nhún lò xo và rung phản hồi.</string>
+			<string>Nút tìm kiếm dạng tròn hiệu ứng kính mờ đặt ngay cạnh Dock dọc, mở nhanh Spotlight khi chạm vào với hiệu ứng nhún lò xo và rung phản hồi.</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -489,6 +489,38 @@
 			<string>showSearchButton</string>
 			<key>label</key>
 			<string>Bật nút tìm kiếm Spotlight</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>VỊ TRÍ NÚT SO VỚI DOCK</string>
+			<key>footerText</key>
+			<string>Chế độ Tự động sẽ thông minh tự chuyển nút lên trên đỉnh Dock khi Dock bị kéo sát đáy màn hình.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSegmentCell</string>
+			<key>default</key>
+			<integer>0</integer>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>searchButtonPosition</string>
+			<key>validValues</key>
+			<array>
+				<integer>0</integer>
+				<integer>1</integer>
+				<integer>2</integer>
+			</array>
+			<key>validTitles</key>
+			<array>
+				<string>Tự động</string>
+				<string>Dưới Dock</string>
+				<string>Trên Dock</string>
+			</array>
 			<key>PostNotification</key>
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
@@ -576,9 +608,9 @@
 			<key>footerAlignment</key>
 			<integer>1</integer>
 			<key>footerText</key>
-			<string>DuoDock v1.0.3 (Rootless iOS 15)
+			<string>DuoDock v1.0.4 (Rootless iOS 15)
 Hỗ trợ iPhone 7 Plus &amp; Chip A10
-Nút tìm kiếm Spotlight kính mờ &amp; Dock dọc siêu mượt</string>
+Nút Spotlight linh hoạt Trên/Dưới Dock &amp; Auto Switch</string>
 		</dict>
 	</array>
 </dict>

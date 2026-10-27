@@ -71,17 +71,16 @@ jobs:
         if: success()
         with:
           tag_name: duodock-latest
-          name: "DuoDock v1.0.3 Rootless DEB (Frosted Spotlight Search Button)"
+          name: "DuoDock v1.0.4 Rootless DEB (Smart Top/Bottom Spotlight Placement)"
           body: |
-            ### DuoDock v1.0.3 (Rootless iOS 15.0 - 15.8.x - iPhone 7 Plus & A10 Compatible)
-            - **Thêm nút tìm kiếm Spotlight kính mờ (Frosted Spotlight Search Button)**:
-              + Thiết kế dạng tròn cao cấp với hiệu ứng làm mờ kính (`UIVisualEffectView`), viền sáng và đổ bóng 3D đồng bộ hoàn hảo với Dock dọc theo chuẩn foldable/duo concept.
-              + Vị trí thông minh: Căn thẳng hàng theo trục dọc trung tâm của thanh Dock, đặt ở vùng chân màn hình ngang tầm với các chấm trang.
-              + Chạm vào nút để kích hoạt nhanh giao diện tìm kiếm Spotlight với hiệu ứng nhún lò xo (spring bounce) và rung phản hồi Taptic Engine.
-              + Cách ly hoàn toàn cảm ứng (Isolated UIKit touches): Nút được quản lý độc lập trên view gốc, tuyệt đối không can thiệp hay làm cản trở thao tác vuốt trang, chạm icon hay thanh Dock.
-              + Tùy biến linh hoạt trong Cài đặt: Bật/tắt nút, điều chỉnh kích thước nút (36pt - 64pt), tinh chỉnh vị trí dọc (Offset Y).
-            - **Kế thừa đầy đủ độ ổn định của bản v1.0.2**:
-              + Không swizzle `hitTest:`, không gây đơ cảm ứng màn hình chính.
-              + Tương thích mượt mà 100% với iPhone 7 Plus (Chip A10) và iOS 15 Rootless Dopamine.
+            ### DuoDock v1.0.4 (Rootless iOS 15.0 - 15.8.x - iPhone 7 Plus & A10 Compatible)
+            - **Vị trí nút tìm kiếm Spotlight linh hoạt Trên / Dưới Dock (Smart Dynamic Placement)**:
+              + Chế độ **Tự động (Auto)**: Khi Dock được kéo sát cạnh đáy màn hình (không gian phía dưới không đủ), nút tìm kiếm Spotlight sẽ tự động đảo vị trí lên **TRÊN đỉnh Dock**, cách ly an toàn và không bị che khuất hay đè lên Dock.
+              + Tùy chọn vị trí cố định theo ý thích trong Cài đặt: **Tự động** (Auto) / **Luôn ở Dưới Dock** / **Luôn ở Trên Dock**.
+              + Khoảng cách an toàn Status Bar & Dock: Luôn giữ khoảng cách chuẩn, không che tai thỏ / status bar ở trên và không đè vào icon thanh Dock.
+            - **Bảo lưu trọn vẹn các tính năng cao cấp**:
+              + Nút tìm kiếm tròn kính mờ (`UIVisualEffectView`) mở nhanh Spotlight với nhún lò xo và rung haptic.
+              + Độc lập cảm ứng 100%, không lag, không đơ cảm ứng màn hình chính.
+              + Tương thích tối ưu cho iPhone 7 Plus & chip A10 (iOS 15 Rootless Dopamine).
           files: "DuoDock_rootless.deb"
 

@@ -27,6 +27,7 @@ static BOOL kExpandBottomRows = YES;
 
 // Spotlight Search Button
 static BOOL kShowSearchButton = YES;
+static NSInteger kSearchButtonPosition = 0; // 0 = Tự động (Auto: Lên trên nếu Dock sát đáy), 1 = Luôn ở Dưới Dock, 2 = Luôn ở Trên Dock
 static CGFloat kSearchButtonSize = 48.0;
 static CGFloat kSearchButtonOffsetY = 0.0;
 
@@ -72,6 +73,7 @@ static void loadPreferences(void) {
     kExpandBottomRows = [getPref(@"expandBottomRows", @YES) boolValue];
     
     kShowSearchButton = [getPref(@"showSearchButton", @YES) boolValue];
+    kSearchButtonPosition = [getPref(@"searchButtonPosition", @0) integerValue];
     kSearchButtonSize = [getPref(@"searchButtonSize", @(48.0)) doubleValue];
     kSearchButtonOffsetY = [getPref(@"searchButtonOffsetY", @(0.0)) doubleValue];
 }
@@ -155,6 +157,7 @@ static void resetNotificationReceived(CFNotificationCenterRef center, void *obse
     CFPreferencesSetAppValue(CFSTR("homeRightInset"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("expandBottomRows"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("showSearchButton"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("searchButtonPosition"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("searchButtonSize"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("searchButtonOffsetY"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.duodock"));
@@ -299,20 +302,62 @@ static CGRect calculateDuoDockSearchButtonFrame(CGRect dockFrame, CGRect contain
         buttonX = containerBounds.size.width - buttonSize - 5.0;
     }
     
-    // Vị trí Y: Mặc định đặt ở chân màn hình, ngang tầm cụm chỉ báo trang (page dots)
-    CGFloat bottomMargin = 32.0 - kSearchButtonOffsetY;
-    if (bottomMargin < 8.0) bottomMargin = 8.0;
+    // Tính toán khoảng không gian phía trên và phía dưới thanh Dock
+    CGFloat spaceBelow = containerBounds.size.height - CGRectGetMaxY(dockFrame);
+    CGFloat spaceAbove = dockFrame.origin.y;
     
-    CGFloat buttonY = containerBounds.size.height - buttonSize - bottomMargin;
-    
-    // Cách đáy Dock ít nhất 12pt để không bao giờ bị đè
-    CGFloat minTopY = CGRectGetMaxY(dockFrame) + 12.0;
-    if (buttonY < minTopY) {
-        buttonY = minTopY;
+    // Quyết định vị trí: Đặt Trên hay Đặt Dưới thanh Dock
+    BOOL placeAbove = NO;
+    if (kSearchButtonPosition == 2) {
+        // Luôn ở Trên Dock
+        placeAbove = YES;
+    } else if (kSearchButtonPosition == 1) {
+        // Luôn ở Dưới Dock
+        placeAbove = NO;
+    } else {
+        // Tự động (Auto):
+        // Khi Dock bị kéo sát đáy (không gian bên dưới < buttonSize + 22.0 pt),
+        // tự động đẩy nút tìm kiếm lên TRÊN đỉnh Dock!
+        if (spaceBelow < (buttonSize + 22.0) && spaceAbove >= (buttonSize + 20.0)) {
+            placeAbove = YES;
+        } else if (spaceBelow < (buttonSize + 10.0)) {
+            placeAbove = YES;
+        } else {
+            placeAbove = NO;
+        }
     }
     
-    if (buttonY + buttonSize > containerBounds.size.height - 8.0) {
-        buttonY = containerBounds.size.height - buttonSize - 8.0;
+    CGFloat buttonY = 0.0;
+    if (placeAbove) {
+        // Đặt ở TRÊN đỉnh Dock
+        // Mặc định cách đỉnh Dock 14pt (hoặc điều chỉnh qua kSearchButtonOffsetY)
+        CGFloat preferredTopY = dockFrame.origin.y - buttonSize - 14.0 + kSearchButtonOffsetY;
+        buttonY = preferredTopY;
+        
+        // Không đè lên Status Bar (cách đỉnh màn hình ít nhất 24pt)
+        if (buttonY < 24.0) {
+            buttonY = 24.0;
+        }
+        // Không đè vào đỉnh thanh Dock
+        if (buttonY + buttonSize > dockFrame.origin.y - 6.0) {
+            buttonY = dockFrame.origin.y - buttonSize - 6.0;
+        }
+    } else {
+        // Đặt ở DƯỚI đáy Dock
+        // Mặc định đặt ở chân màn hình (ngang tầm page dots), điều chỉnh qua kSearchButtonOffsetY
+        CGFloat bottomMargin = 32.0 - kSearchButtonOffsetY;
+        if (bottomMargin < 8.0) bottomMargin = 8.0;
+        
+        CGFloat preferredBottomY = containerBounds.size.height - buttonSize - bottomMargin;
+        CGFloat minTopY = CGRectGetMaxY(dockFrame) + 12.0;
+        
+        buttonY = preferredBottomY;
+        if (buttonY < minTopY) {
+            buttonY = minTopY;
+        }
+        if (buttonY + buttonSize > containerBounds.size.height - 8.0) {
+            buttonY = containerBounds.size.height - buttonSize - 8.0;
+        }
     }
     
     return CGRectMake(buttonX, buttonY, buttonSize, buttonSize);
@@ -704,6 +749,7 @@ static void prefs_resetToDefaults(UIViewController *controller, SEL _cmd, id sen
         CFPreferencesSetAppValue(CFSTR("homeRightInset"), NULL, CFSTR("com.hoangnguyen.duodock"));
         CFPreferencesSetAppValue(CFSTR("expandBottomRows"), NULL, CFSTR("com.hoangnguyen.duodock"));
         CFPreferencesSetAppValue(CFSTR("showSearchButton"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("searchButtonPosition"), NULL, CFSTR("com.hoangnguyen.duodock"));
         CFPreferencesSetAppValue(CFSTR("searchButtonSize"), NULL, CFSTR("com.hoangnguyen.duodock"));
         CFPreferencesSetAppValue(CFSTR("searchButtonOffsetY"), NULL, CFSTR("com.hoangnguyen.duodock"));
         CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.duodock"));
