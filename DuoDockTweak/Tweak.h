@@ -11,8 +11,8 @@
 #define PREF_RESET_NOTIFICATION "com.hoangnguyen.duodock/reset"
 
 // Forward declarations
-@class SBDockView, SBRootFolderView, SBFloatingDockView, SBFloatingDockViewController;
-@class SBIconListView, SBIconView, SBIconController, SBHIconManager;
+@class SBDockView, SBRootFolderView, SBFloatingDockView;
+@class SBIconListView, SBIconView, SBIconController;
 
 @interface SBIconView : UIView
 @property (nonatomic, assign) BOOL labelHidden;
@@ -41,14 +41,12 @@
 @interface SBRootFolderView : UIView
 @property (nonatomic, retain) SBDockView *dockView;
 - (CGRect)_frameForDockView;
-- (CGRect)_frameForDockIconListView;
 - (void)layoutSubviews;
 @end
 
 @interface SBFloatingDockView : UIView
 @property (nonatomic, retain) UIView *mainPlatterView;
 @property (nonatomic, retain) SBIconListView *userIconListView;
-@property (nonatomic, retain) SBIconListView *recentIconListView;
 @property (nonatomic, retain) UIView *dividerView;
 - (void)layoutSubviews;
 @end

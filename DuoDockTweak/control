@@ -1,9 +1,9 @@
 Package: com.hoangnguyen.duodock
 Name: DuoDock
 Depends: mobilesubstrate (>= 0.9.5000), preferenceloader
-Version: 1.0.0
+Version: 1.0.1
 Architecture: iphoneos-arm64
-Description: Vertical right-edge pill dock for iOS 15 Rootless (Stable v1.0.0 core, iPhone 7 Plus & A10 chip compatible, fix blank Settings screen)
+Description: Vertical right-edge pill dock for iOS 15 Rootless (Deep native dock customization, working Settings Respring, iPhone 7 Plus & A10 compatible)
 Maintainer: Hoangnguyen
 Author: Hoangnguyen
 Section: Tweaks

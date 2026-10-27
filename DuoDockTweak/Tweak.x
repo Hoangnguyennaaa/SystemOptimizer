@@ -1,7 +1,8 @@
 #import "Tweak.h"
 
-// MARK: - Global Configurations (v1.0.0 Base)
+// MARK: - Global Configurations (Deep Native Dock)
 static BOOL kEnabled = YES;
+static NSInteger kDockSide = 1; // 0 = Trái (Left), 1 = Phải (Right - Mặc định)
 static NSInteger kDockIconCount = 4;
 static CGFloat kDockIconScale = 0.85;
 static CGFloat kDockWidth = 74.0;
@@ -9,10 +10,20 @@ static CGFloat kDockHeight = 320.0;
 static CGFloat kRightMargin = 10.0;
 static CGFloat kVerticalOffset = 0.0;
 static CGFloat kCornerRadius = 37.0;
-static CGFloat kDockBlurAlpha = 0.82;
+
+// Deep Dock Styling
 static BOOL kDockBlurEnabled = YES;
-static BOOL kExpandBottomRows = YES;
+static NSInteger kDockBlurStyle = 0; // 0 = Kính Tối, 1 = Kính Sáng, 2 = Siêu Mỏng, 3 = Trong Suốt
+static CGFloat kDockBlurAlpha = 0.82;
+static BOOL kDockBorderEnabled = NO;
+static CGFloat kDockBorderWidth = 1.0;
+static BOOL kDockShadowEnabled = YES;
+static BOOL kHideDockLabels = YES;
+
+// Home Screen Layout
+static BOOL kHomeCompressGrid = YES;
 static CGFloat kHomeRightInset = 80.0;
+static BOOL kExpandBottomRows = YES;
 
 // MARK: - Helper to Read Preference with Fallback
 static id getPref(NSString *key, id defaultVal) {
@@ -34,6 +45,7 @@ static id getPref(NSString *key, id defaultVal) {
 // MARK: - Preference Loader
 static void loadPreferences(void) {
     kEnabled = [getPref(@"enabled", @YES) boolValue];
+    kDockSide = [getPref(@"dockSide", @1) integerValue];
     kDockIconCount = [getPref(@"dockIconCount", @4) integerValue];
     kDockIconScale = [getPref(@"dockIconScale", @(0.85)) doubleValue];
     kDockWidth = [getPref(@"dockWidth", @(74.0)) doubleValue];
@@ -41,13 +53,21 @@ static void loadPreferences(void) {
     kRightMargin = [getPref(@"rightMargin", @(10.0)) doubleValue];
     kVerticalOffset = [getPref(@"verticalOffset", @(0.0)) doubleValue];
     kCornerRadius = [getPref(@"cornerRadius", @(37.0)) doubleValue];
-    kDockBlurAlpha = [getPref(@"dockBlurAlpha", @(0.82)) doubleValue];
+    
     kDockBlurEnabled = [getPref(@"dockBlurEnabled", @YES) boolValue];
-    kExpandBottomRows = [getPref(@"expandBottomRows", @YES) boolValue];
+    kDockBlurStyle = [getPref(@"dockBlurStyle", @0) integerValue];
+    kDockBlurAlpha = [getPref(@"dockBlurAlpha", @(0.82)) doubleValue];
+    kDockBorderEnabled = [getPref(@"dockBorderEnabled", @NO) boolValue];
+    kDockBorderWidth = [getPref(@"dockBorderWidth", @(1.0)) doubleValue];
+    kDockShadowEnabled = [getPref(@"dockShadowEnabled", @YES) boolValue];
+    kHideDockLabels = [getPref(@"hideDockLabels", @YES) boolValue];
+    
+    kHomeCompressGrid = [getPref(@"homeCompressGrid", @YES) boolValue];
     kHomeRightInset = [getPref(@"homeRightInset", @(80.0)) doubleValue];
+    kExpandBottomRows = [getPref(@"expandBottomRows", @YES) boolValue];
 }
 
-// MARK: - Respring Implementation
+// MARK: - Respring Implementation (SpringBoard Process)
 static void triggerRespring(void) {
     pid_t pid;
     const char *args_sbreload_rootless[] = {"/var/jb/usr/bin/sbreload", NULL};
@@ -67,9 +87,10 @@ static void triggerRespring(void) {
     }
     const char *args_killall_sys[] = {"/usr/bin/killall", "-9", "SpringBoard", NULL};
     posix_spawn(&pid, "/usr/bin/killall", NULL, NULL, (char *const *)args_killall_sys, NULL);
+    exit(0);
 }
 
-// MARK: - Notifications Callbacks
+// MARK: - Notifications Callbacks (SpringBoard Process)
 static void preferencesChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
     loadPreferences();
     
@@ -96,6 +117,7 @@ static void respringNotificationReceived(CFNotificationCenterRef center, void *o
 
 static void resetNotificationReceived(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
     CFPreferencesSetAppValue(CFSTR("enabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("dockSide"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("dockIconCount"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("dockIconScale"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("dockWidth"), NULL, CFSTR("com.hoangnguyen.duodock"));
@@ -103,10 +125,16 @@ static void resetNotificationReceived(CFNotificationCenterRef center, void *obse
     CFPreferencesSetAppValue(CFSTR("rightMargin"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("verticalOffset"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("cornerRadius"), NULL, CFSTR("com.hoangnguyen.duodock"));
-    CFPreferencesSetAppValue(CFSTR("dockBlurAlpha"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("dockBlurEnabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
-    CFPreferencesSetAppValue(CFSTR("expandBottomRows"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("dockBlurStyle"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("dockBlurAlpha"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("dockBorderEnabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("dockBorderWidth"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("dockShadowEnabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("hideDockLabels"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("homeCompressGrid"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("homeRightInset"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("expandBottomRows"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.duodock"));
     
     [[NSFileManager defaultManager] removeItemAtPath:PREF_PATH_ROOTLESS error:nil];
@@ -123,7 +151,12 @@ static CGRect calculateDuoDockFrame(void) {
     if (h > screenBounds.size.height - 80.0) {
         h = screenBounds.size.height - 80.0;
     }
-    CGFloat x = screenBounds.size.width - w - kRightMargin;
+    CGFloat x;
+    if (kDockSide == 0) { // Bám cạnh trái
+        x = kRightMargin;
+    } else { // Bám cạnh phải
+        x = screenBounds.size.width - w - kRightMargin;
+    }
     CGFloat y = ((screenBounds.size.height - h) / 2.0) + kVerticalOffset;
     if (y < 30.0) y = 30.0;
     if (y + h > screenBounds.size.height - 30.0) y = screenBounds.size.height - h - 30.0;
@@ -152,6 +185,9 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
     if (iconSize > dockW - 10.0) {
         iconSize = dockW - 10.0;
     }
+    if (iconSize > slotHeight - 4.0) {
+        iconSize = slotHeight - 4.0;
+    }
     
     for (NSUInteger i = 0; i < count; i++) {
         UIView *iconView = icons[i];
@@ -162,7 +198,7 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
         iconView.transform = CGAffineTransformIdentity;
         
         if ([iconView respondsToSelector:@selector(setLabelHidden:)]) {
-            [((SBIconView *)iconView) setLabelHidden:YES];
+            [((SBIconView *)iconView) setLabelHidden:kHideDockLabels];
         }
     }
 }
@@ -183,9 +219,29 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
         if (@available(iOS 13.0, *)) {
             self.layer.cornerCurve = kCACornerCurveContinuous;
         }
-        self.layer.masksToBounds = YES;
-        self.clipsToBounds = YES;
+        self.layer.masksToBounds = NO;
+        self.clipsToBounds = NO;
         
+        // Viền sáng viên thuốc
+        if (kDockBorderEnabled) {
+            self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
+            self.layer.borderWidth = kDockBorderWidth;
+        } else {
+            self.layer.borderWidth = 0.0;
+        }
+        
+        // Đổ bóng 3D
+        if (kDockShadowEnabled) {
+            self.layer.shadowColor = [UIColor blackColor].CGColor;
+            self.layer.shadowOpacity = 0.35;
+            self.layer.shadowRadius = 12.0;
+            self.layer.shadowOffset = CGSizeMake(kDockSide == 0 ? 3.0 : -3.0, 4.0);
+            self.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:self.bounds cornerRadius:radius].CGPath;
+        } else {
+            self.layer.shadowOpacity = 0.0;
+        }
+        
+        // Nền mờ viên thuốc & Phong cách kính
         UIView *bg = nil;
         if ([self respondsToSelector:@selector(backgroundView)]) {
             bg = [self valueForKey:@"backgroundView"];
@@ -201,13 +257,22 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
                 bg.layer.cornerCurve = kCACornerCurveContinuous;
             }
             bg.layer.masksToBounds = YES;
+            bg.clipsToBounds = YES;
             
-            if (!kDockBlurEnabled) {
+            if (!kDockBlurEnabled || kDockBlurStyle == 3) {
                 bg.hidden = YES;
                 bg.alpha = 0.0;
             } else {
                 bg.hidden = NO;
                 bg.alpha = kDockBlurAlpha;
+                
+                if (kDockBlurStyle == 0) {
+                    bg.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.30];
+                } else if (kDockBlurStyle == 1) {
+                    bg.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.30];
+                } else if (kDockBlurStyle == 2) {
+                    bg.backgroundColor = [UIColor colorWithWhite:0.5 alpha:0.12];
+                }
             }
         }
         
@@ -263,10 +328,16 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
     
     @try {
         if (!self.isDock && [self.iconLocation isEqualToString:@"SBIconLocationRoot"]) {
-            CGFloat inset = (kHomeRightInset > 0) ? kHomeRightInset : (kDockWidth + kRightMargin + 10.0);
-            insets.right += inset;
-            if (kExpandBottomRows) {
-                insets.bottom = 8.0;
+            if (kHomeCompressGrid) {
+                CGFloat dockOccupied = (kHomeRightInset > 0) ? kHomeRightInset : (kDockWidth + kRightMargin + 10.0);
+                if (kDockSide == 0) {
+                    insets.left += dockOccupied;
+                } else {
+                    insets.right += dockOccupied;
+                }
+                if (kExpandBottomRows) {
+                    insets.bottom = 8.0;
+                }
             }
         }
     } @catch (NSException *e) {}
@@ -279,69 +350,134 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
 %hook SBFloatingDockView
 
 - (void)layoutSubviews {
+    if (kEnabled) {
+        self.hidden = YES;
+        self.alpha = 0.0;
+        self.frame = CGRectZero;
+        return;
+    }
     %orig;
-    if (!kEnabled) return;
-    
-    @try {
-        CGRect dockFrame = calculateDuoDockFrame();
-        self.frame = dockFrame;
-        
-        CGFloat radius = (kCornerRadius > 0) ? kCornerRadius : (dockFrame.size.width / 2.0);
-        self.layer.cornerRadius = radius;
-        if (@available(iOS 13.0, *)) {
-            self.layer.cornerCurve = kCACornerCurveContinuous;
-        }
-        self.layer.masksToBounds = YES;
-        self.clipsToBounds = YES;
-        
-        UIView *platter = nil;
-        @try { platter = [self valueForKey:@"_mainPlatterView"]; } @catch (NSException *e) {}
-        if (platter) {
-            platter.frame = self.bounds;
-            platter.layer.cornerRadius = radius;
-            if (@available(iOS 13.0, *)) {
-                platter.layer.cornerCurve = kCACornerCurveContinuous;
-            }
-            platter.layer.masksToBounds = YES;
-            
-            if (!kDockBlurEnabled) {
-                platter.hidden = YES;
-                platter.alpha = 0.0;
-            } else {
-                platter.hidden = NO;
-                platter.alpha = kDockBlurAlpha;
-            }
-        }
-        
-        UIView *divider = nil;
-        @try { divider = [self valueForKey:@"_dividerView"]; } @catch (NSException *e) {}
-        if (divider) {
-            divider.hidden = YES;
-            divider.alpha = 0.0;
-        }
-        
-        UIView *userIcons = nil;
-        @try { userIcons = [self valueForKey:@"_userIconListView"]; } @catch (NSException *e) {}
-        if (userIcons) {
-            userIcons.frame = self.bounds;
-            applyVerticalIconLayout(userIcons, dockFrame.size.width, dockFrame.size.height);
-        }
-    } @catch (NSException *e) {}
 }
 
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     if (kEnabled) {
-        if (!CGRectContainsPoint(self.bounds, point)) {
-            return nil;
-        }
+        return nil;
     }
     return %orig;
 }
 
 %end
 
+// MARK: - Preferences Hooks Handlers
+static void prefs_performRespring(void) {
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        CFSTR(PREF_RESPRING_NOTIFICATION),
+        NULL,
+        NULL,
+        YES
+    );
+    notify_post(PREF_RESPRING_NOTIFICATION);
+    
+    pid_t pid;
+    const char *args_sbreload[] = {"/var/jb/usr/bin/sbreload", NULL};
+    if (access("/var/jb/usr/bin/sbreload", X_OK) == 0) {
+        posix_spawn(&pid, "/var/jb/usr/bin/sbreload", NULL, NULL, (char *const *)args_sbreload, NULL);
+    }
+}
+
+static void prefs_respringPrompt(UIViewController *controller, SEL _cmd, id sender) {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DuoDock"
+                                                                   message:@"Khởi động lại SpringBoard (Respring) để áp dụng toàn bộ thay đổi ngay bây giờ?"
+                                                            preferredStyle:UIAlertControllerStyleActionSheet];
+    
+    UIAlertAction *respringAction = [UIAlertAction actionWithTitle:@"Respring ngay"
+                                                             style:UIAlertActionStyleDestructive
+                                                           handler:^(UIAlertAction * _Nonnull action) {
+        prefs_performRespring();
+    }];
+    
+    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Huỷ"
+                                                           style:UIAlertActionStyleCancel
+                                                         handler:nil];
+    
+    [alert addAction:respringAction];
+    [alert addAction:cancelAction];
+    
+    [controller presentViewController:alert animated:YES completion:nil];
+}
+
+static void prefs_resetToDefaults(UIViewController *controller, SEL _cmd, id sender) {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Khôi phục mặc định"
+                                                                   message:@"Đặt lại tất cả thiết lập DuoDock về ban đầu?"
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    
+    UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"Đồng ý"
+                                                       style:UIAlertActionStyleDestructive
+                                                     handler:^(UIAlertAction * _Nonnull action) {
+        CFPreferencesSetAppValue(CFSTR("enabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockSide"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockIconCount"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockIconScale"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockWidth"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockHeight"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("rightMargin"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("verticalOffset"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("cornerRadius"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockBlurEnabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockBlurStyle"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockBlurAlpha"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockBorderEnabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockBorderWidth"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockShadowEnabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("hideDockLabels"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("homeCompressGrid"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("homeRightInset"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("expandBottomRows"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.duodock"));
+        
+        [[NSFileManager defaultManager] removeItemAtPath:PREF_PATH_ROOTLESS error:nil];
+        [[NSFileManager defaultManager] removeItemAtPath:PREF_PATH_ROOTFUL error:nil];
+        
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            CFSTR(PREF_CHANGED_NOTIFICATION),
+            NULL,
+            NULL,
+            YES
+        );
+        notify_post(PREF_RESET_NOTIFICATION);
+        
+        if ([controller respondsToSelector:@selector(reloadSpecifiers)]) {
+            [controller performSelector:@selector(reloadSpecifiers)];
+        }
+    }];
+    
+    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Huỷ"
+                                                           style:UIAlertActionStyleCancel
+                                                         handler:nil];
+    
+    [alert addAction:okAction];
+    [alert addAction:cancelAction];
+    [controller presentViewController:alert animated:YES completion:nil];
+}
+
 %ctor {
     @autoreleasepool {
+        NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
+        if ([bundleID isEqualToString:@"com.apple.Preferences"]) {
+            Class listClass = objc_getClass("PSListController");
+            if (listClass) {
+                class_addMethod(listClass, @selector(respringPrompt:), (IMP)prefs_respringPrompt, "v@:@");
+                class_addMethod(listClass, @selector(respringPrompt), (IMP)prefs_respringPrompt, "v@:");
+                class_addMethod(listClass, @selector(respring:), (IMP)prefs_performRespring, "v@:@");
+                class_addMethod(listClass, @selector(respring), (IMP)prefs_performRespring, "v@:");
+                class_addMethod(listClass, @selector(resetToDefaults:), (IMP)prefs_resetToDefaults, "v@:@");
+                class_addMethod(listClass, @selector(resetToDefaults), (IMP)prefs_resetToDefaults, "v@:");
+            }
+            return;
+        }
+        
         loadPreferences();
         
         CFNotificationCenterAddObserver(

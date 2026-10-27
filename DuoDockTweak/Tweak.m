@@ -1,7 +1,8 @@
 #import "Tweak.h"
 
-// MARK: - Global Configurations (v1.0.0 Base)
+// MARK: - Global Configurations (Deep Native Dock)
 static BOOL kEnabled = YES;
+static NSInteger kDockSide = 1; // 0 = Trái (Left), 1 = Phải (Right - Mặc định)
 static NSInteger kDockIconCount = 4;
 static CGFloat kDockIconScale = 0.85;
 static CGFloat kDockWidth = 74.0;
@@ -9,10 +10,20 @@ static CGFloat kDockHeight = 320.0;
 static CGFloat kRightMargin = 10.0;
 static CGFloat kVerticalOffset = 0.0;
 static CGFloat kCornerRadius = 37.0;
-static CGFloat kDockBlurAlpha = 0.82;
+
+// Deep Dock Styling
 static BOOL kDockBlurEnabled = YES;
-static BOOL kExpandBottomRows = YES;
+static NSInteger kDockBlurStyle = 0; // 0 = Kính Tối, 1 = Kính Sáng, 2 = Siêu Mỏng, 3 = Trong Suốt
+static CGFloat kDockBlurAlpha = 0.82;
+static BOOL kDockBorderEnabled = NO;
+static CGFloat kDockBorderWidth = 1.0;
+static BOOL kDockShadowEnabled = YES;
+static BOOL kHideDockLabels = YES;
+
+// Home Screen Layout
+static BOOL kHomeCompressGrid = YES;
 static CGFloat kHomeRightInset = 80.0;
+static BOOL kExpandBottomRows = YES;
 
 // MARK: - Helper to Read Preference with Fallback
 static id getPref(NSString *key, id defaultVal) {
@@ -34,6 +45,7 @@ static id getPref(NSString *key, id defaultVal) {
 // MARK: - Preference Loader
 static void loadPreferences(void) {
     kEnabled = [getPref(@"enabled", @YES) boolValue];
+    kDockSide = [getPref(@"dockSide", @1) integerValue];
     kDockIconCount = [getPref(@"dockIconCount", @4) integerValue];
     kDockIconScale = [getPref(@"dockIconScale", @(0.85)) doubleValue];
     kDockWidth = [getPref(@"dockWidth", @(74.0)) doubleValue];
@@ -41,35 +53,50 @@ static void loadPreferences(void) {
     kRightMargin = [getPref(@"rightMargin", @(10.0)) doubleValue];
     kVerticalOffset = [getPref(@"verticalOffset", @(0.0)) doubleValue];
     kCornerRadius = [getPref(@"cornerRadius", @(37.0)) doubleValue];
-    kDockBlurAlpha = [getPref(@"dockBlurAlpha", @(0.82)) doubleValue];
+    
     kDockBlurEnabled = [getPref(@"dockBlurEnabled", @YES) boolValue];
-    kExpandBottomRows = [getPref(@"expandBottomRows", @YES) boolValue];
+    kDockBlurStyle = [getPref(@"dockBlurStyle", @0) integerValue];
+    kDockBlurAlpha = [getPref(@"dockBlurAlpha", @(0.82)) doubleValue];
+    kDockBorderEnabled = [getPref(@"dockBorderEnabled", @NO) boolValue];
+    kDockBorderWidth = [getPref(@"dockBorderWidth", @(1.0)) doubleValue];
+    kDockShadowEnabled = [getPref(@"dockShadowEnabled", @YES) boolValue];
+    kHideDockLabels = [getPref(@"hideDockLabels", @YES) boolValue];
+    
+    kHomeCompressGrid = [getPref(@"homeCompressGrid", @YES) boolValue];
     kHomeRightInset = [getPref(@"homeRightInset", @(80.0)) doubleValue];
+    kExpandBottomRows = [getPref(@"expandBottomRows", @YES) boolValue];
 }
 
-// MARK: - Respring Implementation
+// MARK: - Respring Implementation (SpringBoard Process)
 static void triggerRespring(void) {
     pid_t pid;
+    // 1. sbreload rootless
     const char *args_sbreload_rootless[] = {"/var/jb/usr/bin/sbreload", NULL};
     if (access("/var/jb/usr/bin/sbreload", X_OK) == 0) {
         posix_spawn(&pid, "/var/jb/usr/bin/sbreload", NULL, NULL, (char *const *)args_sbreload_rootless, NULL);
         return;
     }
+    // 2. sbreload chuẩn
     const char *args_sbreload[] = {"/usr/bin/sbreload", NULL};
     if (access("/usr/bin/sbreload", X_OK) == 0) {
         posix_spawn(&pid, "/usr/bin/sbreload", NULL, NULL, (char *const *)args_sbreload, NULL);
         return;
     }
+    // 3. killall -9 SpringBoard rootless
     const char *args_killall[] = {"/var/jb/usr/bin/killall", "-9", "SpringBoard", NULL};
     if (access("/var/jb/usr/bin/killall", X_OK) == 0) {
         posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char *const *)args_killall, NULL);
         return;
     }
+    // 4. killall hệ thống
     const char *args_killall_sys[] = {"/usr/bin/killall", "-9", "SpringBoard", NULL};
     posix_spawn(&pid, "/usr/bin/killall", NULL, NULL, (char *const *)args_killall_sys, NULL);
+    
+    // 5. Fallback trực tiếp trong tiến trình SpringBoard
+    exit(0);
 }
 
-// MARK: - Notifications Callbacks
+// MARK: - Notifications Callbacks (SpringBoard Process)
 static void preferencesChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
     loadPreferences();
     
@@ -96,6 +123,7 @@ static void respringNotificationReceived(CFNotificationCenterRef center, void *o
 
 static void resetNotificationReceived(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
     CFPreferencesSetAppValue(CFSTR("enabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("dockSide"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("dockIconCount"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("dockIconScale"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("dockWidth"), NULL, CFSTR("com.hoangnguyen.duodock"));
@@ -103,10 +131,16 @@ static void resetNotificationReceived(CFNotificationCenterRef center, void *obse
     CFPreferencesSetAppValue(CFSTR("rightMargin"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("verticalOffset"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("cornerRadius"), NULL, CFSTR("com.hoangnguyen.duodock"));
-    CFPreferencesSetAppValue(CFSTR("dockBlurAlpha"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("dockBlurEnabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
-    CFPreferencesSetAppValue(CFSTR("expandBottomRows"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("dockBlurStyle"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("dockBlurAlpha"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("dockBorderEnabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("dockBorderWidth"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("dockShadowEnabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("hideDockLabels"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("homeCompressGrid"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("homeRightInset"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("expandBottomRows"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.duodock"));
     
     [[NSFileManager defaultManager] removeItemAtPath:PREF_PATH_ROOTLESS error:nil];
@@ -123,7 +157,12 @@ static CGRect calculateDuoDockFrame(void) {
     if (h > screenBounds.size.height - 80.0) {
         h = screenBounds.size.height - 80.0;
     }
-    CGFloat x = screenBounds.size.width - w - kRightMargin;
+    CGFloat x;
+    if (kDockSide == 0) { // Bám cạnh trái
+        x = kRightMargin;
+    } else { // Bám cạnh phải
+        x = screenBounds.size.width - w - kRightMargin;
+    }
     CGFloat y = ((screenBounds.size.height - h) / 2.0) + kVerticalOffset;
     if (y < 30.0) y = 30.0;
     if (y + h > screenBounds.size.height - 30.0) y = screenBounds.size.height - h - 30.0;
@@ -152,6 +191,9 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
     if (iconSize > dockW - 10.0) {
         iconSize = dockW - 10.0;
     }
+    if (iconSize > slotHeight - 4.0) {
+        iconSize = slotHeight - 4.0;
+    }
     
     for (NSUInteger i = 0; i < count; i++) {
         UIView *iconView = icons[i];
@@ -162,7 +204,7 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
         iconView.transform = CGAffineTransformIdentity;
         
         if ([iconView respondsToSelector:@selector(setLabelHidden:)]) {
-            [((SBIconView *)iconView) setLabelHidden:YES];
+            [((SBIconView *)iconView) setLabelHidden:kHideDockLabels];
         }
     }
 }
@@ -187,7 +229,7 @@ static void SafeSwizzle(Class cls, SEL origSEL, SEL newSEL, IMP newIMP, IMP *ori
     }
 }
 
-// MARK: - SBDockView Hooks
+// MARK: - SBDockView Hooks (Tinh chỉnh sâu Dock gốc)
 static void (*orig_SBDockView_layoutSubviews)(id, SEL);
 static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
     if (orig_SBDockView_layoutSubviews) {
@@ -204,9 +246,29 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
         if (@available(iOS 13.0, *)) {
             self.layer.cornerCurve = kCACornerCurveContinuous;
         }
-        self.layer.masksToBounds = YES;
-        self.clipsToBounds = YES;
+        self.layer.masksToBounds = NO;
+        self.clipsToBounds = NO;
         
+        // Đường viền sáng viên thuốc (Capsule Border)
+        if (kDockBorderEnabled) {
+            self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
+            self.layer.borderWidth = kDockBorderWidth;
+        } else {
+            self.layer.borderWidth = 0.0;
+        }
+        
+        // Đổ bóng nổi khối 3D (Tối ưu shadowPath để CoreAnimation không bị tụt fps 120Hz)
+        if (kDockShadowEnabled) {
+            self.layer.shadowColor = [UIColor blackColor].CGColor;
+            self.layer.shadowOpacity = 0.35;
+            self.layer.shadowRadius = 12.0;
+            self.layer.shadowOffset = CGSizeMake(kDockSide == 0 ? 3.0 : -3.0, 4.0);
+            self.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:self.bounds cornerRadius:radius].CGPath;
+        } else {
+            self.layer.shadowOpacity = 0.0;
+        }
+        
+        // Nền mờ viên thuốc & Phong cách kính (Capsule Blur & Styling)
         UIView *bg = nil;
         if ([self respondsToSelector:@selector(backgroundView)]) {
             bg = [self valueForKey:@"backgroundView"];
@@ -222,16 +284,27 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
                 bg.layer.cornerCurve = kCACornerCurveContinuous;
             }
             bg.layer.masksToBounds = YES;
+            bg.clipsToBounds = YES;
             
-            if (!kDockBlurEnabled) {
+            if (!kDockBlurEnabled || kDockBlurStyle == 3) {
                 bg.hidden = YES;
                 bg.alpha = 0.0;
             } else {
                 bg.hidden = NO;
                 bg.alpha = kDockBlurAlpha;
+                
+                // Phong cách màu kính
+                if (kDockBlurStyle == 0) { // Kính Tối
+                    bg.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.30];
+                } else if (kDockBlurStyle == 1) { // Kính Sáng
+                    bg.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.30];
+                } else if (kDockBlurStyle == 2) { // Siêu Mỏng
+                    bg.backgroundColor = [UIColor colorWithWhite:0.5 alpha:0.12];
+                }
             }
         }
         
+        // Bố trí icon dọc trong Dock gốc
         UIView *iconListView = nil;
         if ([self respondsToSelector:@selector(dockIconListView)]) {
             iconListView = [self valueForKey:@"dockIconListView"];
@@ -272,7 +345,7 @@ static CGRect custom_SBRootFolderView_frameForDockView(id self, SEL _cmd) {
     return CGRectZero;
 }
 
-// MARK: - SBIconListView Hooks
+// MARK: - SBIconListView Hooks (Hỗ trợ 2-8 icon & Lùi lề chống đè)
 static NSUInteger (*orig_SBIconListView_maximumIconCount)(id, SEL);
 static NSUInteger custom_SBIconListView_maximumIconCount(SBIconListView *self, SEL _cmd) {
     if (kEnabled && self.isDock) {
@@ -294,10 +367,16 @@ static UIEdgeInsets custom_SBIconListView_layoutInsetsForOrientation(SBIconListV
     
     @try {
         if (!self.isDock && [self.iconLocation isEqualToString:@"SBIconLocationRoot"]) {
-            CGFloat inset = (kHomeRightInset > 0) ? kHomeRightInset : (kDockWidth + kRightMargin + 10.0);
-            insets.right += inset;
-            if (kExpandBottomRows) {
-                insets.bottom = 8.0;
+            if (kHomeCompressGrid) {
+                CGFloat dockOccupied = (kHomeRightInset > 0) ? kHomeRightInset : (kDockWidth + kRightMargin + 10.0);
+                if (kDockSide == 0) { // Dock ở bên Trái -> Lùi lề Trái của lưới icon
+                    insets.left += dockOccupied;
+                } else { // Dock ở bên Phải -> Lùi lề Phải của lưới icon
+                    insets.right += dockOccupied;
+                }
+                if (kExpandBottomRows) {
+                    insets.bottom = 8.0;
+                }
             }
         }
     } @catch (NSException *e) {}
@@ -305,7 +384,7 @@ static UIEdgeInsets custom_SBIconListView_layoutInsetsForOrientation(SBIconListV
     return insets;
 }
 
-// MARK: - SBFloatingDockView Hooks
+// MARK: - SBFloatingDockView Hooks (Vô hiệu hóa an toàn FloatingDockXVI)
 static void (*orig_SBFloatingDockView_layoutSubviews)(id, SEL);
 static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
     if (orig_SBFloatingDockView_layoutSubviews) {
@@ -314,58 +393,17 @@ static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
     if (!kEnabled) return;
     
     @try {
-        CGRect dockFrame = calculateDuoDockFrame();
-        self.frame = dockFrame;
-        
-        CGFloat radius = (kCornerRadius > 0) ? kCornerRadius : (dockFrame.size.width / 2.0);
-        self.layer.cornerRadius = radius;
-        if (@available(iOS 13.0, *)) {
-            self.layer.cornerCurve = kCACornerCurveContinuous;
-        }
-        self.layer.masksToBounds = YES;
-        self.clipsToBounds = YES;
-        
-        UIView *platter = nil;
-        @try { platter = [self valueForKey:@"_mainPlatterView"]; } @catch (NSException *e) {}
-        if (platter) {
-            platter.frame = self.bounds;
-            platter.layer.cornerRadius = radius;
-            if (@available(iOS 13.0, *)) {
-                platter.layer.cornerCurve = kCACornerCurveContinuous;
-            }
-            platter.layer.masksToBounds = YES;
-            
-            if (!kDockBlurEnabled) {
-                platter.hidden = YES;
-                platter.alpha = 0.0;
-            } else {
-                platter.hidden = NO;
-                platter.alpha = kDockBlurAlpha;
-            }
-        }
-        
-        UIView *divider = nil;
-        @try { divider = [self valueForKey:@"_dividerView"]; } @catch (NSException *e) {}
-        if (divider) {
-            divider.hidden = YES;
-            divider.alpha = 0.0;
-        }
-        
-        UIView *userIcons = nil;
-        @try { userIcons = [self valueForKey:@"_userIconListView"]; } @catch (NSException *e) {}
-        if (userIcons) {
-            userIcons.frame = self.bounds;
-            applyVerticalIconLayout(userIcons, dockFrame.size.width, dockFrame.size.height);
-        }
+        // Vô hiệu hóa FloatingDockXVI an toàn để tránh xung đột với Dock gốc độc lập
+        self.hidden = YES;
+        self.alpha = 0.0;
+        self.frame = CGRectZero;
     } @catch (NSException *e) {}
 }
 
 static UIView *(*orig_SBFloatingDockView_hitTest)(id, SEL, CGPoint, UIEvent *);
 static UIView *custom_SBFloatingDockView_hitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
     if (kEnabled) {
-        if (!CGRectContainsPoint(self.bounds, point)) {
-            return nil;
-        }
+        return nil;
     }
     if (orig_SBFloatingDockView_hitTest) {
         return orig_SBFloatingDockView_hitTest(self, _cmd, point, event);
@@ -373,9 +411,129 @@ static UIView *custom_SBFloatingDockView_hitTest(UIView *self, SEL _cmd, CGPoint
     return nil;
 }
 
+// MARK: - Preferences.app Hooks & Action Handlers (Chạy trong com.apple.Preferences)
+static void prefs_performRespring(void) {
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        CFSTR(PREF_RESPRING_NOTIFICATION),
+        NULL,
+        NULL,
+        YES
+    );
+    notify_post(PREF_RESPRING_NOTIFICATION);
+    
+    pid_t pid;
+    const char *args_sbreload[] = {"/var/jb/usr/bin/sbreload", NULL};
+    if (access("/var/jb/usr/bin/sbreload", X_OK) == 0) {
+        posix_spawn(&pid, "/var/jb/usr/bin/sbreload", NULL, NULL, (char *const *)args_sbreload, NULL);
+    }
+}
+
+static void prefs_respringPrompt(UIViewController *controller, SEL _cmd, id sender) {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DuoDock"
+                                                                   message:@"Khởi động lại SpringBoard (Respring) để áp dụng toàn bộ thay đổi ngay bây giờ?"
+                                                            preferredStyle:UIAlertControllerStyleActionSheet];
+    
+    UIAlertAction *respringAction = [UIAlertAction actionWithTitle:@"Respring ngay"
+                                                             style:UIAlertActionStyleDestructive
+                                                           handler:^(UIAlertAction * _Nonnull action) {
+        prefs_performRespring();
+    }];
+    
+    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Huỷ"
+                                                           style:UIAlertActionStyleCancel
+                                                         handler:nil];
+    
+    [alert addAction:respringAction];
+    [alert addAction:cancelAction];
+    
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad && [sender isKindOfClass:[UIView class]]) {
+        alert.popoverPresentationController.sourceView = (UIView *)sender;
+        alert.popoverPresentationController.sourceRect = ((UIView *)sender).bounds;
+    }
+    
+    [controller presentViewController:alert animated:YES completion:nil];
+}
+
+static void prefs_resetToDefaults(UIViewController *controller, SEL _cmd, id sender) {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Khôi phục mặc định"
+                                                                   message:@"Đặt lại tất cả thiết lập DuoDock về ban đầu?"
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    
+    UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"Đồng ý"
+                                                       style:UIAlertActionStyleDestructive
+                                                     handler:^(UIAlertAction * _Nonnull action) {
+        CFPreferencesSetAppValue(CFSTR("enabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockSide"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockIconCount"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockIconScale"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockWidth"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockHeight"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("rightMargin"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("verticalOffset"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("cornerRadius"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockBlurEnabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockBlurStyle"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockBlurAlpha"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockBorderEnabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockBorderWidth"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockShadowEnabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("hideDockLabels"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("homeCompressGrid"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("homeRightInset"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("expandBottomRows"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.duodock"));
+        
+        [[NSFileManager defaultManager] removeItemAtPath:PREF_PATH_ROOTLESS error:nil];
+        [[NSFileManager defaultManager] removeItemAtPath:PREF_PATH_ROOTFUL error:nil];
+        
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            CFSTR(PREF_CHANGED_NOTIFICATION),
+            NULL,
+            NULL,
+            YES
+        );
+        notify_post(PREF_RESET_NOTIFICATION);
+        
+        if ([controller respondsToSelector:@selector(reloadSpecifiers)]) {
+            [controller performSelector:@selector(reloadSpecifiers)];
+        }
+    }];
+    
+    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Huỷ"
+                                                           style:UIAlertActionStyleCancel
+                                                         handler:nil];
+    
+    [alert addAction:okAction];
+    [alert addAction:cancelAction];
+    [controller presentViewController:alert animated:YES completion:nil];
+}
+
+static void initPreferencesHooks(void) {
+    Class listClass = objc_getClass("PSListController");
+    if (listClass) {
+        class_addMethod(listClass, @selector(respringPrompt:), (IMP)prefs_respringPrompt, "v@:@");
+        class_addMethod(listClass, @selector(respringPrompt), (IMP)prefs_respringPrompt, "v@:");
+        class_addMethod(listClass, @selector(respring:), (IMP)prefs_performRespring, "v@:@");
+        class_addMethod(listClass, @selector(respring), (IMP)prefs_performRespring, "v@:");
+        class_addMethod(listClass, @selector(resetToDefaults:), (IMP)prefs_resetToDefaults, "v@:@");
+        class_addMethod(listClass, @selector(resetToDefaults), (IMP)prefs_resetToDefaults, "v@:");
+    }
+}
+
 // MARK: - Constructor
 __attribute__((constructor)) static void DuoDockInit(void) {
     @autoreleasepool {
+        NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
+        
+        // 1. Khi đang trong ứng dụng Cài đặt (Preferences.app)
+        if ([bundleID isEqualToString:@"com.apple.Preferences"]) {
+            initPreferencesHooks();
+            return;
+        }
+        
+        // 2. Khi đang trong SpringBoard
         loadPreferences();
         
         // Darwin Notifications Observers
@@ -406,7 +564,7 @@ __attribute__((constructor)) static void DuoDockInit(void) {
             CFNotificationSuspensionBehaviorDeliverImmediately
         );
         
-        // Swizzle SBDockView
+        // Swizzle SBDockView (Dock gốc độc lập)
         Class dockViewClass = objc_getClass("SBDockView");
         if (dockViewClass) {
             SafeSwizzle(dockViewClass, @selector(layoutSubviews), @selector(duodock_layoutSubviews), (IMP)custom_SBDockView_layoutSubviews, (IMP *)&orig_SBDockView_layoutSubviews);
@@ -419,14 +577,14 @@ __attribute__((constructor)) static void DuoDockInit(void) {
             SafeSwizzle(rootFolderClass, @selector(_frameForDockView), @selector(duodock_frameForDockView), (IMP)custom_SBRootFolderView_frameForDockView, (IMP *)&orig_SBRootFolderView_frameForDockView);
         }
         
-        // Swizzle SBIconListView
+        // Swizzle SBIconListView (Số lượng icon dock & Chống đè icon màn hình chính)
         Class iconListViewClass = objc_getClass("SBIconListView");
         if (iconListViewClass) {
             SafeSwizzle(iconListViewClass, @selector(maximumIconCount), @selector(duodock_maximumIconCount), (IMP)custom_SBIconListView_maximumIconCount, (IMP *)&orig_SBIconListView_maximumIconCount);
             SafeSwizzle(iconListViewClass, @selector(layoutInsetsForOrientation:), @selector(duodock_layoutInsetsForOrientation:), (IMP)custom_SBIconListView_layoutInsetsForOrientation, (IMP *)&orig_SBIconListView_layoutInsetsForOrientation);
         }
         
-        // Swizzle SBFloatingDockView
+        // Swizzle SBFloatingDockView (Vô hiệu hóa an toàn FloatingDockXVI)
         Class floatDockClass = objc_getClass("SBFloatingDockView");
         if (floatDockClass) {
             SafeSwizzle(floatDockClass, @selector(layoutSubviews), @selector(duodock_floating_layoutSubviews), (IMP)custom_SBFloatingDockView_layoutSubviews, (IMP *)&orig_SBFloatingDockView_layoutSubviews);
