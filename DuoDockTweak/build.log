@@ -1,0 +1,21 @@
+++ xcrun --sdk iphoneos --show-sdk-path
++ SDK_PATH=/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk
++ echo '[*] Step 1: Compiling DuoDock.dylib...'
+[*] Step 1: Compiling DuoDock.dylib...
++ xcrun -sdk iphoneos clang -arch arm64 -target arm64-apple-ios15.0 -miphoneos-version-min=15.0 -dynamiclib -isysroot /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -framework UIKit -framework Foundation -framework CoreGraphics -framework QuartzCore -undefined dynamic_lookup -fobjc-arc Tweak.m -o DuoDock.dylib
+Tweak.m:277:26: error: use of undeclared identifier 'kSearchButtonSize'
+    CGFloat buttonSize = kSearchButtonSize;
+                         ^
+Tweak.m:291:35: error: use of undeclared identifier 'kSearchButtonOffsetY'
+    CGFloat bottomMargin = 32.0 - kSearchButtonOffsetY;
+                                  ^
+Tweak.m:442:23: error: use of undeclared identifier 'kShowSearchButton'
+    if (!kEnabled || !kShowSearchButton) {
+                      ^
+Tweak.m:700:9: warning: 'UI_USER_INTERFACE_IDIOM' is deprecated: first deprecated in iOS 13.0 - Use -[UIDevice userInterfaceIdiom] directly. [-Wdeprecated-declarations]
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad && [sender isKindOfClass:[UIView class]]) {
+        ^
+/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/System/Library/Frameworks/UIKit.framework/Headers/UIDevice.h:77:36: note: 'UI_USER_INTERFACE_IDIOM' has been explicitly marked deprecated here
+static inline UIUserInterfaceIdiom UI_USER_INTERFACE_IDIOM(void) API_DEPRECATED("Use -[UIDevice userInterfaceIdiom] directly.", ios(2.0, 13.0), tvos(9.0, 11.0)) API_UNAVAILABLE(visionos) {
+                                   ^
+1 warning and 3 errors generated.
