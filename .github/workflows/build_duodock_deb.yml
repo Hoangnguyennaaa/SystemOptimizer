@@ -71,21 +71,17 @@ jobs:
         if: success()
         with:
           tag_name: duodock-latest
-          name: "DuoDock v1.0.2 Rootless DEB (Fix Touch Freeze & Full Native Paging)"
+          name: "DuoDock v1.0.3 Rootless DEB (Frosted Spotlight Search Button)"
           body: |
-            ### DuoDock v1.0.2 (Rootless iOS 15.0 - 15.8.x - iPhone 7 Plus & A10 Compatible)
-            - **Khắc phục triệt để lỗi đơ cảm ứng màn hình chính (Fix Touch Freeze)**:
-              + **Nguyên nhân**: Việc swizzle `hitTest:withEvent:` trên `SBDockView` và `SBFloatingDockView` đã làm tráo đổi nhầm implementation `hitTest:` của lớp cha `UIView` trong toàn bộ tiến trình SpringBoard, khiến tất cả các view trên màn hình chính trả về `nil` khi nhận cảm ứng (chỉ có AssistiveTouch ở tiến trình riêng biệt còn di chuyển được).
-              + **Xử lý**: Loại bỏ hoàn toàn tất cả các hook trên `hitTest:withEvent:`. Kích thước `SBDockView` được định dạng chính xác 74x320pt, toàn bộ không gian còn lại trên màn hình tự động chuyển tiếp cảm ứng mượt mà 100% đến trang cuộn icon và hình nền theo cơ chế mặc định của UIKit.
-              + Cải tiến `SafeSwizzle` chuẩn xác để bảo vệ toàn vẹn các class cha của hệ thống (`UIView`), tuyệt đối không làm ô nhiễm bảng method toàn cục.
-            - **Bảo lưu đầy đủ các tính năng tinh chỉnh sâu Dock gốc (`SBDockView`)**:
-              + Tùy chọn vị trí Dock: Cạnh Trái hoặc Cạnh Phải (lưới icon tự động lùi lề tương ứng).
-              + Tùy chỉnh số lượng icon trên Dock (2 đến 8 icon) với cơ chế Auto slot scale.
-              + 4 phong cách nền kính mờ: Kính Tối, Kính Sáng, Siêu Mỏng, Trong Suốt cùng thanh trượt độ mờ.
-              + Đổ bóng nổi khối 3D với vector `shadowPath` GPU mượt mà 120Hz.
-              + Viền sáng viên thuốc với thanh trượt chỉnh độ dày viền.
-              + Ẩn nhãn tên ứng dụng trên Dock.
-              + Nút Khởi động lại SpringBoard (Respring) và Khôi phục cài đặt mặc định hoạt động ngay trong Cài đặt.
-            - Tương thích Dopamine, Sileo, Zebra, kiến trúc `iphoneos-arm64`.
+            ### DuoDock v1.0.3 (Rootless iOS 15.0 - 15.8.x - iPhone 7 Plus & A10 Compatible)
+            - **Thêm nút tìm kiếm Spotlight kính mờ (Frosted Spotlight Search Button)**:
+              + Thiết kế dạng tròn cao cấp với hiệu ứng làm mờ kính (`UIVisualEffectView`), viền sáng và đổ bóng 3D đồng bộ hoàn hảo với Dock dọc theo chuẩn foldable/duo concept.
+              + Vị trí thông minh: Căn thẳng hàng theo trục dọc trung tâm của thanh Dock, đặt ở vùng chân màn hình ngang tầm với các chấm trang.
+              + Chạm vào nút để kích hoạt nhanh giao diện tìm kiếm Spotlight với hiệu ứng nhún lò xo (spring bounce) và rung phản hồi Taptic Engine.
+              + Cách ly hoàn toàn cảm ứng (Isolated UIKit touches): Nút được quản lý độc lập trên view gốc, tuyệt đối không can thiệp hay làm cản trở thao tác vuốt trang, chạm icon hay thanh Dock.
+              + Tùy biến linh hoạt trong Cài đặt: Bật/tắt nút, điều chỉnh kích thước nút (36pt - 64pt), tinh chỉnh vị trí dọc (Offset Y).
+            - **Kế thừa đầy đủ độ ổn định của bản v1.0.2**:
+              + Không swizzle `hitTest:`, không gây đơ cảm ứng màn hình chính.
+              + Tương thích mượt mà 100% với iPhone 7 Plus (Chip A10) và iOS 15 Rootless Dopamine.
           files: "DuoDock_rootless.deb"
 

@@ -91,6 +91,9 @@ static void triggerRespring(void) {
 }
 
 // MARK: - Notifications Callbacks (SpringBoard Process)
+static void updateDuoDockSearchButton(UIView *containerView, CGRect dockFrame);
+static CGRect calculateDuoDockFrame(void);
+
 static void preferencesChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
     loadPreferences();
     
@@ -99,6 +102,13 @@ static void preferencesChanged(CFNotificationCenterRef center, void *observer, C
             Class iconControllerClass = objc_getClass("SBIconController");
             if (iconControllerClass) {
                 id iconController = [iconControllerClass performSelector:@selector(sharedInstance)];
+                if ([iconController respondsToSelector:@selector(_rootFolderView)]) {
+                    UIView *rootView = [iconController performSelector:@selector(_rootFolderView)];
+                    if (rootView) {
+                        CGRect dockFrame = calculateDuoDockFrame();
+                        updateDuoDockSearchButton(rootView, dockFrame);
+                    }
+                }
                 if ([iconController respondsToSelector:@selector(relayout)]) {
                     [UIView animateWithDuration:0.35 delay:0.0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
                         [iconController performSelector:@selector(relayout)];
@@ -201,6 +211,253 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
             [((SBIconView *)iconView) setLabelHidden:kHideDockLabels];
         }
     }
+}
+
+// MARK: - Spotlight Search Helpers & DuoDockSearchButton
+static void triggerSpotlightSearch(void) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        @try {
+            Class iconControllerClass = objc_getClass("SBIconController");
+            if (!iconControllerClass) return;
+            
+            id iconController = [iconControllerClass performSelector:@selector(sharedInstance)];
+            if (!iconController) return;
+            
+            id iconManager = nil;
+            if ([iconController respondsToSelector:@selector(iconManager)]) {
+                iconManager = [iconController performSelector:@selector(iconManager)];
+            }
+            
+            id target = iconManager ?: iconController;
+            
+            // Nếu đang hiển thị Spotlight -> Đóng mượt mà
+            BOOL isShowing = NO;
+            if ([target respondsToSelector:@selector(isShowingSpotlightOrLeadingCustomView)]) {
+                isShowing = ((BOOL (*)(id, SEL))objc_msgSend)(target, @selector(isShowingSpotlightOrLeadingCustomView));
+            } else if ([target respondsToSelector:@selector(isShowingPullDownSearch)]) {
+                isShowing = ((BOOL (*)(id, SEL))objc_msgSend)(target, @selector(isShowingPullDownSearch));
+            }
+            
+            if (isShowing) {
+                if ([target respondsToSelector:@selector(dismissSpotlightAnimated:completionHandler:)]) {
+                    ((BOOL (*)(id, SEL, BOOL, id))objc_msgSend)(target, @selector(dismissSpotlightAnimated:completionHandler:), YES, nil);
+                    return;
+                } else if ([target respondsToSelector:@selector(dismissSpotlightAnimated:)]) {
+                    ((BOOL (*)(id, SEL, BOOL))objc_msgSend)(target, @selector(dismissSpotlightAnimated:), YES);
+                    return;
+                }
+            }
+            
+            // Kích hoạt hiển thị Spotlight trên iOS 15 / SBHIconManager
+            if ([target respondsToSelector:@selector(presentSpotlightFromSource:animated:completionHandler:)]) {
+                ((BOOL (*)(id, SEL, unsigned long long, BOOL, id))objc_msgSend)(target, @selector(presentSpotlightFromSource:animated:completionHandler:), 0, YES, nil);
+                return;
+            }
+            if ([iconController respondsToSelector:@selector(presentSpotlightFromSource:animated:completionHandler:)]) {
+                ((BOOL (*)(id, SEL, unsigned long long, BOOL, id))objc_msgSend)(iconController, @selector(presentSpotlightFromSource:animated:completionHandler:), 0, YES, nil);
+                return;
+            }
+            if ([iconController respondsToSelector:@selector(presentSpotlightFromSource:fromBreadcrumb:animated:completionHandler:)]) {
+                ((BOOL (*)(id, SEL, unsigned long long, BOOL, BOOL, id))objc_msgSend)(iconController, @selector(presentSpotlightFromSource:fromBreadcrumb:animated:completionHandler:), 0, NO, YES, nil);
+                return;
+            }
+            if ([iconController respondsToSelector:@selector(presentSpotlightAnimated:)]) {
+                [iconController performSelector:@selector(presentSpotlightAnimated:) withObject:@YES];
+                return;
+            }
+            if ([iconController respondsToSelector:@selector(_presentTopEdgeSpotlight:completionHandler:)]) {
+                ((BOOL (*)(id, SEL, BOOL, id))objc_msgSend)(iconController, @selector(_presentTopEdgeSpotlight:completionHandler:), YES, nil);
+                return;
+            }
+        } @catch (NSException *e) {}
+    });
+}
+
+static CGRect calculateDuoDockSearchButtonFrame(CGRect dockFrame, CGRect containerBounds) {
+    CGFloat buttonSize = kSearchButtonSize;
+    if (buttonSize < 36.0) buttonSize = 36.0;
+    if (buttonSize > 64.0) buttonSize = 64.0;
+    
+    // Căn giữa chính xác theo trục X của thanh Dock dọc
+    CGFloat centerX = CGRectGetMidX(dockFrame);
+    CGFloat buttonX = centerX - (buttonSize / 2.0);
+    
+    if (buttonX < 5.0) buttonX = 5.0;
+    if (buttonX + buttonSize > containerBounds.size.width - 5.0) {
+        buttonX = containerBounds.size.width - buttonSize - 5.0;
+    }
+    
+    // Vị trí Y: Mặc định đặt ở chân màn hình, ngang tầm cụm chỉ báo trang (page dots)
+    CGFloat bottomMargin = 32.0 - kSearchButtonOffsetY;
+    if (bottomMargin < 8.0) bottomMargin = 8.0;
+    
+    CGFloat buttonY = containerBounds.size.height - buttonSize - bottomMargin;
+    
+    // Cách đáy Dock ít nhất 12pt để không bao giờ bị đè
+    CGFloat minTopY = CGRectGetMaxY(dockFrame) + 12.0;
+    if (buttonY < minTopY) {
+        buttonY = minTopY;
+    }
+    
+    if (buttonY + buttonSize > containerBounds.size.height - 8.0) {
+        buttonY = containerBounds.size.height - buttonSize - 8.0;
+    }
+    
+    return CGRectMake(buttonX, buttonY, buttonSize, buttonSize);
+}
+
+@implementation DuoDockSearchButton
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.backgroundColor = [UIColor clearColor];
+        self.layer.masksToBounds = NO;
+        self.clipsToBounds = NO;
+        
+        UIBlurEffect *blurEffect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterialDark];
+        _blurView = [[UIVisualEffectView alloc] initWithEffect:blurEffect];
+        _blurView.frame = self.bounds;
+        _blurView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        _blurView.layer.masksToBounds = YES;
+        _blurView.clipsToBounds = YES;
+        _blurView.userInteractionEnabled = NO;
+        [self addSubview:_blurView];
+        
+        _iconImageView = [[UIImageView alloc] initWithFrame:self.bounds];
+        _iconImageView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        _iconImageView.contentMode = UIViewContentModeCenter;
+        _iconImageView.userInteractionEnabled = NO;
+        [self addSubview:_iconImageView];
+        
+        [self addTarget:self action:@selector(touchDownAction) forControlEvents:UIControlEventTouchDown];
+        [self addTarget:self action:@selector(touchUpInsideAction) forControlEvents:UIControlEventTouchUpInside];
+        [self addTarget:self action:@selector(touchUpOutsideAction) forControlEvents:UIControlEventTouchUpOutside | UIControlEventTouchCancel];
+    }
+    return self;
+}
+
+- (void)touchDownAction {
+    [UIView animateWithDuration:0.12 delay:0.0 options:UIViewAnimationOptionCurveEaseOut animations:^{
+        self.transform = CGAffineTransformMakeScale(0.88, 0.88);
+        self.alpha = 0.85;
+    } completion:nil];
+}
+
+- (void)touchUpInsideAction {
+    [UIView animateWithDuration:0.35 delay:0.0 usingSpringWithDamping:0.55 initialSpringVelocity:0.8 options:UIViewAnimationOptionCurveEaseOut animations:^{
+        self.transform = CGAffineTransformIdentity;
+        self.alpha = 1.0;
+    } completion:nil];
+    
+    @try {
+        UIImpactFeedbackGenerator *feedback = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
+        [feedback prepare];
+        [feedback impactOccurred];
+    } @catch (NSException *e) {}
+    
+    triggerSpotlightSearch();
+}
+
+- (void)touchUpOutsideAction {
+    [UIView animateWithDuration:0.25 delay:0.0 usingSpringWithDamping:0.7 initialSpringVelocity:0.5 options:UIViewAnimationOptionCurveEaseOut animations:^{
+        self.transform = CGAffineTransformIdentity;
+        self.alpha = 1.0;
+    } completion:nil];
+}
+
+- (void)updateAppearanceWithDockFrame:(CGRect)dockFrame containerBounds:(CGRect)containerBounds {
+    CGRect btnFrame = calculateDuoDockSearchButtonFrame(dockFrame, containerBounds);
+    self.frame = btnFrame;
+    
+    CGFloat radius = btnFrame.size.width / 2.0;
+    self.layer.cornerRadius = radius;
+    if (@available(iOS 13.0, *)) {
+        self.layer.cornerCurve = kCACornerCurveContinuous;
+    }
+    
+    if (kDockBorderEnabled) {
+        self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.40].CGColor;
+        self.layer.borderWidth = kDockBorderWidth;
+    } else {
+        self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.30].CGColor;
+        self.layer.borderWidth = 0.8;
+    }
+    
+    if (kDockShadowEnabled) {
+        self.layer.shadowColor = [UIColor blackColor].CGColor;
+        self.layer.shadowOpacity = 0.35;
+        self.layer.shadowRadius = 8.0;
+        self.layer.shadowOffset = CGSizeMake(0.0, 3.0);
+        self.layer.shadowPath = [UIBezierPath bezierPathWithOvalInRect:self.bounds].CGPath;
+    } else {
+        self.layer.shadowOpacity = 0.0;
+    }
+    
+    self.blurView.frame = self.bounds;
+    self.blurView.layer.cornerRadius = radius;
+    if (@available(iOS 13.0, *)) {
+        self.blurView.layer.cornerCurve = kCACornerCurveContinuous;
+    }
+    
+    if (!kDockBlurEnabled || kDockBlurStyle == 3) {
+        self.blurView.hidden = YES;
+        self.backgroundColor = [UIColor clearColor];
+    } else {
+        self.blurView.hidden = NO;
+        self.blurView.alpha = kDockBlurAlpha;
+        
+        UIBlurEffectStyle blurStyle = UIBlurEffectStyleSystemChromeMaterialDark;
+        if (kDockBlurStyle == 1) {
+            blurStyle = UIBlurEffectStyleSystemChromeMaterialLight;
+            self.blurView.contentView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.30];
+        } else if (kDockBlurStyle == 2) {
+            blurStyle = UIBlurEffectStyleSystemUltraThinMaterial;
+            self.blurView.contentView.backgroundColor = [UIColor colorWithWhite:0.5 alpha:0.12];
+        } else {
+            self.blurView.contentView.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.30];
+        }
+        self.blurView.effect = [UIBlurEffect effectWithStyle:blurStyle];
+    }
+    
+    self.iconImageView.frame = self.bounds;
+    UIImage *searchImg = [UIImage systemImageNamed:@"magnifyingglass"];
+    if (@available(iOS 13.0, *)) {
+        UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:(btnFrame.size.width * 0.40) weight:UIImageSymbolWeightSemibold];
+        searchImg = [searchImg imageWithConfiguration:config];
+    }
+    searchImg = [searchImg imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    self.iconImageView.image = searchImg;
+    self.iconImageView.tintColor = [UIColor whiteColor];
+}
+
+@end
+
+static void updateDuoDockSearchButton(UIView *containerView, CGRect dockFrame) {
+    if (!containerView) return;
+    
+    static const char *kSearchButtonKey = "kDuoDockSearchButtonKey";
+    DuoDockSearchButton *btn = (DuoDockSearchButton *)objc_getAssociatedObject(containerView, kSearchButtonKey);
+    
+    if (!kEnabled || !kShowSearchButton) {
+        if (btn) {
+            btn.hidden = YES;
+            btn.userInteractionEnabled = NO;
+        }
+        return;
+    }
+    
+    if (!btn) {
+        CGRect initialFrame = calculateDuoDockSearchButtonFrame(dockFrame, containerView.bounds);
+        btn = [[DuoDockSearchButton alloc] initWithFrame:initialFrame];
+        objc_setAssociatedObject(containerView, kSearchButtonKey, btn, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [containerView addSubview:btn];
+    }
+    
+    btn.hidden = NO;
+    btn.userInteractionEnabled = YES;
+    [containerView bringSubviewToFront:btn];
+    [btn updateAppearanceWithDockFrame:dockFrame containerBounds:containerView.bounds];
 }
 
 // MARK: - Safe Swizzle Helper (Tương thích 100% ARM64, KHÔNG BAO GIỜ đụng vào UIView superclass)
@@ -312,6 +569,11 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
             iconListView.frame = self.bounds;
             applyVerticalIconLayout(iconListView, dockFrame.size.width, dockFrame.size.height);
         }
+        
+        // Cập nhật vị trí nút tìm kiếm Spotlight độc lập trên superview
+        if (self.superview) {
+            updateDuoDockSearchButton(self.superview, dockFrame);
+        }
     } @catch (NSException *e) {}
 }
 
@@ -325,6 +587,24 @@ static CGRect custom_SBRootFolderView_frameForDockView(id self, SEL _cmd) {
         return orig_SBRootFolderView_frameForDockView(self, _cmd);
     }
     return CGRectZero;
+}
+
+static void (*orig_SBRootFolderView_layoutSubviews)(id, SEL);
+static void custom_SBRootFolderView_layoutSubviews(UIView *self, SEL _cmd) {
+    if (orig_SBRootFolderView_layoutSubviews) {
+        orig_SBRootFolderView_layoutSubviews(self, _cmd);
+    }
+    if (!kEnabled) return;
+    
+    @try {
+        SBDockView *dock = nil;
+        if ([self respondsToSelector:@selector(dockView)]) {
+            dock = [self valueForKey:@"dockView"];
+        }
+        if (dock) {
+            updateDuoDockSearchButton(self, dock.frame);
+        }
+    } @catch (NSException *e) {}
 }
 
 // MARK: - SBIconListView Hooks (Hỗ trợ 2-8 icon & Lùi lề chống đè)
@@ -544,6 +824,7 @@ __attribute__((constructor)) static void DuoDockInit(void) {
         Class rootFolderClass = objc_getClass("SBRootFolderView");
         if (rootFolderClass) {
             SafeSwizzle(rootFolderClass, @selector(_frameForDockView), (IMP)custom_SBRootFolderView_frameForDockView, (IMP *)&orig_SBRootFolderView_frameForDockView);
+            SafeSwizzle(rootFolderClass, @selector(layoutSubviews), (IMP)custom_SBRootFolderView_layoutSubviews, (IMP *)&orig_SBRootFolderView_layoutSubviews);
         }
         
         // Swizzle SBIconListView (Số lượng icon dock & Chống đè icon màn hình chính)

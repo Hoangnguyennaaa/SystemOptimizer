@@ -462,6 +462,80 @@
 			<string>com.hoangnguyen.duodock/preferences.changed</string>
 		</dict>
 
+		<!-- NÚT TÌM KIẾM SPOTLIGHT -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>NÚT TÌM KIẾM SPOTLIGHT (SEARCH BUTTON)</string>
+			<key>footerText</key>
+			<string>Nút tìm kiếm dạng tròn hiệu ứng kính mờ đặt ngay dưới Dock dọc, mở nhanh Spotlight khi chạm vào với hiệu ứng nhún lò xo và rung phản hồi.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>showSearchButton</string>
+			<key>label</key>
+			<string>Bật nút tìm kiếm Spotlight</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>KÍCH THƯỚC NÚT TÌM KIẾM (SIZE: 36 - 64 PT)</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>48.0</real>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>searchButtonSize</string>
+			<key>min</key>
+			<real>36.0</real>
+			<key>max</key>
+			<real>64.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>VỊ TRÍ DỌC NÚT TÌM KIẾM (OFFSET Y: -50 - 50 PT)</string>
+			<key>footerText</key>
+			<string>Căn chỉnh vị trí dọc của nút tìm kiếm so với chân màn hình và thanh Dock.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>0.0</real>
+			<key>defaults</key>
+			<string>com.hoangnguyen.duodock</string>
+			<key>key</key>
+			<string>searchButtonOffsetY</string>
+			<key>min</key>
+			<real>-50.0</real>
+			<key>max</key>
+			<real>50.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.duodock/preferences.changed</string>
+		</dict>
+
 		<!-- THAO TÁC HỆ THỐNG -->
 		<dict>
 			<key>cell</key>
@@ -495,9 +569,9 @@
 			<key>footerAlignment</key>
 			<integer>1</integer>
 			<key>footerText</key>
-			<string>DuoDock v1.0.1 (Rootless iOS 15)
+			<string>DuoDock v1.0.3 (Rootless iOS 15)
 Hỗ trợ iPhone 7 Plus &amp; Chip A10
-Tinh chỉnh sâu Dock gốc độc lập &amp; Chống xung đột</string>
+Nút tìm kiếm Spotlight kính mờ &amp; Dock dọc siêu mượt</string>
 		</dict>
 	</array>
 </dict>

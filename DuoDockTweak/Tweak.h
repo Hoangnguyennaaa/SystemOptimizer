@@ -55,4 +55,15 @@
 + (id)sharedInstance;
 - (void)relayout;
 - (SBRootFolderView *)_rootFolderView;
+- (id)iconManager;
+- (BOOL)isShowingSpotlightOrLeadingCustomView;
+- (BOOL)presentSpotlightFromSource:(unsigned long long)arg1 animated:(BOOL)arg2 completionHandler:(id)arg3;
+- (BOOL)dismissSpotlightAnimated:(BOOL)arg1 completionHandler:(id)arg2;
+- (void)presentSpotlightAnimated:(BOOL)animated;
+@end
+
+@interface DuoDockSearchButton : UIControl
+@property (nonatomic, strong) UIVisualEffectView *blurView;
+@property (nonatomic, strong) UIImageView *iconImageView;
+- (void)updateAppearanceWithDockFrame:(CGRect)dockFrame containerBounds:(CGRect)containerBounds;
 @end
