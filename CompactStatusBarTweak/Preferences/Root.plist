@@ -525,7 +525,7 @@
 			<key>cell</key>
 			<string>PSLinkListCell</string>
 			<key>default</key>
-			<integer>2</integer>
+			<integer>4</integer>
 			<key>defaults</key>
 			<string>com.hoangnguyen.compactstatusbar</string>
 			<key>detail</key>

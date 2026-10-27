@@ -195,7 +195,7 @@ static CGFloat p_ccIconScale = 1.0;
 // In-App Separated Position Preferences
 
 static int p_deviceModel = 0; // 0 = Auto, 1 = Island, 2 = Notch, 3 = Classic
-static int p_batteryPercentMode = 2; // 0 = An, 1 = O tam, 2 = Ke ben, 3 = Mep trai, 4 = Dinh vom (Top Crown)
+static int p_batteryPercentMode = 4; // 0 = An, 1 = O tam, 2 = Ke ben, 3 = Mep trai, 4 = Dinh vom (Top Crown)
 
 // Badge Style & Additional Information Preferences
 static int p_badgeStyle = 0; // 0 = Capsule Kính Mờ, 1 = Minimalist Phẳng, 2 = Thu Gọn + Thẻ Chạm
@@ -1218,17 +1218,17 @@ static void registerIOKitPowerNotification(void) {
     CGFloat radius = 9.0;
 
     if (p_batteryPercentMode == 4) {
-        // Top Crown arc: 151.5 to 236.0 (left), 304.0 to 388.5 (right)
+        // Top Crown arc: Left wing (140.0° to 238.0°), Right wing (302.0° to 400.0°)
         UIBezierPath *crownPath = [UIBezierPath bezierPath];
-        [crownPath addArcWithCenter:center radius:radius startAngle:151.5 * M_PI / 180.0 endAngle:236.0 * M_PI / 180.0 clockwise:YES];
-        UIBezierPath *sub2 = [UIBezierPath bezierPathWithArcCenter:center radius:radius startAngle:304.0 * M_PI / 180.0 endAngle:388.5 * M_PI / 180.0 clockwise:YES];
+        [crownPath addArcWithCenter:center radius:radius startAngle:140.0 * M_PI / 180.0 endAngle:238.0 * M_PI / 180.0 clockwise:YES];
+        UIBezierPath *sub2 = [UIBezierPath bezierPathWithArcCenter:center radius:radius startAngle:302.0 * M_PI / 180.0 endAngle:400.0 * M_PI / 180.0 clockwise:YES];
         [crownPath appendPath:sub2];
 
         _trackLayer.path = crownPath.CGPath;
         _progressLayer.path = crownPath.CGPath;
     } else {
-        CGFloat startAngle = 151.5 * M_PI / 180.0;
-        CGFloat endAngle = 388.5 * M_PI / 180.0;
+        CGFloat startAngle = 140.0 * M_PI / 180.0;
+        CGFloat endAngle = 400.0 * M_PI / 180.0;
         UIBezierPath *arcPath = [UIBezierPath bezierPathWithArcCenter:center
                                                                radius:radius
                                                            startAngle:startAngle
@@ -1432,8 +1432,8 @@ static void registerIOKitPowerNotification(void) {
     CGFloat radius = 9.2;
     CGFloat strokeWidth = 1.8;
 
-    CGFloat startAngle = 135.0 * M_PI / 180.0;
-    CGFloat endAngle = 45.0 * M_PI / 180.0;
+    CGFloat startAngle = 140.0 * M_PI / 180.0;
+    CGFloat endAngle = 400.0 * M_PI / 180.0;
     UIBezierPath *arcPath = [UIBezierPath bezierPathWithArcCenter:center
                                                            radius:radius
                                                        startAngle:startAngle
@@ -1686,11 +1686,12 @@ static void registerIOKitPowerNotification(void) {
     }
     _dotLayers = [NSMutableArray array];
 
+    CGPoint center = CGPointMake(11.0, 11.0);
+    CGFloat radius = 9.0;
     BOOL is5 = p_dotCount5;
     if (is5) {
-        CGPoint center = CGPointMake(11.0, 11.0);
-        CGFloat radius = 9.0;
-        NSArray *angles = @[@(122.0), @(106.0), @(90.0), @(74.0), @(58.0)];
+        // 5 cham dong deu tren cung 100 do duoi day (140 do den 40 do), buoc nhay 16.67 do
+        NSArray *angles = @[@(123.33), @(106.67), @(90.0), @(73.33), @(56.67)];
         CGFloat dr = 0.75;
         for (NSNumber *degNum in angles) {
             CGFloat deg = [degNum doubleValue];
@@ -1705,17 +1706,15 @@ static void registerIOKitPowerNotification(void) {
             [_dotLayers addObject:dl];
         }
     } else {
-        // Exact 436-unit Android Duo geometry (cradled arc)
-        const CGPoint duoDots[4] = {
-            {6.26, 17.61},
-            {9.23, 19.12},
-            {12.77, 19.12},
-            {15.74, 17.61}
-        };
-        CGFloat dr = 0.91;
-        for (int i = 0; i < 4; i++) {
-            CGPoint pt = duoDots[i];
-            UIBezierPath *dp = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(pt.x - dr, pt.y - dr, dr * 2.0, dr * 2.0)];
+        // 4 cham chuan hinh hoc tiep giap hoan hao voi hai dau cung 140 do va 40 do, buoc deu 20 do
+        NSArray *angles = @[@(120.0), @(100.0), @(80.0), @(60.0)];
+        CGFloat dr = 0.85;
+        for (NSNumber *degNum in angles) {
+            CGFloat deg = [degNum doubleValue];
+            CGFloat rad = deg * M_PI / 180.0;
+            CGFloat dx = center.x + radius * cos(rad);
+            CGFloat dy = center.y + radius * sin(rad);
+            UIBezierPath *dp = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(dx - dr, dy - dr, dr * 2.0, dr * 2.0)];
             CAShapeLayer *dl = [CAShapeLayer layer];
             dl.path = dp.CGPath;
             dl.fillColor = [UIColor colorWithWhite:1.0 alpha:0.95].CGColor;
@@ -2107,7 +2106,15 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         case 8: tintColor = [UIColor colorWithRed:1.0 green:0.20 blue:0.40 alpha:1.0]; break; // Đỏ Ruby
         case 9: tintColor = [UIColor colorWithRed:p_customGaugeR green:p_customGaugeG blue:p_customGaugeB alpha:1.0]; break; // Custom RGB
         default: { // Mode 0: Dynamic / Adaptive theo nền màn hình
-            tintColor = self.adaptiveTintColor ?: [UIColor whiteColor];
+            tintColor = self.adaptiveTintColor;
+            if (!tintColor) {
+                if (self.window && @available(iOS 12.0, *)) {
+                    BOOL isDarkUI = (self.window.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
+                    tintColor = isDarkUI ? [UIColor whiteColor] : [UIColor blackColor];
+                } else {
+                    tintColor = [UIColor whiteColor];
+                }
+            }
             break;
         }
     }
@@ -2120,10 +2127,10 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         CGFloat cw = 1;
         if ([tintColor getWhite:&cw alpha:&ca]) lum = cw;
     }
-    BOOL isDark = (lum < 0.5f);
+    BOOL isDarkText = (lum < 0.5f);
 
     UIColor *activeColor = tintColor;
-    UIColor *inactiveColor = isDark ? [UIColor colorWithWhite:0.0 alpha:0.22] : [UIColor colorWithWhite:1.0 alpha:0.25];
+    UIColor *inactiveColor = isDarkText ? [UIColor colorWithWhite:0.0 alpha:0.25] : [UIColor colorWithWhite:1.0 alpha:0.28];
 
     UIColor *batteryArcColor = activeColor;
     if (self.showRAM) {
@@ -2137,6 +2144,13 @@ static void executeAction(int actionCode, CompactStatusView *view) {
             batteryArcColor = [UIColor colorWithRed:255/255.0 green:204/255.0 blue:0/255.0 alpha:1.0]; // Apple System Yellow #FFCC00
         } else if (pct <= 20) {
             batteryArcColor = [UIColor colorWithRed:255/255.0 green:59/255.0 blue:48/255.0 alpha:1.0]; // Apple System Red #FF3B30
+        } else {
+            // Mode 0 Dynamic: Luon giu sac xanh Apple System Green (#34C759) cho pin khoe (>20%) nhu anh goc
+            if (p_colorMode == 0) {
+                batteryArcColor = [UIColor colorWithRed:52/255.0 green:199/255.0 blue:89/255.0 alpha:1.0];
+            } else {
+                batteryArcColor = activeColor;
+            }
         }
     }
 
@@ -2149,11 +2163,11 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     CGFloat lvl = self.showRAM ? MIN(MAX(ramRatio, 0.0), 1.0) : MIN(MAX(bat, 0.0), 1.0);
 
     if (p_batteryPercentMode == 4) {
-        CGFloat oStart = 151.5;
+        CGFloat oStart = 140.0;
         BOOL isFull = (pct >= 100);
-        CGFloat leftTopEnd = isFull ? 231.0 : 236.0;
-        CGFloat rightTopStart = isFull ? 309.0 : 304.0;
-        CGFloat oEnd = 388.5;
+        CGFloat leftTopEnd = isFull ? 234.0 : 238.0;
+        CGFloat rightTopStart = isFull ? 306.0 : 302.0;
+        CGFloat oEnd = 400.0;
 
         UIBezierPath *crownTrack = [UIBezierPath bezierPath];
         [crownTrack addArcWithCenter:center radius:radius startAngle:oStart * M_PI / 180.0 endAngle:leftTopEnd * M_PI / 180.0 clockwise:YES];
@@ -2166,17 +2180,17 @@ static void executeAction(int actionCode, CompactStatusView *view) {
 
         UIBezierPath *progPath = [UIBezierPath bezierPath];
         if (fillSpan > 0.1) {
-            // Cánh trái: tăng đều đặn từ đáy (151.5°) lên đỉnh (236°)
+            // Canh trai: tang deu dan tu day (140.0 do) len dinh vuong mien (leftTopEnd)
             [progPath addArcWithCenter:center radius:radius startAngle:oStart * M_PI / 180.0 endAngle:(oStart + fillSpan) * M_PI / 180.0 clockwise:YES];
-            // Cánh phải: đối xứng hoàn hảo, tăng đều đặn từ đáy (388.5°) lên đỉnh (304°)
+            // Canh phai: doi xung hoan hao, tang deu dan tu day (400.0 do) len dinh vuong mien (rightTopStart)
             [progPath moveToPoint:CGPointMake(center.x + radius * cos(oEnd * M_PI / 180.0), center.y + radius * sin(oEnd * M_PI / 180.0))];
             [progPath addArcWithCenter:center radius:radius startAngle:oEnd * M_PI / 180.0 endAngle:(oEnd - fillSpan) * M_PI / 180.0 clockwise:NO];
         }
         _progressLayer.path = progPath.CGPath;
         _progressLayer.strokeEnd = 1.0;
     } else {
-        CGFloat startAngle = 151.5 * M_PI / 180.0;
-        CGFloat endAngle = 388.5 * M_PI / 180.0;
+        CGFloat startAngle = 140.0 * M_PI / 180.0;
+        CGFloat endAngle = 400.0 * M_PI / 180.0;
         UIBezierPath *arcPath = [UIBezierPath bezierPathWithArcCenter:center radius:radius startAngle:startAngle endAngle:endAngle clockwise:YES];
         _trackLayer.path = arcPath.CGPath;
         _progressLayer.path = arcPath.CGPath;
@@ -2232,8 +2246,8 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     if (p_batteryPercentMode == 4) {
         _topPercentLabel.hidden = NO;
         _topPercentLabel.text = [NSString stringWithFormat:@"%d", pct];
-        _topPercentLabel.font = [UIFont systemFontOfSize:(pct >= 100 ? 5.5 : 6.4) weight:UIFontWeightBold];
-        _topPercentLabel.frame = CGRectMake(0.0, 0.0, 22.0, 8.0);
+        _topPercentLabel.font = [UIFont systemFontOfSize:(pct >= 100 ? 5.8 : 6.6) weight:UIFontWeightBold];
+        _topPercentLabel.frame = CGRectMake(0.0, -1.0, 22.0, 8.5);
         _topPercentLabel.textColor = (pct <= 20 && !charging) ? [UIColor colorWithRed:255/255.0 green:59/255.0 blue:48/255.0 alpha:1.0] : activeColor;
     } else {
         _topPercentLabel.hidden = YES;
@@ -2305,15 +2319,21 @@ static void executeAction(int actionCode, CompactStatusView *view) {
                 _centerLabel.text = @"SOS";
                 _centerLabel.textColor = [UIColor colorWithRed:1.0 green:0.35 blue:0.35 alpha:0.95];
             } else if (charging && p_batteryPercentMode != 4 && p_chargingBoltEnabled) {
-                // Đang cắm sạc: Hiện tia sét sạc ở tâm
+                // Dang cam sac: Hien tia set sac o tam
                 _centerLabel.hidden = YES;
                 _chargingBoltLayer.hidden = NO;
                 _chargingBoltLayer.fillColor = batteryArcColor.CGColor;
             } else {
-                // Đang dùng mạng di động bình thường:
-                // Tâm Gauge hoàn toàn TRỐNG và TINH GỌN (chuẩn thiết kế iPhone Duo / DuoBar gốc).
-                // Sóng di động đã được hiển thị bằng 4 chấm ở đáy; Loại mạng (4G/5G/LTE) hiển thị ở thanh Pill.
-                _centerLabel.hidden = YES;
+                // Dang dung mang di dong: Hien thi the he mang (5G, 4G, LTE) o tam de gauge khong bi trong hoc rong
+                NSString *netType = getCellularNetworkType();
+                if (netType && netType.length > 0) {
+                    _centerLabel.hidden = NO;
+                    _centerLabel.text = netType;
+                    _centerLabel.textColor = activeColor;
+                    _centerLabel.font = [UIFont systemFontOfSize:(netType.length > 3 ? 5.5 : 6.5) weight:UIFontWeightBold];
+                } else {
+                    _centerLabel.hidden = YES;
+                }
             }
         }
     }
@@ -3070,6 +3090,25 @@ static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBat
                 extracted = ((UILabel *)sub).textColor;
                 if (extracted) break;
             }
+        }
+    }
+    if (!extracted && stockBattery) {
+        if ([stockBattery respondsToSelector:@selector(bodyColor)]) {
+            @try { extracted = [stockBattery valueForKey:@"bodyColor"]; } @catch (__unused id e) {}
+        }
+        if (!extracted && [stockBattery respondsToSelector:@selector(fillColor)]) {
+            @try { extracted = [stockBattery valueForKey:@"fillColor"]; } @catch (__unused id e) {}
+        }
+        if (!extracted && stockBattery.tintColor) {
+            extracted = stockBattery.tintColor;
+        }
+    }
+    if (!extracted && hostBar) {
+        if ([hostBar respondsToSelector:@selector(foregroundColor)]) {
+            @try { extracted = [hostBar valueForKey:@"foregroundColor"]; } @catch (__unused id e) {}
+        }
+        if (!extracted && hostBar.tintColor) {
+            extracted = hostBar.tintColor;
         }
     }
     if (extracted) {
