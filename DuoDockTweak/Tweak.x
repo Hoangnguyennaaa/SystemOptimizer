@@ -30,6 +30,8 @@ static BOOL kShowSearchButton = YES;
 static NSInteger kSearchButtonPosition = 0; // 0 = Tự động (Auto: Lên trên nếu Dock sát đáy), 1 = Luôn ở Dưới Dock, 2 = Luôn ở Trên Dock
 static CGFloat kSearchButtonSize = 48.0;
 static CGFloat kSearchButtonOffsetY = 0.0;
+static BOOL kSearchSyncWithDock = YES;      // Đồng bộ hiệu ứng, nền mờ, viền và bóng với thanh Dock
+static NSInteger kSearchIconColor = 0;      // 0 = Trắng, 1 = Đen, 2 = Xám, 3 = Xanh, 4 = Đỏ, 5 = Tự Động
 
 // MARK: - Helper to Read Preference with Fallback
 static id getPref(NSString *key, id defaultVal) {
@@ -76,6 +78,8 @@ static void loadPreferences(void) {
     kSearchButtonPosition = [getPref(@"searchButtonPosition", @0) integerValue];
     kSearchButtonSize = [getPref(@"searchButtonSize", @(48.0)) doubleValue];
     kSearchButtonOffsetY = [getPref(@"searchButtonOffsetY", @(0.0)) doubleValue];
+    kSearchSyncWithDock = [getPref(@"searchSyncWithDock", @YES) boolValue];
+    kSearchIconColor = [getPref(@"searchIconColor", @0) integerValue];
 }
 
 // MARK: - Respring Implementation (SpringBoard Process)
@@ -160,6 +164,8 @@ static void resetNotificationReceived(CFNotificationCenterRef center, void *obse
     CFPreferencesSetAppValue(CFSTR("searchButtonPosition"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("searchButtonSize"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesSetAppValue(CFSTR("searchButtonOffsetY"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("searchSyncWithDock"), NULL, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesSetAppValue(CFSTR("searchIconColor"), NULL, CFSTR("com.hoangnguyen.duodock"));
     CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.duodock"));
     
     [[NSFileManager defaultManager] removeItemAtPath:PREF_PATH_ROOTLESS error:nil];
@@ -433,50 +439,77 @@ static CGRect calculateDuoDockSearchButtonFrame(CGRect dockFrame, CGRect contain
         self.layer.cornerCurve = kCACornerCurveContinuous;
     }
     
-    if (kDockBorderEnabled) {
-        self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.40].CGColor;
-        self.layer.borderWidth = kDockBorderWidth;
+    // ĐỒNG BỘ NỀN & HIỆU ỨNG VỚI THANH DOCK
+    if (kSearchSyncWithDock) {
+        // Viền đồng bộ với Dock
+        if (kDockBorderEnabled) {
+            self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
+            self.layer.borderWidth = kDockBorderWidth;
+        } else {
+            self.layer.borderWidth = 0.0;
+        }
+        
+        // Đổ bóng đồng bộ với Dock
+        if (kDockShadowEnabled) {
+            self.layer.shadowColor = [UIColor blackColor].CGColor;
+            self.layer.shadowOpacity = 0.35;
+            self.layer.shadowRadius = 8.0;
+            self.layer.shadowOffset = CGSizeMake(kDockSide == 0 ? 2.0 : -2.0, 3.0);
+            self.layer.shadowPath = [UIBezierPath bezierPathWithOvalInRect:self.bounds].CGPath;
+        } else {
+            self.layer.shadowOpacity = 0.0;
+        }
+        
+        // Nền mờ đồng bộ với Dock
+        self.blurView.frame = self.bounds;
+        self.blurView.layer.cornerRadius = radius;
+        if (@available(iOS 13.0, *)) {
+            self.blurView.layer.cornerCurve = kCACornerCurveContinuous;
+        }
+        
+        if (!kDockBlurEnabled || kDockBlurStyle == 3) {
+            // Trong suốt hoàn toàn
+            self.blurView.hidden = YES;
+            self.backgroundColor = [UIColor clearColor];
+        } else {
+            self.blurView.hidden = NO;
+            self.blurView.alpha = kDockBlurAlpha;
+            
+            UIBlurEffectStyle blurStyle = UIBlurEffectStyleSystemChromeMaterialDark;
+            if (kDockBlurStyle == 1) { // Kính Sáng
+                blurStyle = UIBlurEffectStyleSystemChromeMaterialLight;
+                self.blurView.contentView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.30];
+            } else if (kDockBlurStyle == 2) { // Siêu Mỏng
+                blurStyle = UIBlurEffectStyleSystemUltraThinMaterial;
+                self.blurView.contentView.backgroundColor = [UIColor colorWithWhite:0.5 alpha:0.12];
+            } else { // Kính Tối
+                blurStyle = UIBlurEffectStyleSystemChromeMaterialDark;
+                self.blurView.contentView.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.30];
+            }
+            self.blurView.effect = [UIBlurEffect effectWithStyle:blurStyle];
+        }
     } else {
+        // Chế độ độc lập (Kính tối chuẩn iOS)
         self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.30].CGColor;
         self.layer.borderWidth = 0.8;
-    }
-    
-    if (kDockShadowEnabled) {
         self.layer.shadowColor = [UIColor blackColor].CGColor;
         self.layer.shadowOpacity = 0.35;
         self.layer.shadowRadius = 8.0;
         self.layer.shadowOffset = CGSizeMake(0.0, 3.0);
         self.layer.shadowPath = [UIBezierPath bezierPathWithOvalInRect:self.bounds].CGPath;
-    } else {
-        self.layer.shadowOpacity = 0.0;
-    }
-    
-    self.blurView.frame = self.bounds;
-    self.blurView.layer.cornerRadius = radius;
-    if (@available(iOS 13.0, *)) {
-        self.blurView.layer.cornerCurve = kCACornerCurveContinuous;
-    }
-    
-    if (!kDockBlurEnabled || kDockBlurStyle == 3) {
-        self.blurView.hidden = YES;
-        self.backgroundColor = [UIColor clearColor];
-    } else {
-        self.blurView.hidden = NO;
-        self.blurView.alpha = kDockBlurAlpha;
         
-        UIBlurEffectStyle blurStyle = UIBlurEffectStyleSystemChromeMaterialDark;
-        if (kDockBlurStyle == 1) {
-            blurStyle = UIBlurEffectStyleSystemChromeMaterialLight;
-            self.blurView.contentView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.30];
-        } else if (kDockBlurStyle == 2) {
-            blurStyle = UIBlurEffectStyleSystemUltraThinMaterial;
-            self.blurView.contentView.backgroundColor = [UIColor colorWithWhite:0.5 alpha:0.12];
-        } else {
-            self.blurView.contentView.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.30];
+        self.blurView.frame = self.bounds;
+        self.blurView.layer.cornerRadius = radius;
+        if (@available(iOS 13.0, *)) {
+            self.blurView.layer.cornerCurve = kCACornerCurveContinuous;
         }
-        self.blurView.effect = [UIBlurEffect effectWithStyle:blurStyle];
+        self.blurView.hidden = NO;
+        self.blurView.alpha = 0.85;
+        self.blurView.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterialDark];
+        self.blurView.contentView.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.30];
     }
     
+    // ICON TÌM KIẾM & MÀU SẮC TÙY CHỌNH (searchIconColor)
     self.iconImageView.frame = self.bounds;
     UIImage *searchImg = [UIImage systemImageNamed:@"magnifyingglass"];
     if (@available(iOS 13.0, *)) {
@@ -485,32 +518,99 @@ static CGRect calculateDuoDockSearchButtonFrame(CGRect dockFrame, CGRect contain
     }
     searchImg = [searchImg imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     self.iconImageView.image = searchImg;
-    self.iconImageView.tintColor = [UIColor whiteColor];
+    
+    UIColor *iconColor = [UIColor whiteColor];
+    switch (kSearchIconColor) {
+        case 1:
+            iconColor = [UIColor blackColor];
+            break;
+        case 2:
+            iconColor = [UIColor systemGrayColor];
+            break;
+        case 3:
+            iconColor = [UIColor systemBlueColor];
+            break;
+        case 4:
+            iconColor = [UIColor systemRedColor];
+            break;
+        case 5: { // Tự động theo nền Dock
+            if (kSearchSyncWithDock && kDockBlurStyle == 1) {
+                iconColor = [UIColor colorWithWhite:0.1 alpha:0.9];
+            } else {
+                iconColor = [UIColor whiteColor];
+            }
+            break;
+        }
+        case 0:
+        default:
+            iconColor = [UIColor whiteColor];
+            break;
+    }
+    self.iconImageView.tintColor = iconColor;
 }
 
 @end
 
+static const NSInteger kDuoDockSearchButtonTag = 998822;
+static __weak DuoDockSearchButton *gDuoDockSearchButton = nil;
+
 static void updateDuoDockSearchButton(UIView *containerView, CGRect dockFrame) {
     if (!containerView) return;
     
-    static const char *kSearchButtonKey = "kDuoDockSearchButtonKey";
-    DuoDockSearchButton *btn = (DuoDockSearchButton *)objc_getAssociatedObject(containerView, kSearchButtonKey);
-    
-    if (!kEnabled || !kShowSearchButton) {
-        if (btn) {
-            btn.hidden = YES;
-            btn.userInteractionEnabled = NO;
+    // Đảm bảo containerView luôn là SBRootFolderView (View toàn màn hình của Home Screen)
+    Class rfvClass = objc_getClass("SBRootFolderView");
+    if (rfvClass && ![containerView isKindOfClass:rfvClass]) {
+        UIView *curr = containerView;
+        while (curr && ![curr isKindOfClass:rfvClass]) {
+            curr = curr.superview;
         }
+        if (curr) {
+            containerView = curr;
+        } else {
+            Class icClass = objc_getClass("SBIconController");
+            if (icClass) {
+                id ic = [icClass performSelector:@selector(sharedInstance)];
+                if ([ic respondsToSelector:@selector(_rootFolderView)]) {
+                    UIView *rfv = [ic performSelector:@selector(_rootFolderView)];
+                    if (rfv) containerView = rfv;
+                }
+            }
+        }
+    }
+    
+    // Dọn sạch bất kỳ nút tìm kiếm thừa/trùng tag trong containerView
+    for (UIView *subview in [containerView.subviews copy]) {
+        if (subview.tag == kDuoDockSearchButtonTag && subview != gDuoDockSearchButton) {
+            [subview removeFromSuperview];
+        }
+    }
+    
+    // Nếu tắt Tweak hoặc tắt nút tìm kiếm: gỡ bỏ khỏi màn hình
+    if (!kEnabled || !kShowSearchButton) {
+        if (gDuoDockSearchButton) {
+            [gDuoDockSearchButton removeFromSuperview];
+            gDuoDockSearchButton = nil;
+        }
+        UIView *existing = [containerView viewWithTag:kDuoDockSearchButtonTag];
+        if (existing) [existing removeFromSuperview];
         return;
     }
     
-    if (!btn) {
-        CGRect initialFrame = calculateDuoDockSearchButtonFrame(dockFrame, containerView.bounds);
-        btn = [[DuoDockSearchButton alloc] initWithFrame:initialFrame];
-        objc_setAssociatedObject(containerView, kSearchButtonKey, btn, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        [containerView addSubview:btn];
+    // Đảm bảo chỉ có DUY NHẤT một instance DuoDockSearchButton tồn tại trên toàn màn hình
+    DuoDockSearchButton *btn = gDuoDockSearchButton;
+    if (!btn || btn.superview != containerView) {
+        if (btn) [btn removeFromSuperview];
+        btn = (DuoDockSearchButton *)[containerView viewWithTag:kDuoDockSearchButtonTag];
+        if (!btn) {
+            CGRect initialFrame = calculateDuoDockSearchButtonFrame(dockFrame, containerView.bounds);
+            btn = [[DuoDockSearchButton alloc] initWithFrame:initialFrame];
+            btn.tag = kDuoDockSearchButtonTag;
+            [containerView addSubview:btn];
+        }
+        gDuoDockSearchButton = btn;
     }
     
+    btn.tag = kDuoDockSearchButtonTag;
     btn.hidden = NO;
     btn.userInteractionEnabled = YES;
     [containerView bringSubviewToFront:btn];
@@ -601,8 +701,19 @@ static void updateDuoDockSearchButton(UIView *containerView, CGRect dockFrame) {
             applyVerticalIconLayout(iconListView, dockFrame.size.width, dockFrame.size.height);
         }
         
-        if (self.superview) {
-            updateDuoDockSearchButton(self.superview, dockFrame);
+        // Dọn sạch bất kỳ nút tìm kiếm nào vô tình bị gán vào superview trung gian của Dock
+        if (self.superview && ![self.superview isKindOfClass:objc_getClass("SBRootFolderView")]) {
+            UIView *stray = [self.superview viewWithTag:kDuoDockSearchButtonTag];
+            if (stray) [stray removeFromSuperview];
+        }
+        
+        // Cập nhật vị trí nút tìm kiếm Spotlight duy nhất trên SBRootFolderView
+        UIView *rootFolderView = self.superview;
+        while (rootFolderView && ![rootFolderView isKindOfClass:objc_getClass("SBRootFolderView")]) {
+            rootFolderView = rootFolderView.superview;
+        }
+        if (rootFolderView) {
+            updateDuoDockSearchButton(rootFolderView, dockFrame);
         }
     } @catch (NSException *e) {}
 }
@@ -752,6 +863,8 @@ static void prefs_resetToDefaults(UIViewController *controller, SEL _cmd, id sen
         CFPreferencesSetAppValue(CFSTR("searchButtonPosition"), NULL, CFSTR("com.hoangnguyen.duodock"));
         CFPreferencesSetAppValue(CFSTR("searchButtonSize"), NULL, CFSTR("com.hoangnguyen.duodock"));
         CFPreferencesSetAppValue(CFSTR("searchButtonOffsetY"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("searchSyncWithDock"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("searchIconColor"), NULL, CFSTR("com.hoangnguyen.duodock"));
         CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.duodock"));
         
         [[NSFileManager defaultManager] removeItemAtPath:PREF_PATH_ROOTLESS error:nil];

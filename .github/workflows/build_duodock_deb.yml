@@ -71,16 +71,20 @@ jobs:
         if: success()
         with:
           tag_name: duodock-latest
-          name: "DuoDock v1.0.4 Rootless DEB (Smart Top/Bottom Spotlight Placement)"
+          name: "DuoDock v1.0.5 Rootless DEB (Fix Duplicate Search, Sync Dock Background & Custom Icon Color)"
           body: |
-            ### DuoDock v1.0.4 (Rootless iOS 15.0 - 15.8.x - iPhone 7 Plus & A10 Compatible)
-            - **Vị trí nút tìm kiếm Spotlight linh hoạt Trên / Dưới Dock (Smart Dynamic Placement)**:
-              + Chế độ **Tự động (Auto)**: Khi Dock được kéo sát cạnh đáy màn hình (không gian phía dưới không đủ), nút tìm kiếm Spotlight sẽ tự động đảo vị trí lên **TRÊN đỉnh Dock**, cách ly an toàn và không bị che khuất hay đè lên Dock.
-              + Tùy chọn vị trí cố định theo ý thích trong Cài đặt: **Tự động** (Auto) / **Luôn ở Dưới Dock** / **Luôn ở Trên Dock**.
-              + Khoảng cách an toàn Status Bar & Dock: Luôn giữ khoảng cách chuẩn, không che tai thỏ / status bar ở trên và không đè vào icon thanh Dock.
-            - **Bảo lưu trọn vẹn các tính năng cao cấp**:
-              + Nút tìm kiếm tròn kính mờ (`UIVisualEffectView`) mở nhanh Spotlight với nhún lò xo và rung haptic.
-              + Độc lập cảm ứng 100%, không lag, không đơ cảm ứng màn hình chính.
-              + Tương thích tối ưu cho iPhone 7 Plus & chip A10 (iOS 15 Rootless Dopamine).
+            ### DuoDock v1.0.5 (Rootless iOS 15.0 - 15.8.x - iPhone 7 Plus & A10 Compatible)
+            - **Khắc phục triệt để lỗi hiển thị 2 nút tìm kiếm (Single Singleton Button Fix)**:
+              + Loại bỏ tình trạng nút Spotlight bị gắn vào cả `SBDockContainerView` lẫn `SBRootFolderView`.
+              + Cơ chế Singleton với tag duy nhất (`kDuoDockSearchButtonTag = 998822`) đảm bảo trên toàn bộ màn hình chỉ xuất hiện duy nhất 1 nút tìm kiếm chuẩn xác.
+            - **Đồng bộ phong cách nền & hiệu ứng với Dock (Sync Background With Dock)**:
+              + Thêm tùy chọn bật/tắt `Đồng bộ nền & hiệu ứng với Dock`.
+              + Khi bật, nút tìm kiếm tự động kế thừa 100% phong cách kính của Dock (Kính Tối, Kính Sáng, Siêu Mỏng, Trong Suốt), độ mờ (alpha), viền sáng viên thuốc (border) và bóng đổ nổi khối 3D (shadow).
+            - **Tùy chỉnh màu sắc biểu tượng kính lúp (Custom Search Icon Color)**:
+              + Hỗ trợ các màu sắc phong phú: **Trắng**, **Đen**, **Xám**, **Xanh**, **Đỏ**, hoặc **Tự Động** (tự đổi sang icon đen khi Dock dùng kính sáng và icon trắng khi dùng kính tối).
+            - **Bảo lưu trọn vẹn toàn bộ tính năng**:
+              + Vị trí linh hoạt Trên / Dưới Dock & Tự động đảo lên trên khi Dock kéo sát đáy.
+              + Cảm ứng độc lập siêu mượt, mở nhanh Spotlight, rung haptic và co giãn lò xo.
+              + Tối ưu hoàn hảo cho iPhone 7 Plus chip A10 (iOS 15.0 - 15.8.3 Rootless Dopamine).
           files: "DuoDock_rootless.deb"
 

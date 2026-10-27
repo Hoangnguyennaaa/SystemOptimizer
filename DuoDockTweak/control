@@ -1,9 +1,9 @@
 Package: com.hoangnguyen.duodock
 Name: DuoDock
 Depends: mobilesubstrate (>= 0.9.5000), preferenceloader
-Version: 1.0.4
+Version: 1.0.5
 Architecture: iphoneos-arm64
-Description: Vertical right-edge pill dock with flexible Spotlight search button (auto top/bottom placement, touch freeze fix, deep dock styling, iPhone 7 Plus & A10 compatible)
+Description: Vertical right-edge pill dock with flexible Spotlight search button (single search button fix, dock background sync, search icon color customizer, iPhone 7 Plus & A10 compatible)
 Maintainer: Hoangnguyen
 Author: Hoangnguyen
 Section: Tweaks
