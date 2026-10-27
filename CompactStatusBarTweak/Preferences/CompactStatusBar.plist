@@ -315,9 +315,9 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>VỊ TRÍ TRÊN THANH TRẠNG THÁI (STATUS BAR)</string>
+			<string>VỊ TRÍ TRÊN MÀN HÌNH CHÍNH (HOME SCREEN)</string>
 			<key>footerText</key>
-			<string>Căn chỉnh vị trí và kích thước đồng hồ CompactStatusBar trên thanh trạng thái chính (Màn hình chính, Màn hình khoá, trong Ứng dụng). Toạ độ X (-280 đến +100), Y (-40 đến +50).</string>
+			<string>Căn chỉnh vị trí và kích thước đồng hồ trên màn hình chính và màn hình khoá. Hỗ trợ phóng to tối đa 3.0x (300%).</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -361,9 +361,9 @@
 			<key>default</key>
 			<real>1.0</real>
 			<key>min</key>
-			<real>0.7</real>
+			<real>0.5</real>
 			<key>max</key>
-			<real>1.5</real>
+			<real>3.0</real>
 			<key>showValue</key>
 			<true/>
 			<key>defaults</key>
@@ -388,6 +388,82 @@
 			<string>com.hoangnguyen.compactstatusbar</string>
 			<key>key</key>
 			<string>iconOpacity</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>VỊ TRÍ TRONG ỨNG DỤNG (IN-APP)</string>
+			<key>footerText</key>
+			<string>Bật "Tách riêng vị trí" để tuỳ chỉnh toạ độ và kích thước riêng biệt khi đang mở ứng dụng (Safari, Cài đặt, App Store, v.v.). Hỗ trợ phóng to tối đa 3.0x.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>separateAppPosition</string>
+			<key>label</key>
+			<string>Tách riêng vị trí trong ứng dụng</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>0.0</real>
+			<key>min</key>
+			<real>-150.0</real>
+			<key>max</key>
+			<real>150.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>appOffsetX</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>0.0</real>
+			<key>min</key>
+			<real>-50.0</real>
+			<key>max</key>
+			<real>50.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>appOffsetY</string>
+			<key>PostNotification</key>
+			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>1.0</real>
+			<key>min</key>
+			<real>0.5</real>
+			<key>max</key>
+			<real>3.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.hoangnguyen.compactstatusbar</string>
+			<key>key</key>
+			<string>appIconScale</string>
 			<key>PostNotification</key>
 			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
 		</dict>
@@ -469,9 +545,9 @@
 			<key>default</key>
 			<real>1.0</real>
 			<key>min</key>
-			<real>0.7</real>
+			<real>0.5</real>
 			<key>max</key>
-			<real>1.5</real>
+			<real>3.0</real>
 			<key>showValue</key>
 			<true/>
 			<key>defaults</key>
