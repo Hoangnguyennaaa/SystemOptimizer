@@ -1214,8 +1214,17 @@ static void registerIOKitPowerNotification(void) {
 }
 
 - (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
-    CGFloat inset = p_dragModeEnabled ? -35.0 : -15.0;
-    CGRect touchBounds = CGRectInset(self.bounds, inset, inset);
+    if (p_dragModeEnabled) {
+        // Vùng chạm siêu lớn khi kéo thả: mở rộng 45pt mỗi bên và 35pt trên dưới (112x92pt)
+        CGRect touchBounds = CGRectInset(self.bounds, -45.0, -35.0);
+        return CGRectContainsPoint(touchBounds, point);
+    }
+    // Chế độ bình thường: vùng chạm tối thiểu 44x44pt chuẩn Apple HIG
+    CGFloat w = self.bounds.size.width;
+    CGFloat h = self.bounds.size.height;
+    CGFloat padX = (w < 44.0) ? (44.0 - w) / 2.0 : 12.0;
+    CGFloat padY = (h < 44.0) ? (44.0 - h) / 2.0 : 12.0;
+    CGRect touchBounds = CGRectInset(self.bounds, -padX, -padY);
     return CGRectContainsPoint(touchBounds, point);
 }
 
@@ -1225,6 +1234,27 @@ static void registerIOKitPowerNotification(void) {
         return self;
     }
     return nil;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+    if (p_dragModeEnabled && gestureRecognizer == self.dragPanGesture) {
+        return YES; // Ép toàn bộ cử chỉ hệ thống (CoverSheet, Notification Center, Control Center, scroll) phải nhường quyền khi kéo thả
+    }
+    return NO;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRequireFailureOfGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+    if (p_dragModeEnabled && gestureRecognizer == self.dragPanGesture) {
+        return NO;
+    }
+    return NO;
+}
+
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer {
+    if (p_dragModeEnabled && gestureRecognizer == self.dragPanGesture) {
+        return YES;
+    }
+    return YES;
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
@@ -1277,8 +1307,9 @@ static void registerIOKitPowerNotification(void) {
     self.alpha = p_iconOpacity;
     if (p_dragModeEnabled) {
         self.layer.borderColor = self.isControlCenter ? [UIColor colorWithRed:1.0 green:0.8 blue:0.2 alpha:1.0].CGColor : [UIColor colorWithRed:0.2 green:0.9 blue:0.4 alpha:1.0].CGColor;
-        self.layer.borderWidth = 1.5;
-        self.layer.cornerRadius = 6.0;
+        self.layer.borderWidth = 2.0;
+        self.layer.cornerRadius = 8.0;
+        self.backgroundColor = self.isControlCenter ? [UIColor colorWithRed:1.0 green:0.8 blue:0.2 alpha:0.35] : [UIColor colorWithRed:0.2 green:0.9 blue:0.4 alpha:0.35];
         if (!self.dragPanGesture) {
             self.dragPanGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleDragPan:)];
             self.dragPanGesture.delegate = self;
@@ -1307,6 +1338,7 @@ static void registerIOKitPowerNotification(void) {
         }
     } else {
         self.layer.borderWidth = 0.0;
+        self.backgroundColor = [UIColor clearColor];
         if (self.dragPanGesture) {
             self.dragPanGesture.enabled = NO;
         }
@@ -1324,6 +1356,10 @@ static void registerIOKitPowerNotification(void) {
 
     if (pan.state == UIGestureRecognizerStateBegan) {
         triggerHaptic(1);
+        [UIView animateWithDuration:0.12 animations:^{
+            self.transform = CGAffineTransformScale(self.transform, 1.25, 1.25);
+            self.alpha = 0.85;
+        }];
     }
 
     CGPoint translation = [pan translationInView:superview];
@@ -1377,6 +1413,15 @@ static void registerIOKitPowerNotification(void) {
     [self updateDragHUDWithX:curX y:curY finished:(pan.state == UIGestureRecognizerStateEnded || pan.state == UIGestureRecognizerStateCancelled)];
 
     if (pan.state == UIGestureRecognizerStateEnded || pan.state == UIGestureRecognizerStateCancelled) {
+        [UIView animateWithDuration:0.2 delay:0 usingSpringWithDamping:0.75 initialSpringVelocity:0.5 options:0 animations:^{
+            CGFloat scale = 1.0;
+            if (self.isControlCenter) scale = p_ccIconScale;
+            else if (p_separateAppPosition && isAppOrLockScreen(self)) scale = p_appIconScale;
+            else scale = p_iconScale;
+            if (scale < 0.2) scale = 1.0;
+            self.transform = CGAffineTransformMakeScale(scale, scale);
+            self.alpha = p_iconOpacity;
+        } completion:nil];
         if (self.isControlCenter) {
             savePreferenceNumber(@"ccOffsetX", @(curX));
             savePreferenceNumber(@"ccOffsetY", @(curY));
@@ -3463,42 +3508,62 @@ static void handleReloadNotification(CFNotificationCenterRef center, void *obser
 // MARK: - Hit-Testing Hooks for Status Bar and Window (Drag-and-Drop)
 static UIView *(*orig_uistatusbar_hitTest)(UIView *, SEL, CGPoint, UIEvent *) = NULL;
 static UIView *hooked_uistatusbar_hitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
-    UIView *custom = [self viewWithTag:998811];
-    if (custom && !custom.hidden && custom.alpha > 0.05 && custom.userInteractionEnabled) {
-        CGPoint ptInCustom = [self convertPoint:point toView:custom];
-        if ([custom pointInside:ptInCustom withEvent:event]) {
-            return custom;
+    if (p_enabled) {
+        CompactStatusView *custom = (CompactStatusView *)[self viewWithTag:998811];
+        if (custom && !custom.hidden && custom.alpha > 0.05 && custom.userInteractionEnabled) {
+            CGPoint ptInCustom = [self convertPoint:point toView:custom];
+            if ([custom pointInside:ptInCustom withEvent:event]) {
+                return custom;
+            }
         }
     }
     return orig_uistatusbar_hitTest ? orig_uistatusbar_hitTest(self, _cmd, point, event) : [self hitTest:point withEvent:event];
 }
 
-static UIView *(*orig_statusbarwindow_hitTest)(UIWindow *, SEL, CGPoint, UIEvent *) = NULL;
-static UIView *hooked_statusbarwindow_hitTest(UIWindow *self, SEL _cmd, CGPoint point, UIEvent *event) {
-    UIView *custom = [self viewWithTag:998811];
-    if (!custom) {
-        for (UIView *sub in self.subviews) {
-            custom = [sub viewWithTag:998811];
-            if (custom) break;
+static BOOL (*orig_uistatusbar_pointInside)(UIView *, SEL, CGPoint, UIEvent *) = NULL;
+static BOOL hooked_uistatusbar_pointInside(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
+    if (p_enabled) {
+        CompactStatusView *custom = (CompactStatusView *)[self viewWithTag:998811];
+        if (custom && !custom.hidden && custom.alpha > 0.05 && custom.userInteractionEnabled) {
+            CGPoint ptInCustom = [self convertPoint:point toView:custom];
+            if ([custom pointInside:ptInCustom withEvent:event]) {
+                return YES;
+            }
         }
     }
-    if (custom && !custom.hidden && custom.alpha > 0.05 && custom.userInteractionEnabled) {
-        CGPoint ptInCustom = [self convertPoint:point toView:custom];
-        if ([custom pointInside:ptInCustom withEvent:event]) {
-            return custom;
-        }
-    }
-    return orig_statusbarwindow_hitTest ? orig_statusbarwindow_hitTest(self, _cmd, point, event) : [self hitTest:point withEvent:event];
+    return orig_uistatusbar_pointInside ? orig_uistatusbar_pointInside(self, _cmd, point, event) : [self pointInside:point withEvent:event];
 }
 
-static BOOL (*orig_statusbarwindow_pointInside)(UIWindow *, SEL, CGPoint, UIEvent *) = NULL;
-static BOOL hooked_statusbarwindow_pointInside(UIWindow *self, SEL _cmd, CGPoint point, UIEvent *event) {
-    if (p_dragModeEnabled) {
-        UIView *custom = [self viewWithTag:998811];
+static UIView *(*orig_uiwindow_hitTest)(UIWindow *, SEL, CGPoint, UIEvent *) = NULL;
+static UIView *hooked_uiwindow_hitTest(UIWindow *self, SEL _cmd, CGPoint point, UIEvent *event) {
+    if (p_enabled) {
+        CompactStatusView *custom = (self == g_activeCCStatusView.window) ? g_activeCCStatusView :
+                                    ((self == g_activeStatusView.window) ? g_activeStatusView : nil);
         if (!custom) {
-            for (UIView *sub in self.subviews) {
-                custom = [sub viewWithTag:998811];
-                if (custom) break;
+            UIView *tagView = [self viewWithTag:998811];
+            if ([tagView isKindOfClass:[CompactStatusView class]]) {
+                custom = (CompactStatusView *)tagView;
+            }
+        }
+        if (custom && !custom.hidden && custom.alpha > 0.05 && custom.userInteractionEnabled) {
+            CGPoint ptInCustom = [self convertPoint:point toView:custom];
+            if ([custom pointInside:ptInCustom withEvent:event]) {
+                return custom;
+            }
+        }
+    }
+    return orig_uiwindow_hitTest ? orig_uiwindow_hitTest(self, _cmd, point, event) : [self hitTest:point withEvent:event];
+}
+
+static BOOL (*orig_uiwindow_pointInside)(UIWindow *, SEL, CGPoint, UIEvent *) = NULL;
+static BOOL hooked_uiwindow_pointInside(UIWindow *self, SEL _cmd, CGPoint point, UIEvent *event) {
+    if (p_enabled) {
+        CompactStatusView *custom = (self == g_activeCCStatusView.window) ? g_activeCCStatusView :
+                                    ((self == g_activeStatusView.window) ? g_activeStatusView : nil);
+        if (!custom) {
+            UIView *tagView = [self viewWithTag:998811];
+            if ([tagView isKindOfClass:[CompactStatusView class]]) {
+                custom = (CompactStatusView *)tagView;
             }
         }
         if (custom && !custom.hidden && custom.alpha > 0.05 && custom.userInteractionEnabled) {
@@ -3508,7 +3573,7 @@ static BOOL hooked_statusbarwindow_pointInside(UIWindow *self, SEL _cmd, CGPoint
             }
         }
     }
-    return orig_statusbarwindow_pointInside ? orig_statusbarwindow_pointInside(self, _cmd, point, event) : [self pointInside:point withEvent:event];
+    return orig_uiwindow_pointInside ? orig_uiwindow_pointInside(self, _cmd, point, event) : [self pointInside:point withEvent:event];
 }
 
 // MARK: - Constructor
@@ -3644,21 +3709,20 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
     Class sbViewClass = objc_getClass("_UIStatusBar");
     if (sbViewClass) {
         SafeSwizzle(sbViewClass, @selector(hitTest:withEvent:), (IMP)hooked_uistatusbar_hitTest, (IMP *)&orig_uistatusbar_hitTest);
+        SafeSwizzle(sbViewClass, @selector(pointInside:withEvent:), (IMP)hooked_uistatusbar_pointInside, (IMP *)&orig_uistatusbar_pointInside);
         SafeSwizzle(sbViewClass, @selector(layoutSubviews), (IMP)hooked_uistatusbar_layoutSubviews, (IMP *)&orig_uistatusbar_layoutSubviews);
         if (class_getInstanceMethod(sbViewClass, @selector(updateWithData:))) {
             SafeSwizzle(sbViewClass, @selector(updateWithData:), (IMP)hooked_uistatusbar_updateWithData, (IMP *)&orig_uistatusbar_updateWithData);
         }
     }
 
-    Class winClass = objc_getClass("UIStatusBarWindow");
-    if (winClass) {
-        SafeSwizzle(winClass, @selector(hitTest:withEvent:), (IMP)hooked_statusbarwindow_hitTest, (IMP *)&orig_statusbarwindow_hitTest);
-        SafeSwizzle(winClass, @selector(pointInside:withEvent:), (IMP)hooked_statusbarwindow_pointInside, (IMP *)&orig_statusbarwindow_pointInside);
-    }
-    Class subWinClass = objc_getClass("_UIStatusBarWindow");
-    if (subWinClass && !winClass) {
-        SafeSwizzle(subWinClass, @selector(hitTest:withEvent:), (IMP)hooked_statusbarwindow_hitTest, (IMP *)&orig_statusbarwindow_hitTest);
-        SafeSwizzle(subWinClass, @selector(pointInside:withEvent:), (IMP)hooked_statusbarwindow_pointInside, (IMP *)&orig_statusbarwindow_pointInside);
+    NSArray *winClasses = @[@"UIWindow", @"UIStatusBarWindow", @"_UIStatusBarWindow", @"SBStatusBarWindow"];
+    for (NSString *name in winClasses) {
+        Class wc = objc_getClass([name UTF8String]);
+        if (wc) {
+            SafeSwizzle(wc, @selector(hitTest:withEvent:), (IMP)hooked_uiwindow_hitTest, (IMP *)&orig_uiwindow_hitTest);
+            SafeSwizzle(wc, @selector(pointInside:withEvent:), (IMP)hooked_uiwindow_pointInside, (IMP *)&orig_uiwindow_pointInside);
+        }
     }
 
 }
