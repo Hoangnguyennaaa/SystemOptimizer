@@ -192,10 +192,7 @@ static CGFloat p_ccOffsetY = 0.0;
 static CGFloat p_ccIconScale = 1.0;
 
 // In-App Separated Position Preferences
-static BOOL p_separateAppPosition = YES;
-static CGFloat p_appOffsetX = 0.0;
-static CGFloat p_appOffsetY = 0.0;
-static CGFloat p_appIconScale = 1.0;
+
 static int p_deviceModel = 0; // 0 = Auto, 1 = Island, 2 = Notch, 3 = Classic
 static int p_batteryPercentMode = 2; // 0 = An, 1 = O tam, 2 = Ke ben, 3 = Mep trai, 4 = Dinh vom (Top Crown)
 
@@ -312,25 +309,7 @@ static void loadPrefs(void) {
     else if (prefs && prefs[@"ccIconScale"]) p_ccIconScale = [prefs[@"ccIconScale"] floatValue];
     else p_ccIconScale = 1.0;
 
-    b = CFPreferencesGetAppBooleanValue(CFSTR("separateAppPosition"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
-    if (keyExists) p_separateAppPosition = (BOOL)b;
-    else if (prefs && prefs[@"separateAppPosition"]) p_separateAppPosition = [prefs[@"separateAppPosition"] boolValue];
-    else p_separateAppPosition = YES;
 
-    ref = CFPreferencesCopyAppValue(CFSTR("appOffsetX"), CFSTR("com.hoangnguyen.compactstatusbar"));
-    if (ref) { p_appOffsetX = [(__bridge id)ref floatValue]; CFRelease(ref); }
-    else if (prefs && prefs[@"appOffsetX"]) p_appOffsetX = [prefs[@"appOffsetX"] floatValue];
-    else p_appOffsetX = 0.0;
-
-    ref = CFPreferencesCopyAppValue(CFSTR("appOffsetY"), CFSTR("com.hoangnguyen.compactstatusbar"));
-    if (ref) { p_appOffsetY = [(__bridge id)ref floatValue]; CFRelease(ref); }
-    else if (prefs && prefs[@"appOffsetY"]) p_appOffsetY = [prefs[@"appOffsetY"] floatValue];
-    else p_appOffsetY = 0.0;
-
-    ref = CFPreferencesCopyAppValue(CFSTR("appIconScale"), CFSTR("com.hoangnguyen.compactstatusbar"));
-    if (ref) { p_appIconScale = [(__bridge id)ref floatValue]; CFRelease(ref); }
-    else if (prefs && prefs[@"appIconScale"]) p_appIconScale = [prefs[@"appIconScale"] floatValue];
-    else p_appIconScale = 1.0;
 
     idx = CFPreferencesGetAppIntegerValue(CFSTR("deviceModel"), CFSTR("com.hoangnguyen.compactstatusbar"), &keyExists);
     if (keyExists) p_deviceModel = (int)idx;
@@ -1041,59 +1020,7 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 static __weak CompactStatusView *g_activeStatusView = nil;
 static __weak CompactStatusView *g_activeCCStatusView = nil;
 
-static inline BOOL isAppOrLockScreen(UIView *view) {
-    NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
-    if (bundleID && ![bundleID isEqualToString:@"com.apple.springboard"]) {
-        return YES; // Đang chạy trong tiến trình ứng dụng con (Safari, Youtube, App Store...)
-    }
 
-    // 1. Kiểm tra Màn hình khoá (SBLockScreenManager)
-    Class lsmClass = objc_getClass("SBLockScreenManager");
-    if (lsmClass && [lsmClass respondsToSelector:@selector(sharedInstance)]) {
-        id lsm = [lsmClass performSelector:@selector(sharedInstance)];
-        if (lsm) {
-            if ([lsm respondsToSelector:@selector(isUILocked)]) {
-                if (((BOOL (*)(id, SEL))objc_msgSend)(lsm, @selector(isUILocked))) return YES;
-            }
-            if ([lsm respondsToSelector:@selector(isLockScreenVisible)]) {
-                if (((BOOL (*)(id, SEL))objc_msgSend)(lsm, @selector(isLockScreenVisible))) return YES;
-            }
-        }
-    }
-
-    // 2. Kiểm tra cây phân cấp View của status bar
-    UIView *v = view;
-    while (v) {
-        NSString *cn = NSStringFromClass([v class]);
-        if ([cn containsString:@"CoverSheet"] || [cn containsString:@"LockScreen"] || [cn containsString:@"CS"]) {
-            return YES; // Thuộc Màn hình khoá (CoverSheet / LockScreen)
-        }
-        if ([cn containsString:@"SBHomeScreen"] || [cn containsString:@"SBIconController"] || [cn containsString:@"SBFolder"]) {
-            return NO; // Chắc chắn thuộc Màn hình chính (Home Screen)
-        }
-        if ([cn containsString:@"SBDeviceApplicationScene"] || [cn containsString:@"SBAppSwitcher"] || [cn containsString:@"SBApplication"]) {
-            return YES; // Ứng dụng đang mở đè trong SpringBoard
-        }
-        v = v.superview;
-    }
-
-    // 3. Kiểm tra trạng thái Màn hình chính của SpringBoard (SBIconController)
-    Class icClass = objc_getClass("SBIconController");
-    if (icClass && [icClass respondsToSelector:@selector(sharedInstance)]) {
-        id ic = [icClass performSelector:@selector(sharedInstance)];
-        if (ic && [ic respondsToSelector:@selector(isShowingHomeScreen)]) {
-            BOOL onHome = ((BOOL (*)(id, SEL))objc_msgSend)(ic, @selector(isShowingHomeScreen));
-            if (onHome) return NO; // Đang hiển thị Màn hình chính
-            return YES; // Đang ở trong app hoặc switcher
-        }
-    }
-
-    return NO;
-}
-
-static inline BOOL isInsideApp(UIView *view) {
-    return isAppOrLockScreen(view);
-}
 
 // MARK: - CompactStatusView: Vector 3-in-1 Gauge View
 @interface CompactStatusView : UIView <UIGestureRecognizerDelegate>
@@ -1294,14 +1221,7 @@ static void registerIOKitPowerNotification(void) {
 - (void)applyPreferences {
     self.showRAM = p_showRAM;
     [self rebuildGaugePaths];
-    CGFloat scale = 1.0;
-    if (self.isControlCenter) {
-        scale = p_ccIconScale;
-    } else if (p_separateAppPosition && isAppOrLockScreen(self)) {
-        scale = p_appIconScale;
-    } else {
-        scale = p_iconScale;
-    }
+    CGFloat scale = self.isControlCenter ? p_ccIconScale : p_iconScale;
     if (scale < 0.2) scale = 1.0;
     self.transform = CGAffineTransformMakeScale(scale, scale);
     self.alpha = p_iconOpacity;
@@ -1376,18 +1296,8 @@ static void registerIOKitPowerNotification(void) {
             }
         }
         if (self.anchorCenter.x <= 0) {
-            CGFloat offX = 0.0;
-            CGFloat offY = 0.0;
-            if (self.isControlCenter) {
-                offX = p_ccOffsetX;
-                offY = p_ccOffsetY;
-            } else if (p_separateAppPosition && isAppOrLockScreen(self)) {
-                offX = p_appOffsetX;
-                offY = p_appOffsetY;
-            } else {
-                offX = p_offsetX;
-                offY = p_offsetY;
-            }
+            CGFloat offX = self.isControlCenter ? p_ccOffsetX : p_offsetX;
+            CGFloat offY = self.isControlCenter ? p_ccOffsetY : p_offsetY;
             CGFloat totalW = self.pillContainerView.frame.size.width;
             if (totalW < 22.0) totalW = 22.0;
             self.anchorCenter = CGPointMake(self.center.x - (totalW - 22.0) / 2.0 - offX, self.center.y - offY);
@@ -1398,13 +1308,9 @@ static void registerIOKitPowerNotification(void) {
     if (totalW < 22.0) totalW = 22.0;
     CGFloat curX = (self.center.x - (totalW - 22.0) / 2.0) - self.anchorCenter.x;
     CGFloat curY = self.center.y - self.anchorCenter.y;
-    BOOL inApp = isAppOrLockScreen(self);
     if (self.isControlCenter) {
         p_ccOffsetX = curX;
         p_ccOffsetY = curY;
-    } else if (p_separateAppPosition && inApp) {
-        p_appOffsetX = curX;
-        p_appOffsetY = curY;
     } else {
         p_offsetX = curX;
         p_offsetY = curY;
@@ -1414,10 +1320,7 @@ static void registerIOKitPowerNotification(void) {
 
     if (pan.state == UIGestureRecognizerStateEnded || pan.state == UIGestureRecognizerStateCancelled) {
         [UIView animateWithDuration:0.2 delay:0 usingSpringWithDamping:0.75 initialSpringVelocity:0.5 options:0 animations:^{
-            CGFloat scale = 1.0;
-            if (self.isControlCenter) scale = p_ccIconScale;
-            else if (p_separateAppPosition && isAppOrLockScreen(self)) scale = p_appIconScale;
-            else scale = p_iconScale;
+            CGFloat scale = self.isControlCenter ? p_ccIconScale : p_iconScale;
             if (scale < 0.2) scale = 1.0;
             self.transform = CGAffineTransformMakeScale(scale, scale);
             self.alpha = p_iconOpacity;
@@ -1425,9 +1328,6 @@ static void registerIOKitPowerNotification(void) {
         if (self.isControlCenter) {
             savePreferenceNumber(@"ccOffsetX", @(curX));
             savePreferenceNumber(@"ccOffsetY", @(curY));
-        } else if (p_separateAppPosition && inApp) {
-            savePreferenceNumber(@"appOffsetX", @(curX));
-            savePreferenceNumber(@"appOffsetY", @(curY));
         } else {
             savePreferenceNumber(@"offsetX", @(curX));
             savePreferenceNumber(@"offsetY", @(curY));
@@ -1465,8 +1365,7 @@ static void registerIOKitPowerNotification(void) {
     }
     [keyWindow bringSubviewToFront:hud];
 
-    BOOL inApp = isAppOrLockScreen(self);
-    NSString *area = self.isControlCenter ? @"🎛️ Control Center" : (inApp ? @"📱 Khoá & Ứng dụng" : @"🏠 Màn hình chính");
+    NSString *area = self.isControlCenter ? @"🎛️ Control Center" : @"📊 Thanh trạng thái";
     if (!finished) {
         hud.text = [NSString stringWithFormat:@"%@: X: %+.0f | Y: %+.0f", area, x, y];
         hud.alpha = 1.0;
@@ -2140,14 +2039,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     }
 
     // 0. Cập nhật tỷ lệ phóng to (Scale) thích ứng theo đúng ngữ cảnh hiện tại
-    CGFloat targetScale = 1.0;
-    if (self.isControlCenter) {
-        targetScale = p_ccIconScale;
-    } else if (p_separateAppPosition && isAppOrLockScreen(self)) {
-        targetScale = p_appIconScale;
-    } else {
-        targetScale = p_iconScale;
-    }
+    CGFloat targetScale = self.isControlCenter ? p_ccIconScale : p_iconScale;
     if (targetScale < 0.2) targetScale = 1.0;
     CGAffineTransform targetTransform = CGAffineTransformMakeScale(targetScale, targetScale);
     if (!CGAffineTransformEqualToTransform(self.transform, targetTransform)) {
@@ -2595,18 +2487,8 @@ static void executeAction(int actionCode, CompactStatusView *view) {
     // 10. Căn toạ độ neo (Anchor Position) với bộ lọc vi dao động (Micro-jitter filter)
     if (!p_dragModeEnabled && self.superview && self.anchorCenter.x > 0 && self.anchorCenter.y > 0) {
         if (!self.dragPanGesture || (self.dragPanGesture.state != UIGestureRecognizerStateBegan && self.dragPanGesture.state != UIGestureRecognizerStateChanged)) {
-            CGFloat offX = 0.0;
-            CGFloat offY = 0.0;
-            if (self.isControlCenter) {
-                offX = p_ccOffsetX;
-                offY = p_ccOffsetY;
-            } else if (p_separateAppPosition && isAppOrLockScreen(self)) {
-                offX = p_appOffsetX;
-                offY = p_appOffsetY;
-            } else {
-                offX = p_offsetX;
-                offY = p_offsetY;
-            }
+            CGFloat offX = self.isControlCenter ? p_ccOffsetX : p_offsetX;
+            CGFloat offY = self.isControlCenter ? p_ccOffsetY : p_offsetY;
             CGFloat totalW = _pillContainerView.frame.size.width;
             if (totalW < 22.0) totalW = 22.0;
             CGPoint targetCenter = CGPointMake(self.anchorCenter.x + offX + (totalW - 22.0) / 2.0, self.anchorCenter.y + offY);
@@ -3171,14 +3053,7 @@ static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBat
     }
 
     // Cập nhật tỷ lệ phóng to (Scale) ngay tức thì theo đúng ngữ cảnh hiện tại
-    CGFloat targetScale = 1.0;
-    if (isCC) {
-        targetScale = p_ccIconScale;
-    } else if (p_separateAppPosition && isAppOrLockScreen(custom)) {
-        targetScale = p_appIconScale;
-    } else {
-        targetScale = p_iconScale;
-    }
+    CGFloat targetScale = isCC ? p_ccIconScale : p_iconScale;
     if (targetScale < 0.2) targetScale = 1.0;
     CGAffineTransform targetTransform = CGAffineTransformMakeScale(targetScale, targetScale);
     if (!CGAffineTransformEqualToTransform(custom.transform, targetTransform)) {
@@ -3187,8 +3062,8 @@ static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBat
 
     if (p_dragModeEnabled) {
         if (custom.center.x <= 11.0 && custom.center.y <= 11.0 && custom.anchorCenter.x > 0) {
-            CGFloat offX = isCC ? p_ccOffsetX : ((p_separateAppPosition && isAppOrLockScreen(custom)) ? p_appOffsetX : p_offsetX);
-            CGFloat offY = isCC ? p_ccOffsetY : ((p_separateAppPosition && isAppOrLockScreen(custom)) ? p_appOffsetY : p_offsetY);
+            CGFloat offX = isCC ? p_ccOffsetX : p_offsetX;
+            CGFloat offY = isCC ? p_ccOffsetY : p_offsetY;
             CGFloat totalW = custom.pillContainerView.frame.size.width;
             if (totalW < 22.0) totalW = 22.0;
             custom.center = CGPointMake(custom.anchorCenter.x + offX + (totalW - 22.0) / 2.0, custom.anchorCenter.y + offY);
@@ -3200,18 +3075,8 @@ static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBat
         return;
     }
 
-    CGFloat offX = 0.0;
-    CGFloat offY = 0.0;
-    if (isCC) {
-        offX = p_ccOffsetX;
-        offY = p_ccOffsetY;
-    } else if (p_separateAppPosition && isAppOrLockScreen(custom)) {
-        offX = p_appOffsetX;
-        offY = p_appOffsetY;
-    } else {
-        offX = p_offsetX;
-        offY = p_offsetY;
-    }
+    CGFloat offX = isCC ? p_ccOffsetX : p_offsetX;
+    CGFloat offY = isCC ? p_ccOffsetY : p_offsetY;
     CGFloat totalW = custom.pillContainerView.frame.size.width;
     if (totalW < 22.0) totalW = 22.0;
 
@@ -3484,11 +3349,9 @@ static void handleReloadNotification(CFNotificationCenterRef center, void *obser
             [g_activeStatusView applyPreferences];
             [g_activeStatusView updateStats];
             if (!p_dragModeEnabled && g_activeStatusView.anchorCenter.x > 0) {
-                CGFloat offX = (p_separateAppPosition && isAppOrLockScreen(g_activeStatusView)) ? p_appOffsetX : p_offsetX;
-                CGFloat offY = (p_separateAppPosition && isAppOrLockScreen(g_activeStatusView)) ? p_appOffsetY : p_offsetY;
                 CGFloat totalW = g_activeStatusView.pillContainerView.frame.size.width;
                 if (totalW < 22.0) totalW = 22.0;
-                g_activeStatusView.center = CGPointMake(g_activeStatusView.anchorCenter.x + offX + (totalW - 22.0) / 2.0, g_activeStatusView.anchorCenter.y + offY);
+                g_activeStatusView.center = CGPointMake(g_activeStatusView.anchorCenter.x + p_offsetX + (totalW - 22.0) / 2.0, g_activeStatusView.anchorCenter.y + p_offsetY);
             }
         }
         if (g_activeCCStatusView) {

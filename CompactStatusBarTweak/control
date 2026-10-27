@@ -1,9 +1,9 @@
 Package: com.hoangnguyen.compactstatusbartweak
 Name: CompactStatusBar
 Depends: mobilesubstrate, preferenceloader
-Version: 1.4.5
+Version: 1.4.6
 Architecture: iphoneos-arm64
-Description: Compact 3-in-1 status bar gauge with safe hit-testing and non-conflicting drag gestures
+Description: Compact 3-in-1 status bar gauge with unified system-wide positioning and seamless drag handling
 Maintainer: Hoangnguyen
 Author: Hoangnguyen
 Section: Tweaks
