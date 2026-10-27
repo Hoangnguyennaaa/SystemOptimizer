@@ -8,18 +8,16 @@
 #define PREF_PATH_ROOTFUL  @"/var/mobile/Library/Preferences/com.hoangnguyen.duodock.plist"
 #define PREF_CHANGED_NOTIFICATION "com.hoangnguyen.duodock/preferences.changed"
 #define PREF_RESPRING_NOTIFICATION "com.hoangnguyen.duodock/respring"
+#define PREF_RESET_NOTIFICATION "com.hoangnguyen.duodock/reset"
+
+// Forward declarations
+@class SBDockView, SBRootFolderView, SBFloatingDockView, SBFloatingDockViewController;
+@class SBIconListView, SBIconView, SBIconController, SBHIconManager;
 
 @interface SBIconView : UIView
 @property (nonatomic, assign) BOOL labelHidden;
 - (void)setLabelHidden:(BOOL)hidden;
 @end
-
-struct SBIconImageInfo {
-    CGSize size;
-    CGFloat scale;
-    CGFloat continuousCornerRadius;
-};
-typedef struct SBIconImageInfo SBIconImageInfo;
 
 @interface SBIconListView : UIView
 @property (nonatomic, copy) NSString *iconLocation;
@@ -27,15 +25,7 @@ typedef struct SBIconImageInfo SBIconImageInfo;
 - (NSArray<SBIconView *> *)displayedIconViews;
 - (NSUInteger)maximumIconCount;
 - (UIEdgeInsets)layoutInsetsForOrientation:(NSInteger)orientation;
-- (NSUInteger)iconRowsForCurrentOrientation;
-- (NSUInteger)iconColumnsForCurrentOrientation;
-@end
-
-@interface SBIconListGridLayoutConfiguration : NSObject
-@property (nonatomic, assign) NSUInteger numberOfPortraitRows;
-@property (nonatomic, assign) NSUInteger numberOfPortraitColumns;
-@property (nonatomic, assign) UIEdgeInsets portraitLayoutInsets;
-@property (nonatomic, assign) SBIconImageInfo iconImageInfo;
+- (void)layoutIconsNow;
 @end
 
 @interface SBDockIconListView : SBIconListView
@@ -46,14 +36,13 @@ typedef struct SBIconImageInfo SBIconImageInfo;
 @property (nonatomic, readonly) SBDockIconListView *dockIconListView;
 - (SBDockIconListView *)_iconListView;
 - (double)dockHeight;
-- (void)handleDuoDockPan:(UIPanGestureRecognizer *)pan;
-- (void)handleDuoDockPinch:(UIPinchGestureRecognizer *)pinch;
 @end
 
 @interface SBRootFolderView : UIView
 @property (nonatomic, retain) SBDockView *dockView;
 - (CGRect)_frameForDockView;
-- (CGRect)_frameForIconListViewAtIndex:(NSUInteger)arg1;
+- (CGRect)_frameForDockIconListView;
+- (void)layoutSubviews;
 @end
 
 @interface SBFloatingDockView : UIView
@@ -62,16 +51,10 @@ typedef struct SBIconImageInfo SBIconImageInfo;
 @property (nonatomic, retain) SBIconListView *recentIconListView;
 @property (nonatomic, retain) UIView *dividerView;
 - (void)layoutSubviews;
-- (void)handleDuoDockPan:(UIPanGestureRecognizer *)pan;
-- (void)handleDuoDockPinch:(UIPinchGestureRecognizer *)pinch;
-@end
-
-@interface SBFloatingDockController : NSObject
-+ (BOOL)isFloatingDockSupported;
-- (BOOL)isFloatingDockSupported;
 @end
 
 @interface SBIconController : NSObject
 + (id)sharedInstance;
 - (void)relayout;
+- (SBRootFolderView *)_rootFolderView;
 @end

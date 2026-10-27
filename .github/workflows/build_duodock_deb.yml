@@ -71,26 +71,19 @@ jobs:
         if: success()
         with:
           tag_name: duodock-latest
-          name: "DuoDock v1.7.4 Rootless DEB (Fix Safe Mode iPhone 7 Plus)"
+          name: "DuoDock v1.0.0 Rootless DEB (Fix Blank Settings)"
           body: |
-            ### DuoDock v1.7.4 (Rootless iOS 15.0 - 15.8.x - iPhone 7 Plus Compatible)
-            - **Khắc phục triệt để lỗi Safe Mode trên iPhone 7 Plus & Chip A10**:
-              + **Sửa lỗi nhận diện FloatingDockXVI**: Sử dụng class method `+[SBFloatingDockController isFloatingDockSupported]` chuẩn xác (thay vì gọi `sharedInstance` vốn trả về `nil` làm sai lệch trạng thái dock).
-              + **Bảo vệ toàn vẹn bố cục SpringBoard của iPhone 7 Plus**: Loại bỏ hoàn toàn các hook nguy hiểm trên `SBIconListGridLayoutConfiguration` (`iconImageInfo`, `numberOfPortraitRows`, `portraitLayoutInsets`) và `SBRootFolderView _frameForIconListViewAtIndex:`. Các hook này trước đây gây xung đột ABI struct ARM64 và vượt quá giới hạn grid màn hình 16:9 của iPhone 7 Plus, dẫn đến crash trực tiếp vào Safe Mode.
-              + **Đồng bộ hóa an toàn `_frameForDockView`**: Giữ nguyên tính toán khung của hệ điều hành, đảm bảo các chấm trang (`pageControl`) và lưới icon ở độ phân giải 414x736 luôn ổn định tuyệt đối.
-              + **Tối ưu hóa Dual-Mode Dock**: Vận hành trơn tru cả khi có FloatingDockXVI hoặc khi tắt FloatingDock để dùng Dock gốc độc lập.
-            - **Tính năng Đặt lại mặc định (Reset to Defaults)**: Khôi phục toàn bộ cài đặt gốc tức thì với hộp thoại xác nhận trong Cài đặt.
-            - **Tùy chỉnh số lượng icon trên Dock**: Chọn từ 2 đến 8 icon, tự động co dãn khoảng cách (Auto slot scale) chống đè icon.
-            - **Tùy chọn Chế độ Dock (Dock Mode)**: Tự động (Khuyên dùng) / Dock gốc độc lập / FloatingDock.
-            - **Tùy biến thanh Dock chuyên sâu**:
-              + Tùy chọn vị trí bám mép màn hình: **Cạnh Trái** hoặc **Cạnh Phải**.
-              + 4 phong cách nền kính: **Kính Tối**, **Kính Sáng**, **Siêu Mỏng**, **Trong Suốt**.
-              + Đổ bóng nổi khối 3D với vector `shadowPath` mượt mà không tụt FPS.
-              + Viền sáng viên thuốc với thanh trượt chỉnh độ dày viền (`borderWidth`).
-              + Tùy chọn ẩn nhãn tên ứng dụng trên Dock.
-              + Kéo thả trực tiếp và chụm 2 ngón tay phóng to/thu nhỏ icon (Pinch-to-scale) ngay trên màn hình chính (có giới hạn biên màn hình cho iPhone 7 Plus).
-            - **Bố trí lưới màn hình chính an toàn**:
-              + Chống đè icon màn hình chính (lưới icon tự động lùi lề tương ứng theo vị trí Dock trái/phải).
+            ### DuoDock v1.0.0 (Rootless iOS 15.0 - 15.8.x - iPhone 7 Plus & A10 Compatible)
+            - **Khôi phục hoàn toàn nền tảng v1.0.0 nguyên bản**:
+              + Tối giản, ổn định tuyệt đối, chạy mượt mà trên iPhone 7 Plus và chip A10 (iOS 15).
+              + Không chứa các hook can thiệp lưới icon nguy hiểm, triệt tiêu hoàn toàn nguy cơ Safe Mode.
+              + Thanh Dock dọc dạng viên thuốc bám cạnh phải màn hình với bo góc hoàn hảo và nền mờ tự nhiên.
+              + Tự động chống đè icon màn hình chính (`SBIconListView` lùi lề an toàn).
+            - **Khắc phục triệt để lỗi không hiển thị gì trong Cài đặt (Fix Blank Settings)**:
+              + Nhúng trực tiếp danh sách specifier vào `PreferenceLoader/Preferences/DuoDock.plist`.
+              + Tải cài đặt gốc trực tiếp qua Apple `PSListController` hệ thống, hiển thị 100% đầy đủ không còn hiện tượng trang trắng.
+              + Tùy chỉnh đầy đủ: Bật/tắt, Số lượng icon (3-8), Tỷ lệ icon, Chiều rộng, Chiều cao, Lề phải, Vị trí dọc, Độ bo góc, Nền mờ/Độ mờ, Mở rộng icon xuống đáy.
+              + Bổ sung nút Khởi động lại SpringBoard (Respring) và Khôi phục cài đặt mặc định ngay trong Cài đặt.
             - Tương thích Dopamine, Sileo, Zebra, kiến trúc `iphoneos-arm64`.
           files: "DuoDock_rootless.deb"
 

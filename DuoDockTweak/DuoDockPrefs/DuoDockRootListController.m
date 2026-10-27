@@ -1,7 +1,6 @@
 #import "DuoDockRootListController.h"
 #import <spawn.h>
 #import <notify.h>
-#import <objc/runtime.h>
 
 #define PREF_PATH_ROOTLESS @"/var/jb/var/mobile/Library/Preferences/com.hoangnguyen.duodock.plist"
 #define PREF_PATH_ROOTFUL  @"/var/mobile/Library/Preferences/com.hoangnguyen.duodock.plist"
@@ -13,30 +12,16 @@
 - (void)setProperty:(id)value forKey:(NSString *)key;
 @end
 
-@interface DuoDockRootListController () {
-    NSMutableArray *_specifiers;
-}
-@end
-
 @implementation DuoDockRootListController
 
 - (NSArray *)specifiers {
     if (!_specifiers) {
-        // 1. Thử load từ bundle
+        // 1. Thử load từ Root.plist trong Bundle
         _specifiers = [self loadSpecifiersFromPlistName:@"Root" target:self];
         
-        // 2. Fallback nếu bundle trả về rỗng (do sandbox Preferences.app)
+        // 2. Fallback nếu Bundle rỗng (do sandbox)
         if (!_specifiers || _specifiers.count == 0) {
-            NSString *directPath = @"/var/jb/Library/PreferenceLoader/Preferences/DuoDock.plist";
-            if (![[NSFileManager defaultManager] fileExistsAtPath:directPath]) {
-                directPath = @"/Library/PreferenceLoader/Preferences/DuoDock.plist";
-            }
-            if ([[NSFileManager defaultManager] fileExistsAtPath:directPath]) {
-                NSDictionary *dict = [NSDictionary dictionaryWithContentsOfFile:directPath];
-                if (dict[@"items"]) {
-                    _specifiers = [self loadSpecifiersFromPlistName:@"DuoDock" target:self];
-                }
-            }
+            _specifiers = [self loadSpecifiersFromPlistName:@"DuoDock" target:self];
         }
     }
     return _specifiers;
@@ -45,7 +30,6 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    // Nút Respring góc trên bên phải
     UIBarButtonItem *respringBtn = [[UIBarButtonItem alloc] initWithTitle:@"Respring"
                                                                     style:UIBarButtonItemStyleDone
                                                                    target:self
@@ -55,20 +39,31 @@
 }
 
 - (id)readPreferenceValue:(PSSpecifier *)specifier {
+    NSString *key = [specifier propertyForKey:@"key"];
+    CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.duodock"));
+    CFPropertyListRef val = CFPreferencesCopyAppValue((__bridge CFStringRef)key, CFSTR("com.hoangnguyen.duodock"));
+    if (val) {
+        return (__bridge_transfer id)val;
+    }
+    
     NSString *path = PREF_PATH_ROOTLESS;
     if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
         path = PREF_PATH_ROOTFUL;
     }
     
     NSDictionary *settings = [NSDictionary dictionaryWithContentsOfFile:path];
-    id val = settings[[specifier propertyForKey:@"key"]];
-    if (!val) {
-        val = [specifier propertyForKey:@"default"];
+    id v = settings[key];
+    if (!v) {
+        v = [specifier propertyForKey:@"default"];
     }
-    return val;
+    return v;
 }
 
 - (void)setPreferenceValue:(id)value specifier:(PSSpecifier *)specifier {
+    NSString *key = [specifier propertyForKey:@"key"];
+    CFPreferencesSetAppValue((__bridge CFStringRef)key, (__bridge CFPropertyListRef)value, CFSTR("com.hoangnguyen.duodock"));
+    CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.duodock"));
+    
     NSString *path = PREF_PATH_ROOTLESS;
     NSString *dir = [path stringByDeletingLastPathComponent];
     
@@ -78,87 +73,11 @@
     }
     
     NSMutableDictionary *settings = [NSMutableDictionary dictionaryWithContentsOfFile:path] ?: [NSMutableDictionary dictionary];
-    [settings setObject:value forKey:[specifier propertyForKey:@"key"]];
+    [settings setObject:value forKey:key];
     [settings writeToFile:path atomically:YES];
     
-    CFNotificationCenterPostNotification(
-        CFNotificationCenterGetDarwinNotifyCenter(),
-        CFSTR(PREF_CHANGED_NOTIFICATION),
-        NULL,
-        NULL,
-        YES
-    );
-}
-
-- (void)respring:(id)sender {
-    [self respringPrompt];
-}
-
-- (void)resetToDefaults {
-    [self resetToDefaults:nil];
-}
-
-- (void)resetToDefaults:(id)sender {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DuoDock"
-                                                                   message:@"Bạn có chắc chắn muốn khôi phục toàn bộ cài đặt DuoDock về mặc định ban đầu không?"
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    
-    UIAlertAction *resetAction = [UIAlertAction actionWithTitle:@"Đặt lại mặc định"
-                                                          style:UIAlertActionStyleDestructive
-                                                        handler:^(UIAlertAction * _Nonnull action) {
-        [self performResetToDefaults];
-    }];
-    
-    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Huỷ"
-                                                           style:UIAlertActionStyleCancel
-                                                         handler:nil];
-    
-    [alert addAction:resetAction];
-    [alert addAction:cancelAction];
-    
-    [self presentViewController:alert animated:YES completion:nil];
-}
-
-- (void)performResetToDefaults {
-    NSString *path = PREF_PATH_ROOTLESS;
-    NSString *dir = [path stringByDeletingLastPathComponent];
-    
-    if (![[NSFileManager defaultManager] fileExistsAtPath:dir]) {
-        [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
-    }
-    
-    NSDictionary *defaults = @{
-        @"enabled": @YES,
-        @"dragModeEnabled": @NO,
-        @"dockMode": @0,
-        @"dockSide": @1,
-        @"dockIconCount": @4,
-        @"dockIconScale": @(0.85),
-        @"dockWidth": @(78.0),
-        @"dockHeight": @(330.0),
-        @"rightMargin": @(10.0),
-        @"verticalOffset": @(0.0),
-        @"cornerRadius": @(39.0),
-        @"dockBlurAlpha": @(0.82),
-        @"dockBlurEnabled": @YES,
-        @"dockBlurStyle": @0,
-        @"dockBorderEnabled": @NO,
-        @"dockBorderWidth": @(1.0),
-        @"dockShadowEnabled": @YES,
-        @"hideDockLabels": @YES,
-        @"homeCompressGrid": @YES,
-        @"homeRightInset": @(88.0),
-        @"expandBottomRows": @YES,
-        @"customGridEnabled": @NO,
-        @"homeRows": @7,
-        @"homeColumns": @4,
-        @"homeIconScale": @(0.90)
-    };
-    
-    [defaults writeToFile:path atomically:YES];
-    
     if ([[NSFileManager defaultManager] fileExistsAtPath:PREF_PATH_ROOTFUL]) {
-        [defaults writeToFile:PREF_PATH_ROOTFUL atomically:YES];
+        [settings writeToFile:PREF_PATH_ROOTFUL atomically:YES];
     }
     
     CFNotificationCenterPostNotification(
@@ -168,33 +87,17 @@
         NULL,
         YES
     );
-    
-    [self reloadSpecifiers];
-    
-    UIAlertController *doneAlert = [UIAlertController alertControllerWithTitle:@"Đã khôi phục"
-                                                                       message:@"Toàn bộ cài đặt DuoDock đã được đưa về mặc định. Khởi động lại SpringBoard (Respring) ngay để áp dụng?"
-                                                                preferredStyle:UIAlertControllerStyleAlert];
-    [doneAlert addAction:[UIAlertAction actionWithTitle:@"Respring ngay"
-                                                  style:UIAlertActionStyleDestructive
-                                                handler:^(UIAlertAction * _Nonnull action) {
-        [self performRespring];
-    }]];
-    [doneAlert addAction:[UIAlertAction actionWithTitle:@"Để sau"
-                                                  style:UIAlertActionStyleCancel
-                                                handler:nil]];
-    
-    [self presentViewController:doneAlert animated:YES completion:nil];
 }
 
 - (void)respringPrompt {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"DuoDock"
-                                                                   message:@"Khởi động lại SpringBoard (Respring) để áp dụng ngay các thay đổi?"
+                                                                   message:@"Bạn có muốn khởi động lại SpringBoard (Respring) để áp dụng toàn bộ thay đổi không?"
                                                             preferredStyle:UIAlertControllerStyleActionSheet];
     
     UIAlertAction *respringAction = [UIAlertAction actionWithTitle:@"Respring ngay"
                                                              style:UIAlertActionStyleDestructive
                                                            handler:^(UIAlertAction * _Nonnull action) {
-        [self performRespring];
+        [self respring];
     }];
     
     UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Huỷ"
@@ -204,15 +107,14 @@
     [alert addAction:respringAction];
     [alert addAction:cancelAction];
     
-    if ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
         alert.popoverPresentationController.barButtonItem = self.navigationItem.rightBarButtonItem;
     }
     
     [self presentViewController:alert animated:YES completion:nil];
 }
 
-- (void)performRespring {
-    // Gửi thông báo Darwin để SpringBoard tự respring an toàn
+- (void)respring {
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
         CFSTR(PREF_RESPRING_NOTIFICATION),
@@ -221,22 +123,73 @@
         YES
     );
     
-    // Gọi sbreload/killall trực tiếp
     pid_t pid;
-    const char *args_sbr_rootless[] = {"/var/jb/usr/bin/sbreload", NULL};
+    const char *args_sbreload_rootless[] = {"/var/jb/usr/bin/sbreload", NULL};
     if (access("/var/jb/usr/bin/sbreload", X_OK) == 0) {
-        posix_spawn(&pid, "/var/jb/usr/bin/sbreload", NULL, NULL, (char *const *)args_sbr_rootless, NULL);
+        posix_spawn(&pid, "/var/jb/usr/bin/sbreload", NULL, NULL, (char *const *)args_sbreload_rootless, NULL);
         return;
     }
     
-    const char *args_sbr[] = {"/usr/bin/sbreload", NULL};
+    const char *args_sbreload[] = {"/usr/bin/sbreload", NULL};
     if (access("/usr/bin/sbreload", X_OK) == 0) {
-        posix_spawn(&pid, "/usr/bin/sbreload", NULL, NULL, (char *const *)args_sbr, NULL);
+        posix_spawn(&pid, "/usr/bin/sbreload", NULL, NULL, (char *const *)args_sbreload, NULL);
         return;
     }
     
     const char *args_killall[] = {"/var/jb/usr/bin/killall", "-9", "SpringBoard", NULL};
-    posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char *const *)args_killall, NULL);
+    if (access("/var/jb/usr/bin/killall", X_OK) == 0) {
+        posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char *const *)args_killall, NULL);
+        return;
+    }
+    
+    const char *args_killall_sys[] = {"/usr/bin/killall", "-9", "SpringBoard", NULL};
+    posix_spawn(&pid, "/usr/bin/killall", NULL, NULL, (char *const *)args_killall_sys, NULL);
+}
+
+- (void)resetToDefaults {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Khôi phục mặc định"
+                                                                   message:@"Đặt lại tất cả thiết lập DuoDock về ban đầu?"
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    
+    UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"Đồng ý"
+                                                       style:UIAlertActionStyleDestructive
+                                                     handler:^(UIAlertAction * _Nonnull action) {
+        CFPreferencesSetAppValue(CFSTR("enabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockIconCount"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockIconScale"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockWidth"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockHeight"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("rightMargin"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("verticalOffset"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("cornerRadius"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockBlurAlpha"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("dockBlurEnabled"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("expandBottomRows"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesSetAppValue(CFSTR("homeRightInset"), NULL, CFSTR("com.hoangnguyen.duodock"));
+        CFPreferencesAppSynchronize(CFSTR("com.hoangnguyen.duodock"));
+        
+        NSString *path1 = PREF_PATH_ROOTLESS;
+        NSString *path2 = PREF_PATH_ROOTFUL;
+        [[NSFileManager defaultManager] removeItemAtPath:path1 error:nil];
+        [[NSFileManager defaultManager] removeItemAtPath:path2 error:nil];
+        
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            CFSTR(PREF_CHANGED_NOTIFICATION),
+            NULL,
+            NULL,
+            YES
+        );
+        [self reloadSpecifiers];
+    }];
+    
+    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Huỷ"
+                                                           style:UIAlertActionStyleCancel
+                                                         handler:nil];
+    
+    [alert addAction:okAction];
+    [alert addAction:cancelAction];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 @end
