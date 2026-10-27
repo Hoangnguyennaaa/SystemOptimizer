@@ -395,9 +395,9 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>VỊ TRÍ TRONG ỨNG DỤNG (IN-APP)</string>
+			<string>VỊ TRÍ MÀN HÌNH KHOÁ & TRONG APP (LOCK & APP)</string>
 			<key>footerText</key>
-			<string>Bật "Tách riêng vị trí" để tuỳ chỉnh toạ độ và kích thước riêng biệt khi đang mở ứng dụng (Safari, Cài đặt, App Store, v.v.). Hỗ trợ phóng to tối đa 3.0x.</string>
+			<string>Bật "Tách riêng vị trí" để tuỳ chỉnh toạ độ và kích thước riêng biệt cho Màn hình khoá và khi đang mở ứng dụng. Hỗ trợ phóng to tối đa 3.0x.</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -409,7 +409,7 @@
 			<key>key</key>
 			<string>separateAppPosition</string>
 			<key>label</key>
-			<string>Tách riêng vị trí trong ứng dụng</string>
+			<string>Tách riêng vị trí Khoá & Trong App</string>
 			<key>PostNotification</key>
 			<string>com.hoangnguyen.compactstatusbar/ReloadPrefs</string>
 		</dict>

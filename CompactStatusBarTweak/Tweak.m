@@ -85,6 +85,9 @@ static BOOL g_sbCellularEnabled = NO;
 static int  g_sbCellularBars = 0;
 static NSString *g_sbCellularType = nil;
 static BOOL g_sbAirplaneEnabled = NO;
+static CGFloat g_sbBatteryCapacity = -1.0;
+static BOOL g_sbBatteryCharging = NO;
+static BOOL g_sbBatterySaverMode = NO;
 
 static void updateLiveDataFromStatusBar(UIView *container, id optData);
 
@@ -511,6 +514,16 @@ static void savePreferenceNumber(NSString *key, NSNumber *val) {
     if (!dict) dict = [NSMutableDictionary dictionary];
     dict[key] = val;
     [dict writeToFile:prefPath atomically:YES];
+    chmod([prefPath UTF8String], 0666);
+
+    NSString *jbPrefPath = @"/var/jb/var/mobile/Library/Preferences/com.hoangnguyen.compactstatusbar.plist";
+    if ([[NSFileManager defaultManager] fileExistsAtPath:jbPrefPath]) {
+        NSMutableDictionary *jbDict = [NSMutableDictionary dictionaryWithContentsOfFile:jbPrefPath];
+        if (!jbDict) jbDict = [NSMutableDictionary dictionary];
+        jbDict[key] = val;
+        [jbDict writeToFile:jbPrefPath atomically:YES];
+        chmod([jbPrefPath UTF8String], 0666);
+    }
 
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
@@ -583,6 +596,19 @@ static void updateLiveDataFromStatusBar(UIView *container, id optData) {
     }
     if (cData) {
         @try {
+            id bEntry = [cData valueForKey:@"batteryEntry"];
+            if (bEntry) {
+                if ([bEntry respondsToSelector:@selector(capacity)]) {
+                    g_sbBatteryCapacity = ((CGFloat (*)(id, SEL))objc_msgSend)(bEntry, @selector(capacity));
+                }
+                if ([bEntry respondsToSelector:@selector(state)]) {
+                    NSInteger bState = ((NSInteger (*)(id, SEL))objc_msgSend)(bEntry, @selector(state));
+                    g_sbBatteryCharging = (bState == 2 || bState == 3);
+                }
+                if ([bEntry respondsToSelector:@selector(saverModeActive)]) {
+                    g_sbBatterySaverMode = ((BOOL (*)(id, SEL))objc_msgSend)(bEntry, @selector(saverModeActive));
+                }
+            }
             id wEntry = [cData valueForKey:@"wifiEntry"];
             if (wEntry && [wEntry respondsToSelector:@selector(isEnabled)]) {
                 g_sbWifiEnabled = ((BOOL (*)(id, SEL))objc_msgSend)(wEntry, @selector(isEnabled));
@@ -1014,30 +1040,58 @@ static void SafeSwizzle(Class cls, SEL origSel, IMP newImp, IMP *origImp) {
 static __weak CompactStatusView *g_activeStatusView = nil;
 static __weak CompactStatusView *g_activeCCStatusView = nil;
 
-static inline BOOL isInsideApp(UIView *view) {
+static inline BOOL isAppOrLockScreen(UIView *view) {
     NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
     if (bundleID && ![bundleID isEqualToString:@"com.apple.springboard"]) {
-        return YES; // Đang chạy trong tiến trình ứng dụng con (Safari, Youtube, ...)
+        return YES; // Đang chạy trong tiến trình ứng dụng con (Safari, Youtube, App Store...)
     }
 
-    // Nếu đang trong SpringBoard: Kiểm tra xem có app đang mở ở tiền cảnh hay không
-    Class sbClass = objc_getClass("SpringBoard");
-    if (sbClass) {
-        id sb = [sbClass performSelector:@selector(sharedApplication)];
-        if (sb && [sb respondsToSelector:@selector(_accessibilityFrontmostApplication)]) {
-            id app = [sb performSelector:@selector(_accessibilityFrontmostApplication)];
-            if (app) return YES;
+    // 1. Kiểm tra Màn hình khoá (SBLockScreenManager)
+    Class lsmClass = objc_getClass("SBLockScreenManager");
+    if (lsmClass && [lsmClass respondsToSelector:@selector(sharedInstance)]) {
+        id lsm = [lsmClass performSelector:@selector(sharedInstance)];
+        if (lsm) {
+            if ([lsm respondsToSelector:@selector(isUILocked)]) {
+                if (((BOOL (*)(id, SEL))objc_msgSend)(lsm, @selector(isUILocked))) return YES;
+            }
+            if ([lsm respondsToSelector:@selector(isLockScreenVisible)]) {
+                if (((BOOL (*)(id, SEL))objc_msgSend)(lsm, @selector(isLockScreenVisible))) return YES;
+            }
         }
     }
-    Class wsClass = objc_getClass("SBMainWorkspace");
-    if (wsClass && [wsClass respondsToSelector:@selector(sharedInstance)]) {
-        id ws = [wsClass performSelector:@selector(sharedInstance)];
-        if (ws && [ws respondsToSelector:@selector(topApplication)]) {
-            id topApp = [ws performSelector:@selector(topApplication)];
-            if (topApp) return YES;
+
+    // 2. Kiểm tra cây phân cấp View của status bar
+    UIView *v = view;
+    while (v) {
+        NSString *cn = NSStringFromClass([v class]);
+        if ([cn containsString:@"CoverSheet"] || [cn containsString:@"LockScreen"] || [cn containsString:@"CS"]) {
+            return YES; // Thuộc Màn hình khoá (CoverSheet / LockScreen)
+        }
+        if ([cn containsString:@"SBHomeScreen"] || [cn containsString:@"SBIconController"] || [cn containsString:@"SBFolder"]) {
+            return NO; // Chắc chắn thuộc Màn hình chính (Home Screen)
+        }
+        if ([cn containsString:@"SBDeviceApplicationScene"] || [cn containsString:@"SBAppSwitcher"] || [cn containsString:@"SBApplication"]) {
+            return YES; // Ứng dụng đang mở đè trong SpringBoard
+        }
+        v = v.superview;
+    }
+
+    // 3. Kiểm tra trạng thái Màn hình chính của SpringBoard (SBIconController)
+    Class icClass = objc_getClass("SBIconController");
+    if (icClass && [icClass respondsToSelector:@selector(sharedInstance)]) {
+        id ic = [icClass performSelector:@selector(sharedInstance)];
+        if (ic && [ic respondsToSelector:@selector(isShowingHomeScreen)]) {
+            BOOL onHome = ((BOOL (*)(id, SEL))objc_msgSend)(ic, @selector(isShowingHomeScreen));
+            if (onHome) return NO; // Đang hiển thị Màn hình chính
+            return YES; // Đang ở trong app hoặc switcher
         }
     }
+
     return NO;
+}
+
+static inline BOOL isInsideApp(UIView *view) {
+    return isAppOrLockScreen(view);
 }
 
 // MARK: - CompactStatusView: Vector 3-in-1 Gauge View
@@ -1146,12 +1200,14 @@ static void registerIOKitPowerNotification(void) {
         [self applyPreferences];
 
         registerIOKitPowerNotification();
+        [UIDevice currentDevice].batteryMonitoringEnabled = YES;
         getNetworkTrafficBytes(&_lastDownloadBytes, &_lastUploadBytes);
         self.lastSampleTime = [NSDate timeIntervalSinceReferenceDate];
 
         [self updateStats];
 
-        _timer = [NSTimer scheduledTimerWithTimeInterval:1.5 target:self selector:@selector(updateStats) userInfo:nil repeats:YES];
+        _timer = [NSTimer timerWithTimeInterval:1.0 target:self selector:@selector(updateStats) userInfo:nil repeats:YES];
+        [[NSRunLoop mainRunLoop] addTimer:_timer forMode:NSRunLoopCommonModes];
     }
     return self;
 }
@@ -1209,7 +1265,7 @@ static void registerIOKitPowerNotification(void) {
     CGFloat scale = 1.0;
     if (self.isControlCenter) {
         scale = p_ccIconScale;
-    } else if (p_separateAppPosition && isInsideApp(self)) {
+    } else if (p_separateAppPosition && isAppOrLockScreen(self)) {
         scale = p_appIconScale;
     } else {
         scale = p_iconScale;
@@ -1287,7 +1343,7 @@ static void registerIOKitPowerNotification(void) {
             if (self.isControlCenter) {
                 offX = p_ccOffsetX;
                 offY = p_ccOffsetY;
-            } else if (p_separateAppPosition && isInsideApp(self)) {
+            } else if (p_separateAppPosition && isAppOrLockScreen(self)) {
                 offX = p_appOffsetX;
                 offY = p_appOffsetY;
             } else {
@@ -1304,7 +1360,7 @@ static void registerIOKitPowerNotification(void) {
     if (totalW < 22.0) totalW = 22.0;
     CGFloat curX = (self.center.x + (totalW - 22.0) / 2.0) - self.anchorCenter.x;
     CGFloat curY = self.center.y - self.anchorCenter.y;
-    BOOL inApp = isInsideApp(self);
+    BOOL inApp = isAppOrLockScreen(self);
     if (self.isControlCenter) {
         p_ccOffsetX = curX;
         p_ccOffsetY = curY;
@@ -1362,8 +1418,8 @@ static void registerIOKitPowerNotification(void) {
     }
     [keyWindow bringSubviewToFront:hud];
 
-    BOOL inApp = isInsideApp(self);
-    NSString *area = self.isControlCenter ? @"🎛️ Control Center" : (inApp ? @"📱 Trong ứng dụng" : @"🏠 Màn hình chính");
+    BOOL inApp = isAppOrLockScreen(self);
+    NSString *area = self.isControlCenter ? @"🎛️ Control Center" : (inApp ? @"📱 Khoá & Ứng dụng" : @"🏠 Màn hình chính");
     if (!finished) {
         hud.text = [NSString stringWithFormat:@"%@: X: %+.0f | Y: %+.0f", area, x, y];
         hud.alpha = 1.0;
@@ -2026,16 +2082,40 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         updateLiveDataFromStatusBar(host, nil);
     }
 
-    // 0. IOKit Safe Hardware Battery & State (Fall back to UIDevice if unavailable)
+    // 0. Cập nhật tỷ lệ phóng to (Scale) thích ứng theo đúng ngữ cảnh hiện tại
+    CGFloat targetScale = 1.0;
+    if (self.isControlCenter) {
+        targetScale = p_ccIconScale;
+    } else if (p_separateAppPosition && isAppOrLockScreen(self)) {
+        targetScale = p_appIconScale;
+    } else {
+        targetScale = p_iconScale;
+    }
+    if (targetScale < 0.2) targetScale = 1.0;
+    CGAffineTransform targetTransform = CGAffineTransformMakeScale(targetScale, targetScale);
+    if (!CGAffineTransformEqualToTransform(self.transform, targetTransform)) {
+        self.transform = targetTransform;
+    }
+
+    // 0. Trích xuất Pin tức thời (Priority 1: _UIStatusBarData batteryEntry, Priority 2: IOKit, Priority 3: UIDevice)
     CGFloat bat = 1.0;
     BOOL charging = NO;
-    if (!getIOKitBattery(&bat, &charging)) {
+    BOOL lowPower = [NSProcessInfo processInfo].isLowPowerModeEnabled;
+
+    if (g_sbBatteryCapacity >= 0.0) {
+        bat = g_sbBatteryCapacity;
+        charging = g_sbBatteryCharging;
+        if (g_sbBatterySaverMode) lowPower = YES;
+    } else if (getIOKitBattery(&bat, &charging)) {
+        // Đọc trực tiếp từ IOKit phần cứng
+    } else {
+        [UIDevice currentDevice].batteryMonitoringEnabled = YES;
         float rawLevel = [UIDevice currentDevice].batteryLevel;
         bat = rawLevel < 0 ? 1.0 : (CGFloat)rawLevel;
         UIDeviceBatteryState bState = [UIDevice currentDevice].batteryState;
         charging = (bState == UIDeviceBatteryStateCharging || bState == UIDeviceBatteryStateFull);
     }
-    BOOL lowPower = [NSProcessInfo processInfo].isLowPowerModeEnabled;
+
     CGFloat ramRatio = getRAMUsedRatio(NULL, NULL);
     int pct = self.showRAM ? (int)(ramRatio * 100) : (int)lroundf(bat * 100.0f);
 
@@ -2460,7 +2540,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
             if (self.isControlCenter) {
                 offX = p_ccOffsetX;
                 offY = p_ccOffsetY;
-            } else if (p_separateAppPosition && isInsideApp(self)) {
+            } else if (p_separateAppPosition && isAppOrLockScreen(self)) {
                 offX = p_appOffsetX;
                 offY = p_appOffsetY;
             } else {
@@ -3030,10 +3110,25 @@ static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBat
         custom.anchorCenter = centerInContainer;
     }
 
+    // Cập nhật tỷ lệ phóng to (Scale) ngay tức thì theo đúng ngữ cảnh hiện tại
+    CGFloat targetScale = 1.0;
+    if (isCC) {
+        targetScale = p_ccIconScale;
+    } else if (p_separateAppPosition && isAppOrLockScreen(custom)) {
+        targetScale = p_appIconScale;
+    } else {
+        targetScale = p_iconScale;
+    }
+    if (targetScale < 0.2) targetScale = 1.0;
+    CGAffineTransform targetTransform = CGAffineTransformMakeScale(targetScale, targetScale);
+    if (!CGAffineTransformEqualToTransform(custom.transform, targetTransform)) {
+        custom.transform = targetTransform;
+    }
+
     if (p_dragModeEnabled) {
         if (custom.center.x <= 11.0 && custom.center.y <= 11.0 && custom.anchorCenter.x > 0) {
-            CGFloat offX = isCC ? p_ccOffsetX : ((p_separateAppPosition && isInsideApp(custom)) ? p_appOffsetX : p_offsetX);
-            CGFloat offY = isCC ? p_ccOffsetY : ((p_separateAppPosition && isInsideApp(custom)) ? p_appOffsetY : p_offsetY);
+            CGFloat offX = isCC ? p_ccOffsetX : ((p_separateAppPosition && isAppOrLockScreen(custom)) ? p_appOffsetX : p_offsetX);
+            CGFloat offY = isCC ? p_ccOffsetY : ((p_separateAppPosition && isAppOrLockScreen(custom)) ? p_appOffsetY : p_offsetY);
             CGFloat totalW = custom.pillContainerView.frame.size.width;
             if (totalW < 22.0) totalW = 22.0;
             custom.center = CGPointMake(custom.anchorCenter.x + offX - (totalW - 22.0) / 2.0, custom.anchorCenter.y + offY);
@@ -3050,7 +3145,7 @@ static void updateCustomViewPosition(CompactStatusView *custom, UIView *stockBat
     if (isCC) {
         offX = p_ccOffsetX;
         offY = p_ccOffsetY;
-    } else if (p_separateAppPosition && isInsideApp(custom)) {
+    } else if (p_separateAppPosition && isAppOrLockScreen(custom)) {
         offX = p_appOffsetX;
         offY = p_appOffsetY;
     } else {
@@ -3328,8 +3423,8 @@ static void handleReloadNotification(CFNotificationCenterRef center, void *obser
             [g_activeStatusView applyPreferences];
             [g_activeStatusView updateStats];
             if (!p_dragModeEnabled && g_activeStatusView.anchorCenter.x > 0) {
-                CGFloat offX = (p_separateAppPosition && isInsideApp(g_activeStatusView)) ? p_appOffsetX : p_offsetX;
-                CGFloat offY = (p_separateAppPosition && isInsideApp(g_activeStatusView)) ? p_appOffsetY : p_offsetY;
+                CGFloat offX = (p_separateAppPosition && isAppOrLockScreen(g_activeStatusView)) ? p_appOffsetX : p_offsetX;
+                CGFloat offY = (p_separateAppPosition && isAppOrLockScreen(g_activeStatusView)) ? p_appOffsetY : p_offsetY;
                 CGFloat totalW = g_activeStatusView.pillContainerView.frame.size.width;
                 if (totalW < 22.0) totalW = 22.0;
                 g_activeStatusView.center = CGPointMake(g_activeStatusView.anchorCenter.x + offX - (totalW - 22.0) / 2.0, g_activeStatusView.anchorCenter.y + offY);
@@ -3463,8 +3558,19 @@ __attribute__((constructor)) static void initCompactStatusBarTweak(void) {
         );
     }
 
-    // Đăng ký SpringBoard NSNotificationCenter cho cập nhật trực tiếp tức thì 0 độ trễ
+    // Đăng ký theo dõi Pin hệ thống với 0 độ trễ (UIDevice battery notifications)
+    [UIDevice currentDevice].batteryMonitoringEnabled = YES;
     NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+    [nc addObserverForName:UIDeviceBatteryLevelDidChangeNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(__unused NSNotification *note) {
+        if (g_activeStatusView) [g_activeStatusView updateStats];
+        if (g_activeCCStatusView) [g_activeCCStatusView updateStats];
+    }];
+    [nc addObserverForName:UIDeviceBatteryStateDidChangeNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(__unused NSNotification *note) {
+        if (g_activeStatusView) [g_activeStatusView updateStats];
+        if (g_activeCCStatusView) [g_activeCCStatusView updateStats];
+    }];
+
+    // Đăng ký SpringBoard NSNotificationCenter cho cập nhật trực tiếp tức thì 0 độ trễ
     NSArray *sbNotifs = @[
         @"SBWiFiManagerLinkDidChangeNotification",
         @"SBWiFiManagerPowerStateDidChangeNotification",
