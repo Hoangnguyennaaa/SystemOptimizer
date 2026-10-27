@@ -70,29 +70,23 @@ static void loadPreferences(void) {
 // MARK: - Respring Implementation (SpringBoard Process)
 static void triggerRespring(void) {
     pid_t pid;
-    // 1. sbreload rootless
     const char *args_sbreload_rootless[] = {"/var/jb/usr/bin/sbreload", NULL};
     if (access("/var/jb/usr/bin/sbreload", X_OK) == 0) {
         posix_spawn(&pid, "/var/jb/usr/bin/sbreload", NULL, NULL, (char *const *)args_sbreload_rootless, NULL);
         return;
     }
-    // 2. sbreload chuẩn
     const char *args_sbreload[] = {"/usr/bin/sbreload", NULL};
     if (access("/usr/bin/sbreload", X_OK) == 0) {
         posix_spawn(&pid, "/usr/bin/sbreload", NULL, NULL, (char *const *)args_sbreload, NULL);
         return;
     }
-    // 3. killall -9 SpringBoard rootless
     const char *args_killall[] = {"/var/jb/usr/bin/killall", "-9", "SpringBoard", NULL};
     if (access("/var/jb/usr/bin/killall", X_OK) == 0) {
         posix_spawn(&pid, "/var/jb/usr/bin/killall", NULL, NULL, (char *const *)args_killall, NULL);
         return;
     }
-    // 4. killall hệ thống
     const char *args_killall_sys[] = {"/usr/bin/killall", "-9", "SpringBoard", NULL};
     posix_spawn(&pid, "/usr/bin/killall", NULL, NULL, (char *const *)args_killall_sys, NULL);
-    
-    // 5. Fallback trực tiếp trong tiến trình SpringBoard
     exit(0);
 }
 
@@ -209,23 +203,26 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
     }
 }
 
-// MARK: - Swizzle Method Utility
-static void SafeSwizzle(Class cls, SEL origSEL, SEL newSEL, IMP newIMP, IMP *origIMP) {
+// MARK: - Safe Swizzle Helper (Tương thích 100% ARM64, KHÔNG BAO GIỜ đụng vào UIView superclass)
+static void SafeSwizzle(Class cls, SEL origSEL, IMP newIMP, IMP *origIMP) {
     if (!cls) return;
     Method origMethod = class_getInstanceMethod(cls, origSEL);
     if (!origMethod) return;
     
-    if (origIMP) {
-        *origIMP = method_getImplementation(origMethod);
-    }
+    const char *types = method_getTypeEncoding(origMethod);
     
-    if (class_addMethod(cls, newSEL, newIMP, method_getTypeEncoding(origMethod))) {
-        Method newMethod = class_getInstanceMethod(cls, newSEL);
-        method_exchangeImplementations(origMethod, newMethod);
+    // Nếu class chưa trực tiếp implement method này (đang kế thừa từ superclass),
+    // class_addMethod sẽ add method vào chính class cls, KHÔNG LÀM ẢNH HƯỞNG SUPERCLASS!
+    if (class_addMethod(cls, origSEL, newIMP, types)) {
+        if (origIMP) {
+            *origIMP = method_getImplementation(origMethod);
+        }
     } else {
-        class_replaceMethod(cls, newSEL, newIMP, method_getTypeEncoding(origMethod));
-        Method newMethod = class_getInstanceMethod(cls, newSEL);
-        method_exchangeImplementations(origMethod, newMethod);
+        // Class đã tự implement method này -> lấy origIMP rồi thay thế
+        if (origIMP) {
+            *origIMP = method_getImplementation(origMethod);
+        }
+        method_setImplementation(origMethod, newIMP);
     }
 }
 
@@ -246,10 +243,8 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
         if (@available(iOS 13.0, *)) {
             self.layer.cornerCurve = kCACornerCurveContinuous;
         }
-        self.layer.masksToBounds = NO;
-        self.clipsToBounds = NO;
         
-        // Đường viền sáng viên thuốc (Capsule Border)
+        // Viền sáng viên thuốc (Capsule Border)
         if (kDockBorderEnabled) {
             self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
             self.layer.borderWidth = kDockBorderWidth;
@@ -257,7 +252,7 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
             self.layer.borderWidth = 0.0;
         }
         
-        // Đổ bóng nổi khối 3D (Tối ưu shadowPath để CoreAnimation không bị tụt fps 120Hz)
+        // Đổ bóng nổi khối 3D (Tối ưu shadowPath để CoreAnimation render tức thì bằng GPU)
         if (kDockShadowEnabled) {
             self.layer.shadowColor = [UIColor blackColor].CGColor;
             self.layer.shadowOpacity = 0.35;
@@ -320,19 +315,6 @@ static void custom_SBDockView_layoutSubviews(UIView *self, SEL _cmd) {
     } @catch (NSException *e) {}
 }
 
-static UIView *(*orig_SBDockView_hitTest)(id, SEL, CGPoint, UIEvent *);
-static UIView *custom_SBDockView_hitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
-    if (kEnabled) {
-        if (!CGRectContainsPoint(self.bounds, point)) {
-            return nil;
-        }
-    }
-    if (orig_SBDockView_hitTest) {
-        return orig_SBDockView_hitTest(self, _cmd, point, event);
-    }
-    return nil;
-}
-
 // MARK: - SBRootFolderView Hooks
 static CGRect (*orig_SBRootFolderView_frameForDockView)(id, SEL);
 static CGRect custom_SBRootFolderView_frameForDockView(id self, SEL _cmd) {
@@ -384,7 +366,7 @@ static UIEdgeInsets custom_SBIconListView_layoutInsetsForOrientation(SBIconListV
     return insets;
 }
 
-// MARK: - SBFloatingDockView Hooks (Vô hiệu hóa an toàn FloatingDockXVI)
+// MARK: - SBFloatingDockView Hooks (Vô hiệu hóa an toàn FloatingDockXVI mà không chặn touch)
 static void (*orig_SBFloatingDockView_layoutSubviews)(id, SEL);
 static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
     if (orig_SBFloatingDockView_layoutSubviews) {
@@ -393,22 +375,10 @@ static void custom_SBFloatingDockView_layoutSubviews(UIView *self, SEL _cmd) {
     if (!kEnabled) return;
     
     @try {
-        // Vô hiệu hóa FloatingDockXVI an toàn để tránh xung đột với Dock gốc độc lập
         self.hidden = YES;
         self.alpha = 0.0;
-        self.frame = CGRectZero;
+        self.userInteractionEnabled = NO;
     } @catch (NSException *e) {}
-}
-
-static UIView *(*orig_SBFloatingDockView_hitTest)(id, SEL, CGPoint, UIEvent *);
-static UIView *custom_SBFloatingDockView_hitTest(UIView *self, SEL _cmd, CGPoint point, UIEvent *event) {
-    if (kEnabled) {
-        return nil;
-    }
-    if (orig_SBFloatingDockView_hitTest) {
-        return orig_SBFloatingDockView_hitTest(self, _cmd, point, event);
-    }
-    return nil;
 }
 
 // MARK: - Preferences.app Hooks & Action Handlers (Chạy trong com.apple.Preferences)
@@ -567,28 +537,26 @@ __attribute__((constructor)) static void DuoDockInit(void) {
         // Swizzle SBDockView (Dock gốc độc lập)
         Class dockViewClass = objc_getClass("SBDockView");
         if (dockViewClass) {
-            SafeSwizzle(dockViewClass, @selector(layoutSubviews), @selector(duodock_layoutSubviews), (IMP)custom_SBDockView_layoutSubviews, (IMP *)&orig_SBDockView_layoutSubviews);
-            SafeSwizzle(dockViewClass, @selector(hitTest:withEvent:), @selector(duodock_hitTest:withEvent:), (IMP)custom_SBDockView_hitTest, (IMP *)&orig_SBDockView_hitTest);
+            SafeSwizzle(dockViewClass, @selector(layoutSubviews), (IMP)custom_SBDockView_layoutSubviews, (IMP *)&orig_SBDockView_layoutSubviews);
         }
         
         // Swizzle SBRootFolderView
         Class rootFolderClass = objc_getClass("SBRootFolderView");
         if (rootFolderClass) {
-            SafeSwizzle(rootFolderClass, @selector(_frameForDockView), @selector(duodock_frameForDockView), (IMP)custom_SBRootFolderView_frameForDockView, (IMP *)&orig_SBRootFolderView_frameForDockView);
+            SafeSwizzle(rootFolderClass, @selector(_frameForDockView), (IMP)custom_SBRootFolderView_frameForDockView, (IMP *)&orig_SBRootFolderView_frameForDockView);
         }
         
         // Swizzle SBIconListView (Số lượng icon dock & Chống đè icon màn hình chính)
         Class iconListViewClass = objc_getClass("SBIconListView");
         if (iconListViewClass) {
-            SafeSwizzle(iconListViewClass, @selector(maximumIconCount), @selector(duodock_maximumIconCount), (IMP)custom_SBIconListView_maximumIconCount, (IMP *)&orig_SBIconListView_maximumIconCount);
-            SafeSwizzle(iconListViewClass, @selector(layoutInsetsForOrientation:), @selector(duodock_layoutInsetsForOrientation:), (IMP)custom_SBIconListView_layoutInsetsForOrientation, (IMP *)&orig_SBIconListView_layoutInsetsForOrientation);
+            SafeSwizzle(iconListViewClass, @selector(maximumIconCount), (IMP)custom_SBIconListView_maximumIconCount, (IMP *)&orig_SBIconListView_maximumIconCount);
+            SafeSwizzle(iconListViewClass, @selector(layoutInsetsForOrientation:), (IMP)custom_SBIconListView_layoutInsetsForOrientation, (IMP *)&orig_SBIconListView_layoutInsetsForOrientation);
         }
         
-        // Swizzle SBFloatingDockView (Vô hiệu hóa an toàn FloatingDockXVI)
+        // Swizzle SBFloatingDockView (Vô hiệu hóa an toàn FloatingDockXVI mà không cướp touch)
         Class floatDockClass = objc_getClass("SBFloatingDockView");
         if (floatDockClass) {
-            SafeSwizzle(floatDockClass, @selector(layoutSubviews), @selector(duodock_floating_layoutSubviews), (IMP)custom_SBFloatingDockView_layoutSubviews, (IMP *)&orig_SBFloatingDockView_layoutSubviews);
-            SafeSwizzle(floatDockClass, @selector(hitTest:withEvent:), @selector(duodock_floating_hitTest:withEvent:), (IMP)custom_SBFloatingDockView_hitTest, (IMP *)&orig_SBFloatingDockView_hitTest);
+            SafeSwizzle(floatDockClass, @selector(layoutSubviews), (IMP)custom_SBFloatingDockView_layoutSubviews, (IMP *)&orig_SBFloatingDockView_layoutSubviews);
         }
     }
 }

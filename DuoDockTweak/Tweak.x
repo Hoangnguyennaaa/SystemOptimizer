@@ -219,8 +219,6 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
         if (@available(iOS 13.0, *)) {
             self.layer.cornerCurve = kCACornerCurveContinuous;
         }
-        self.layer.masksToBounds = NO;
-        self.clipsToBounds = NO;
         
         // Viền sáng viên thuốc
         if (kDockBorderEnabled) {
@@ -291,15 +289,6 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
     } @catch (NSException *e) {}
 }
 
-- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
-    if (kEnabled) {
-        if (!CGRectContainsPoint(self.bounds, point)) {
-            return nil;
-        }
-    }
-    return %orig;
-}
-
 %end
 
 %hook SBRootFolderView
@@ -353,17 +342,10 @@ static void applyVerticalIconLayout(UIView *containerView, CGFloat dockW, CGFloa
     if (kEnabled) {
         self.hidden = YES;
         self.alpha = 0.0;
-        self.frame = CGRectZero;
+        self.userInteractionEnabled = NO;
         return;
     }
     %orig;
-}
-
-- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
-    if (kEnabled) {
-        return nil;
-    }
-    return %orig;
 }
 
 %end

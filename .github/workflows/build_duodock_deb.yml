@@ -71,21 +71,21 @@ jobs:
         if: success()
         with:
           tag_name: duodock-latest
-          name: "DuoDock v1.0.1 Rootless DEB (Fix Respring & Deep Native Dock)"
+          name: "DuoDock v1.0.2 Rootless DEB (Fix Touch Freeze & Full Native Paging)"
           body: |
-            ### DuoDock v1.0.1 (Rootless iOS 15.0 - 15.8.x - iPhone 7 Plus & A10 Compatible)
-            - **Sửa triệt để tính năng Respring trong Cài đặt (Preferences.app)**:
-              + Bổ sung Filter `com.apple.Preferences` vào `DuoDock.plist` để hook trực tiếp action `respringPrompt:`, `respring:`, `resetToDefaults:` vào `PSListController`.
-              + Khi nhấn Respring trong Cài đặt, hộp thoại xác nhận lập tức xuất hiện và gửi Darwin Notification `com.hoangnguyen.duodock/respring` để SpringBoard tự reload ngay lập tức mà không bị sandbox chặn.
-            - **Bổ sung tính năng tinh chỉnh sâu thanh Dock gốc (`SBDockView`)**:
-              + **Vị trí bám mép màn hình**: Tùy chọn **Cạnh Trái** hoặc **Cạnh Phải**. Lưới icon màn hình chính tự động lùi lề tương ứng để chống đè dock.
-              + **Tùy chỉnh số lượng icon trên Dock**: Chọn từ 2 đến 8 icon, tự động co dãn khoảng cách (Auto slot scale) chống đè và chống tràn icon.
-              + **Phong cách nền kính Dock**: 4 kiểu nền kính mờ cao cấp (**Kính Tối**, **Kính Sáng**, **Siêu Mỏng**, **Trong Suốt**) cùng thanh trượt chỉnh độ mờ (`dockBlurAlpha`).
-              + **Đổ bóng 3D nổi khối**: Tối ưu vector `shadowPath` cho GPU render trực tiếp, mượt mà 120Hz.
-              + **Viền sáng viên thuốc**: Tùy chỉnh bật/tắt và độ dày viền (`borderWidth`).
-              + **Ẩn nhãn tên ứng dụng trên Dock**: Giúp thanh Dock dọc tối giản, gọn gàng.
-              + **Kích thước & Bo góc viên thuốc**: Chiều rộng, chiều cao, lề mép, vị trí dọc, độ bo góc capsule.
-              + **Vô hiệu hóa an toàn FloatingDockXVI**: Tự động ẩn FloatingDockXVI khi DuoDock hoạt động để ưu tiên hoàn toàn Dock gốc độc lập, chống xung đột 2 dock đè lên nhau.
+            ### DuoDock v1.0.2 (Rootless iOS 15.0 - 15.8.x - iPhone 7 Plus & A10 Compatible)
+            - **Khắc phục triệt để lỗi đơ cảm ứng màn hình chính (Fix Touch Freeze)**:
+              + **Nguyên nhân**: Việc swizzle `hitTest:withEvent:` trên `SBDockView` và `SBFloatingDockView` đã làm tráo đổi nhầm implementation `hitTest:` của lớp cha `UIView` trong toàn bộ tiến trình SpringBoard, khiến tất cả các view trên màn hình chính trả về `nil` khi nhận cảm ứng (chỉ có AssistiveTouch ở tiến trình riêng biệt còn di chuyển được).
+              + **Xử lý**: Loại bỏ hoàn toàn tất cả các hook trên `hitTest:withEvent:`. Kích thước `SBDockView` được định dạng chính xác 74x320pt, toàn bộ không gian còn lại trên màn hình tự động chuyển tiếp cảm ứng mượt mà 100% đến trang cuộn icon và hình nền theo cơ chế mặc định của UIKit.
+              + Cải tiến `SafeSwizzle` chuẩn xác để bảo vệ toàn vẹn các class cha của hệ thống (`UIView`), tuyệt đối không làm ô nhiễm bảng method toàn cục.
+            - **Bảo lưu đầy đủ các tính năng tinh chỉnh sâu Dock gốc (`SBDockView`)**:
+              + Tùy chọn vị trí Dock: Cạnh Trái hoặc Cạnh Phải (lưới icon tự động lùi lề tương ứng).
+              + Tùy chỉnh số lượng icon trên Dock (2 đến 8 icon) với cơ chế Auto slot scale.
+              + 4 phong cách nền kính mờ: Kính Tối, Kính Sáng, Siêu Mỏng, Trong Suốt cùng thanh trượt độ mờ.
+              + Đổ bóng nổi khối 3D với vector `shadowPath` GPU mượt mà 120Hz.
+              + Viền sáng viên thuốc với thanh trượt chỉnh độ dày viền.
+              + Ẩn nhãn tên ứng dụng trên Dock.
+              + Nút Khởi động lại SpringBoard (Respring) và Khôi phục cài đặt mặc định hoạt động ngay trong Cài đặt.
             - Tương thích Dopamine, Sileo, Zebra, kiến trúc `iphoneos-arm64`.
           files: "DuoDock_rootless.deb"
 
