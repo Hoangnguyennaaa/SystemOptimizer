@@ -2108,9 +2108,13 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         default: { // Mode 0: Dynamic / Adaptive theo nền màn hình
             tintColor = self.adaptiveTintColor;
             if (!tintColor) {
-                if (self.window && @available(iOS 12.0, *)) {
-                    BOOL isDarkUI = (self.window.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
-                    tintColor = isDarkUI ? [UIColor whiteColor] : [UIColor blackColor];
+                if (@available(iOS 12.0, *)) {
+                    if (self.window) {
+                        BOOL isDarkUI = (self.window.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
+                        tintColor = isDarkUI ? [UIColor whiteColor] : [UIColor blackColor];
+                    } else {
+                        tintColor = [UIColor whiteColor];
+                    }
                 } else {
                     tintColor = [UIColor whiteColor];
                 }
@@ -2127,7 +2131,8 @@ static void executeAction(int actionCode, CompactStatusView *view) {
         CGFloat cw = 1;
         if ([tintColor getWhite:&cw alpha:&ca]) lum = cw;
     }
-    BOOL isDarkText = (lum < 0.5f);
+    BOOL isDark = (lum < 0.5f);
+    BOOL isDarkText = isDark;
 
     UIColor *activeColor = tintColor;
     UIColor *inactiveColor = isDarkText ? [UIColor colorWithWhite:0.0 alpha:0.25] : [UIColor colorWithWhite:1.0 alpha:0.28];
@@ -2325,7 +2330,7 @@ static void executeAction(int actionCode, CompactStatusView *view) {
                 _chargingBoltLayer.fillColor = batteryArcColor.CGColor;
             } else {
                 // Dang dung mang di dong: Hien thi the he mang (5G, 4G, LTE) o tam de gauge khong bi trong hoc rong
-                NSString *netType = getCellularNetworkType();
+                NSString *netType = getRealCellularDataTech();
                 if (netType && netType.length > 0) {
                     _centerLabel.hidden = NO;
                     _centerLabel.text = netType;
